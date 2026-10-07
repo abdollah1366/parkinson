@@ -1,0 +1,55 @@
+package com.example.parkinson.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.example.parkinson.R
+import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.ui.theme.MedicalSuccess
+import com.example.parkinson.ui.theme.MedicalSuccessContainer
+import com.example.parkinson.ui.theme.MedicalWarningContainer
+
+@Composable
+fun handLabel(hand: SelectedHand): String = stringResource(
+    if (hand == SelectedHand.LEFT) R.string.hand_left else R.string.hand_right
+)
+
+@Composable
+fun qualityLabel(status: QualityStatus): String = stringResource(
+    when (status) {
+        QualityStatus.VALID -> R.string.label_quality_valid
+        QualityStatus.LOW_QUALITY -> R.string.label_quality_low
+        QualityStatus.INSUFFICIENT_DATA -> R.string.label_quality_insufficient
+        QualityStatus.INVALID -> R.string.label_quality_invalid
+    }
+)
+
+/** Small pill showing the recording quality. Text is always shown, so color is never the only cue. */
+@Composable
+fun QualityChip(status: QualityStatus, modifier: Modifier = Modifier) {
+    val (background, foreground) = when (status) {
+        QualityStatus.VALID -> MedicalSuccessContainer to MedicalSuccess
+        QualityStatus.LOW_QUALITY -> MedicalWarningContainer to Color(0xFF7A5300)
+        else -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
+    }
+    Text(
+        text = stringResource(R.string.label_quality, qualityLabel(status)),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = foreground,
+        modifier = modifier
+            .clip(CircleShape)
+            .background(background)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    )
+}

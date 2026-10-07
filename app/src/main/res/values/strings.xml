@@ -88,13 +88,93 @@
     <string name="tip_hand_in_frame">دست کاملاً داخل کادر باشد.</string>
     <string name="tip_selected_hand_only">فقط دست انتخاب‌شده در تصویر باشد.</string>
 
-    <string name="privacy_camera_note">تصویر دوربین فقط برای انجام ارزیابی حرکتی استفاده می‌شود.</string>
-    <string name="btn_prepare_test">آماده‌سازی آزمون</string>
+    <string name="privacy_camera_note">تصویر دوربین فقط برای انجام ارزیابی حرکتی استفاده می‌شود و ذخیره نمی‌شود.</string>
 
-    <!-- Camera Placeholder Screen -->
-    <string name="placeholder_title">آزمون آماده اجراست</string>
-    <string name="placeholder_subtitle">در مرحله بعد تشخیص حرکت انگشت‌ها (MediaPipe) به این بخش اضافه خواهد شد.</string>
-    <string name="btn_return_home">بازگشت به صفحه اصلی</string>
+    <!-- Test session -->
+    <string name="btn_start_test">شروع آزمون</string>
+    <string name="btn_test_running">آزمون در حال انجام است…</string>
+    <string name="session_countdown">آماده باشید… %1$s</string>
+    <string name="session_recording">⏱ %1$s ثانیه  •  ضربه‌ها: %2$s</string>
+    <string name="session_processing">در حال پردازش…</string>
+
+    <!-- Result Screen -->
+    <string name="result_title">ارزیابی Finger Tapping</string>
+    <string name="result_tap_count">تعداد ضربه</string>
+    <string name="result_tap_count_value">%1$s ضربه در %2$s ثانیه</string>
+    <string name="result_tap_rate">سرعت ضربه</string>
+    <string name="result_tap_rate_value">%1$s ضربه در ثانیه</string>
+    <string name="result_tap_rate_desc">میانگین تعداد ضربه‌ها در هر ثانیه.</string>
+    <string name="result_rhythm">ریتم حرکت</string>
+    <string name="result_rhythm_value">تغییرپذیری فاصله ضربه‌ها: %1$s٪</string>
+    <string name="result_rhythm_desc">هرچه این عدد کمتر باشد، فاصله زمانی ضربه‌ها یکنواخت‌تر بوده است.</string>
+    <string name="result_amplitude">دامنه حرکت</string>
+    <string name="result_amplitude_value">میانگین باز شدن انگشتان: %1$s٪ اندازه کف دست</string>
+    <string name="result_amplitude_desc">فاصله نوک شست و اشاره در بیشترین باز شدن، نسبت به اندازه کف دست.</string>
+    <string name="result_consistency">پایداری حرکت</string>
+    <string name="result_consistency_value">%1$s از ۱۰۰</string>
+    <string name="result_consistency_desc">یکنواختی سرعت و دامنه ضربه‌ها در طول آزمون؛ هرچه بیشتر، یکنواخت‌تر.</string>
+    <string name="result_trend">روند دامنه حرکت</string>
+    <string name="result_trend_value">تغییر از ابتدا تا انتهای آزمون: %1$s٪</string>
+    <string name="result_trend_desc">مقدار منفی یعنی دامنه حرکت در انتهای آزمون کمتر از ابتدای آن اندازه‌گیری شده است. این یک اندازه‌گیری است و به‌تنهایی معنای بالینی ندارد.</string>
+    <string name="result_quality">کیفیت ثبت</string>
+    <string name="result_quality_valid">مناسب</string>
+    <string name="result_quality_low">متوسط؛ نتایج را با احتیاط در نظر بگیرید.</string>
+    <string name="result_quality_value">%1$s (%2$s از ۱۰۰)</string>
+    <string name="result_score">امتیاز عملکرد حرکتی</string>
+    <string name="result_score_value">%1$s از ۱۰۰</string>
+    <string name="result_score_note">شاخص مهندسی اولیه برای مقایسه شما با ارزیابی‌های قبلی خودتان؛ از نظر بالینی اعتبارسنجی نشده است.</string>
+    <string name="result_score_unavailable">به دلیل کیفیت ناکافی ثبت، امتیاز محاسبه نشد.</string>
+    <string name="result_not_measurable">قابل اندازه‌گیری نبود</string>
+    <string name="result_disclaimer">این نتایج صرفاً برای ارزیابی و پایش عملکرد حرکتی هستند و به‌تنهایی تشخیص پزشکی محسوب نمی‌شوند.</string>
+    <string name="result_details_show">نمایش جزئیات فنی (برای پزشک)</string>
+    <string name="result_details_hide">پنهان کردن جزئیات فنی</string>
+    <string name="result_loading">در حال بارگذاری…</string>
+    <string name="result_not_found">این ارزیابی پیدا نشد.</string>
+    <string name="btn_repeat_assessment">ارزیابی مجدد</string>
+    <string name="btn_new_assessment">ارزیابی جدید</string>
+    <string name="btn_back_home">بازگشت به خانه</string>
+
+    <!-- Invalid Result Screen -->
+    <string name="invalid_title">نتیجه‌ای ثبت نشد</string>
+    <string name="invalid_headline">کیفیت ثبت اطلاعات برای محاسبه نتیجه کافی نبود.</string>
+    <string name="invalid_interrupted">آزمون پیش از پایان قطع شد (خروج از برنامه، چرخش صفحه یا قفل شدن گوشی). نتیجه ناقص ذخیره نمی‌شود.</string>
+    <string name="invalid_insufficient_frames">دوربین در بخش زیادی از آزمون، دست را به‌خوبی ثبت نکرد.</string>
+    <string name="invalid_excessive_dropout">دست برای مدت طولانی از دید دوربین خارج شد.</string>
+    <string name="invalid_no_hand">دستی در تصویر دیده نشد.</string>
+    <string name="invalid_wrong_hand">دستی که مقابل دوربین بود با دست انتخاب‌شده یکسان نبود.</string>
+    <string name="invalid_multiple_hands">بیش از یک دست در تصویر دیده شد.</string>
+    <string name="invalid_too_short">مدت ثبت از ۱۰ ثانیه کوتاه‌تر بود.</string>
+    <string name="invalid_unstable_tracking">ردیابی دست در طول آزمون پایدار نبود.</string>
+    <string name="invalid_low_fps">سرعت پردازش تصویر در این گوشی برای اندازه‌گیری دقیق کافی نبود.</string>
+    <string name="invalid_no_tapping">حرکت ضربه زدن انگشتان تشخیص داده نشد.</string>
+    <string name="invalid_too_few_taps">تعداد ضربه‌های ثبت‌شده برای محاسبه نتیجه کافی نبود.</string>
+    <string name="invalid_camera_error">دوربین در طول آزمون متوقف شد یا در دسترس نبود.</string>
+    <string name="invalid_tracking_error">سامانه تشخیص دست به‌درستی کار نکرد.</string>
+    <string name="invalid_storage_error">ذخیره نتیجه با خطا مواجه شد.</string>
+    <string name="invalid_unexpected_error">خطای پیش‌بینی‌نشده‌ای رخ داد.</string>
+    <string name="invalid_tip_hand_in_frame">لطفاً دست را در محدوده دوربین نگه دارید و دوباره تلاش کنید.</string>
+    <string name="invalid_tip_interrupted">لطفاً تا پایان ۱۰ ثانیه در همین صفحه بمانید و گوشی را نچرخانید.</string>
+    <string name="invalid_tip_wrong_hand">لطفاً همان دستی را که انتخاب کرده‌اید مقابل دوربین قرار دهید.</string>
+    <string name="invalid_tip_multiple_hands">لطفاً فقط یک دست را مقابل دوربین قرار دهید.</string>
+    <string name="invalid_tip_stable">گوشی را ثابت نگه دارید و فاصله دست تا دوربین را تغییر ندهید.</string>
+    <string name="invalid_tip_light">نور محیط را بیشتر کنید و برنامه‌های دیگر را ببندید.</string>
+    <string name="invalid_tip_tapping">نوک انگشت شست و اشاره را به‌طور کامل باز و بسته کنید و در تمام ۱۰ ثانیه ادامه دهید.</string>
+    <string name="invalid_tip_camera">لطفاً دوباره تلاش کنید. اگر مشکل ادامه داشت، برنامه را ببندید و دوباره باز کنید.</string>
+    <string name="invalid_tip_storage">لطفاً از کافی بودن فضای خالی گوشی مطمئن شوید و دوباره تلاش کنید.</string>
+
+    <!-- History -->
+    <string name="history_title">تاریخچه ارزیابی‌ها</string>
+    <string name="history_empty">هنوز ارزیابی‌ای ذخیره نشده است.</string>
+    <string name="history_item_taps">%1$s ضربه • %2$s ضربه در ثانیه</string>
+    <string name="history_item_score">امتیاز: %1$s</string>
+    <string name="history_item_no_score">بدون امتیاز</string>
+    <string name="btn_view_history">مشاهده تاریخچه</string>
+    <string name="btn_view_result">مشاهده نتیجه</string>
+    <string name="label_quality">کیفیت ثبت: %1$s</string>
+    <string name="label_quality_valid">مناسب</string>
+    <string name="label_quality_low">متوسط</string>
+    <string name="label_quality_insufficient">ناکافی</string>
+    <string name="label_quality_invalid">نامعتبر</string>
 
     <!-- Accessibility Descriptions -->
     <string name="cd_app_logo">لوگوی پایش حرکتی</string>

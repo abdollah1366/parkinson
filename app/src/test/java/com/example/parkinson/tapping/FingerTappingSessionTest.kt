@@ -1,105 +1,243 @@
 package com.example.parkinson.tapping
 
-import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.mediapipe.HandLandmark
+import com.example.parkinson.mediapipe.HandLandmarkIndex
 import com.example.parkinson.mediapipe.HandSide
 import com.example.parkinson.mediapipe.HandTrackingResult
-import kotlinx.coroutines.CoroutineScope
+import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.tapping.quality.QualityIssue
+import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.tapping.result.FingerTappingAssessment
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
 
+/**
+ * Session state machine on virtual time (kotlinx-coroutines-test): no real sleeps, deterministic.
+ * Frames are synthetic MediaPipe results pushed every 33 ms of virtual time.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FingerTappingSessionTest {
 
-    @Before
-    fun disableDiagnostics() {
-        // android.util.Log is not available in JVM unit tests.
-        TapDiagnostics.enabled = false
+    private val saved = mutableListOf<FingerTappingAssessment>()
+
+    private fun TestScope.newSession(onCompleted: suspend (FingerTappingAssessment) -> Unit = { saved += it }) =
+        FingerTappingSession(
+            scope = backgroundScope,
+            clock = { testScheduler.currentTime },
+            wallClock = { 1_700_000_000_000L },
+            newAssessmentId = { "assessment-1" },
+            processingDispatcher = StandardTestDispatcher(testScheduler),
+            onCompleted = onCompleted
+        )
+
+    /** Thumb-index opening of [ratio] palm sizes in a 100 x 100 image. */
+    private fun hand(ts: Long, ratio: Double): HandTrackingResult {
+        val lm = MutableList(HandLandmarkIndex.COUNT) { HandLandmark(it, 0.5f, 0.5f, 0f) }
+        lm[HandLandmarkIndex.WRIST] = HandLandmark(0, 0.5f, 0.9f, 0f)
+        lm[HandLandmarkIndex.INDEX_FINGER_MCP] = HandLandmark(5, 0.45f, 0.6f, 0f)
+        lm[HandLandmarkIndex.MIDDLE_FINGER_MCP] = HandLandmark(9, 0.5f, 0.6f, 0f)
+        lm[HandLandmarkIndex.PINKY_MCP] = HandLandmark(17, 0.55f, 0.6f, 0f)
+        // Palm scale for these points is ~25.2 px.
+        val half = (ratio * 25.2 / 100.0 / 2.0).toFloat()
+        lm[HandLandmarkIndex.THUMB_TIP] = HandLandmark(4, 0.5f - half, 0.4f, 0f)
+        lm[HandLandmarkIndex.INDEX_FINGER_TIP] = HandLandmark(8, 0.5f + half, 0.4f, 0f)
+        return HandTrackingResult.HandDetected(ts, lm, HandSide.RIGHT, 0.95f, 100, 100)
     }
 
-    private val startNs = System.nanoTime()
-    private fun now(): Long = (System.nanoTime() - startNs) / 1_000_000
+    private fun tapping3Hz(ts: Long) = hand(ts, 0.08 + 0.9 * (1 - cos(2 * PI * 3.0 * ts / 1000.0)) / 2)
 
-    private fun session(scope: CoroutineScope) = FingerTappingSession(
-        scope = scope,
-        clock = ::now,
-        countdownMs = 100L,
-        recordingMs = 1_500L,
-        lateFrameGraceMs = 20L,
-        tickMs = 10L
-    )
-
-    /** opening = thumb-index distance / wrist-middleMcp distance (both 40 px here when open). */
-    private fun frame(ts: Long, open: Boolean): HandTrackingResult {
-        val landmarks = List(21) { HandLandmark(it, 0.5f, 0.5f, 0f) }.toMutableList()
-        landmarks[0] = HandLandmark(0, 0.5f, 0.9f, 0f)                      // wrist
-        landmarks[4] = HandLandmark(4, if (open) 0.3f else 0.5f, 0.5f, 0f)  // thumb tip
-        landmarks[8] = HandLandmark(8, if (open) 0.7f else 0.5f, 0.5f, 0f)  // index tip
-        return HandTrackingResult.HandDetected(ts, landmarks, HandSide.RIGHT, 0.9f, 100, 100)
-    }
-
-    /** Feeds open/closed cycles (one tap per cycle) until [until] returns true. */
-    private suspend fun tapUntil(session: FingerTappingSession, until: (SessionState) -> Boolean) {
-        var i = 0
-        while (!until(session.state.value)) {
-            session.onTrackingResult(frame(now(), open = (i / 3) % 2 == 0))
-            i++
-            delay(5)
+    /** Pushes a result every 33 ms of virtual time until [untilMs]. */
+    private fun TestScope.feed(
+        session: FingerTappingSession,
+        untilMs: Long,
+        result: (Long) -> HandTrackingResult = ::tapping3Hz
+    ) {
+        backgroundScope.launch {
+            while (testScheduler.currentTime <= untilMs) {
+                session.onTrackingResult(result(testScheduler.currentTime))
+                delay(33)
+            }
         }
     }
 
     @Test
-    fun completedRecordingProducesResult() = runBlocking {
-        val s = session(this)
-        s.start()
-        yield()
-        assertTrue(s.state.value is SessionState.Countdown)
+    fun completedRecordingIsAnalyzedSavedAndDone() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000)
+        session.start(SelectedHand.LEFT)
+        runCurrent()
+        assertTrue(session.state.value is SessionState.Countdown)
 
-        tapUntil(s) { it is SessionState.Processing || !it.isActive }
-        while (s.state.value.isActive) delay(5)
+        advanceTimeBy(3_100)
+        assertTrue(session.state.value is SessionState.Recording)
 
-        val state = s.state.value
+        advanceTimeBy(11_000)
+        runCurrent()
+        val state = session.state.value
         assertTrue("expected Done, was $state", state is SessionState.Done)
-        assertTrue((state as SessionState.Done).outcome.metrics.tapCount >= 5)
+        val a = (state as SessionState.Done).assessment
+        assertTrue("taps ${a.tapCount}", abs(a.tapCount - 30) <= 1)
+        assertEquals(QualityStatus.VALID, a.qualityStatus)
+        assertEquals("assessment-1", a.assessmentId)
+        assertEquals(1_700_000_000_000L, a.timestampEpochMs)
+        assertEquals(SelectedHand.LEFT, a.hand)
+        assertEquals(10_000L, a.recordingDurationMs)
+        assertEquals(listOf(a), saved)
     }
 
     @Test
-    fun framesDuringCountdownAreIgnored() = runBlocking {
-        val s = session(this)
-        s.start()
-        yield()
-        tapUntil(s) { it !is SessionState.Countdown }
-        assertEquals(0, s.tapCount.value)
-        s.reset()
+    fun countdownFramesAreNotRecordedAndLiveCountRuns() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(2_900)
+        assertTrue(session.state.value is SessionState.Countdown)
+        assertEquals(0, session.liveTapCount.value)
+
+        advanceTimeBy(5_100)
+        assertTrue(session.state.value is SessionState.Recording)
+        assertTrue("live ${session.liveTapCount.value}", session.liveTapCount.value in 10..17)
+        session.reset()
     }
 
     @Test
-    fun abortDuringRecordingNeverProducesResult() = runBlocking {
-        val s = session(this)
-        s.start()
-        yield()
-        tapUntil(s) { it is SessionState.Recording && s.tapCount.value >= 3 }
+    fun abortDuringRecordingNeverProducesResult() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 20_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(6_000)
+        assertTrue(session.state.value is SessionState.Recording)
 
-        s.abort()
-        assertEquals(SessionState.Invalid(SessionInvalidReason.Interrupted, null), s.state.value)
+        session.abort()
+        val interrupted = SessionState.Invalid(SessionInvalidReason.Interrupted)
+        assertEquals(interrupted, session.state.value)
 
-        // Late frames and the cancelled timer must not change the outcome.
-        repeat(10) { s.onTrackingResult(frame(now(), open = it % 2 == 0)) }
-        delay(2_000)
-        assertEquals(SessionState.Invalid(SessionInvalidReason.Interrupted, null), s.state.value)
-        assertEquals(0, s.tapCount.value)
+        advanceTimeBy(15_000)
+        assertEquals(interrupted, session.state.value)
+        assertEquals(0, session.liveTapCount.value)
+        assertTrue(saved.isEmpty())
     }
 
     @Test
-    fun noFramesIsInvalid() = runBlocking {
-        val s = session(this)
-        s.start()
-        while (s.state.value == SessionState.Idle || s.state.value.isActive) delay(5)
-        val state = s.state.value
-        assertTrue("expected Invalid, was $state", state is SessionState.Invalid)
+    fun noFramesIsFrameStarvation() = runTest {
+        val session = newSession()
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(5_000)
+        assertEquals(SessionState.Error(SessionError.FRAME_STARVATION), session.state.value)
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun cameraStallDuringRecordingIsFrameStarvation() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 6_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(9_000)
+        assertEquals(SessionState.Error(SessionError.FRAME_STARVATION), session.state.value)
+    }
+
+    @Test
+    fun repeatedMediaPipeErrorsAreTrackingFailure() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 20_000) { HandTrackingResult.Error(it, "model failed") }
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(2_000)
+        assertEquals(SessionState.Error(SessionError.TRACKING_FAILURE), session.state.value)
+    }
+
+    @Test
+    fun noHandIsRejectedByQualityControl() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000) { HandTrackingResult.NoHandDetected(it) }
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        val state = session.state.value
+        assertTrue("was $state", state is SessionState.Invalid)
+        val reason = (state as SessionState.Invalid).reason as SessionInvalidReason.QualityRejected
+        assertEquals(QualityIssue.NO_HAND_DETECTED, reason.report.primaryIssue)
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun wrongHandIsRejectedByQualityControl() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000) { HandTrackingResult.WrongHandDetected(it, HandSide.RIGHT, HandSide.LEFT) }
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        val reason = (session.state.value as SessionState.Invalid).reason as SessionInvalidReason.QualityRejected
+        assertEquals(QualityIssue.WRONG_HAND, reason.report.primaryIssue)
+    }
+
+    @Test
+    fun storageFailureIsAnErrorNotAResult() = runTest {
+        val session = newSession(onCompleted = { throw IllegalStateException("disk full") })
+        feed(session, untilMs = 14_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        assertEquals(SessionState.Error(SessionError.STORAGE_FAILURE), session.state.value)
+    }
+
+    @Test
+    fun cameraFailureDuringRecordingEndsSession() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 20_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(5_000)
+        session.fail(SessionError.CAMERA_FAILURE)
+        assertEquals(SessionState.Error(SessionError.CAMERA_FAILURE), session.state.value)
+        advanceTimeBy(15_000)
+        assertEquals(SessionState.Error(SessionError.CAMERA_FAILURE), session.state.value)
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun startWhileActiveIsIgnoredAndResetReturnsToIdle() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 20_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(4_000)
+        val before = session.state.value
+        session.start(SelectedHand.LEFT)
+        runCurrent()
+        assertTrue(before is SessionState.Recording)
+        assertTrue(session.state.value is SessionState.Recording)
+
+        session.reset()
+        assertEquals(SessionState.Idle, session.state.value)
+        assertEquals(0, session.liveTapCount.value)
+        session.abort()
+        assertEquals("abort is a no-op when idle", SessionState.Idle, session.state.value)
+    }
+
+    @Test
+    fun sessionCanBeRepeatedAfterAResult() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 30_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        assertTrue(session.state.value is SessionState.Done)
+
+        session.reset()
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        assertTrue(session.state.value is SessionState.Done)
+        assertEquals(2, saved.size)
     }
 }

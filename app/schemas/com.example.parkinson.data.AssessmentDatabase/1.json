@@ -1,0 +1,291 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "cc996186b64c3ac0ca8da7cc2b0afd87",
+    "entities": [
+      {
+        "tableName": "finger_tapping_assessments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`assessmentId` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `hand` TEXT NOT NULL, `plannedDurationMs` INTEGER NOT NULL, `recordingDurationMs` INTEGER NOT NULL, `tapCount` INTEGER NOT NULL, `tapRateHz` REAL NOT NULL, `tapsPer10Seconds` REAL NOT NULL, `meanIntervalMs` REAL, `medianIntervalMs` REAL, `intervalSdMs` REAL, `intervalCvPercent` REAL, `tapToTapVariabilityPercent` REAL, `pauseCount` INTEGER NOT NULL, `meanAmplitude` REAL, `medianAmplitude` REAL, `amplitudeSd` REAL, `amplitudeCvPercent` REAL, `minAmplitude` REAL, `maxAmplitude` REAL, `meanTapDurationMs` REAL, `amplitudeEarly` REAL, `amplitudeMiddle` REAL, `amplitudeLate` REAL, `amplitudeTrendPercent` REAL, `rateEarlyHz` REAL, `rateLateHz` REAL, `rateTrendPercent` REAL, `movementConsistencyPercent` REAL, `fps` REAL NOT NULL, `validFramePercent` REAL NOT NULL, `dropoutCount` INTEGER NOT NULL, `dropoutDurationMs` INTEGER NOT NULL, `longestDropoutMs` INTEGER NOT NULL, `recordingCompletenessPercent` REAL NOT NULL, `qualityStatus` TEXT NOT NULL, `qualityIssues` TEXT NOT NULL, `qualityScore` INTEGER NOT NULL, `scoreTotal` INTEGER, `scoreRate` INTEGER, `scoreRhythm` INTEGER, `scoreAmplitude` INTEGER, `scoreAmplitudeTrend` INTEGER, `scoreConsistency` INTEGER, `scoreDataQuality` INTEGER, `algorithmVersion` TEXT NOT NULL, `scoringVersion` TEXT NOT NULL, PRIMARY KEY(`assessmentId`))",
+        "fields": [
+          {
+            "fieldPath": "assessmentId",
+            "columnName": "assessmentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampEpochMs",
+            "columnName": "timestampEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hand",
+            "columnName": "hand",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedDurationMs",
+            "columnName": "plannedDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordingDurationMs",
+            "columnName": "recordingDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tapCount",
+            "columnName": "tapCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tapRateHz",
+            "columnName": "tapRateHz",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tapsPer10Seconds",
+            "columnName": "tapsPer10Seconds",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meanIntervalMs",
+            "columnName": "meanIntervalMs",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "medianIntervalMs",
+            "columnName": "medianIntervalMs",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "intervalSdMs",
+            "columnName": "intervalSdMs",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "intervalCvPercent",
+            "columnName": "intervalCvPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "tapToTapVariabilityPercent",
+            "columnName": "tapToTapVariabilityPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "pauseCount",
+            "columnName": "pauseCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meanAmplitude",
+            "columnName": "meanAmplitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "medianAmplitude",
+            "columnName": "medianAmplitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeSd",
+            "columnName": "amplitudeSd",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeCvPercent",
+            "columnName": "amplitudeCvPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "minAmplitude",
+            "columnName": "minAmplitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "maxAmplitude",
+            "columnName": "maxAmplitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "meanTapDurationMs",
+            "columnName": "meanTapDurationMs",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeEarly",
+            "columnName": "amplitudeEarly",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeMiddle",
+            "columnName": "amplitudeMiddle",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeLate",
+            "columnName": "amplitudeLate",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amplitudeTrendPercent",
+            "columnName": "amplitudeTrendPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rateEarlyHz",
+            "columnName": "rateEarlyHz",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rateLateHz",
+            "columnName": "rateLateHz",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rateTrendPercent",
+            "columnName": "rateTrendPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "movementConsistencyPercent",
+            "columnName": "movementConsistencyPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "fps",
+            "columnName": "fps",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validFramePercent",
+            "columnName": "validFramePercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dropoutCount",
+            "columnName": "dropoutCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dropoutDurationMs",
+            "columnName": "dropoutDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longestDropoutMs",
+            "columnName": "longestDropoutMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordingCompletenessPercent",
+            "columnName": "recordingCompletenessPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityStatus",
+            "columnName": "qualityStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityIssues",
+            "columnName": "qualityIssues",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityScore",
+            "columnName": "qualityScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreTotal",
+            "columnName": "scoreTotal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreRate",
+            "columnName": "scoreRate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreRhythm",
+            "columnName": "scoreRhythm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreAmplitude",
+            "columnName": "scoreAmplitude",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreAmplitudeTrend",
+            "columnName": "scoreAmplitudeTrend",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreConsistency",
+            "columnName": "scoreConsistency",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreDataQuality",
+            "columnName": "scoreDataQuality",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "algorithmVersion",
+            "columnName": "algorithmVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoringVersion",
+            "columnName": "scoringVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "assessmentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_finger_tapping_assessments_timestampEpochMs",
+            "unique": false,
+            "columnNames": [
+              "timestampEpochMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_finger_tapping_assessments_timestampEpochMs` ON `${TABLE_NAME}` (`timestampEpochMs`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cc996186b64c3ac0ca8da7cc2b0afd87')"
+    ]
+  }
+}

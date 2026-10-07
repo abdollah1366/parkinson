@@ -26,9 +26,9 @@ object TapDiagnostics {
     const val TAG = "FTDiag"
     const val GAP_WARN_MS = 100L
 
-    /** Set to false to silence all diagnostic output (also used by JVM unit tests). */
+    /** Off by default; ParkinsonApplication enables it only in debuggable builds. */
     @Volatile
-    var enabled = true
+    var enabled = false
 
     fun log(message: String) {
         if (enabled) Log.d(TAG, message)
