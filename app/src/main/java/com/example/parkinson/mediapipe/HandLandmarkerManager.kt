@@ -88,14 +88,21 @@ class HandLandmarkerManager(
 
             handLandmarker = HandLandmarker.createFromOptions(context.applicationContext, options)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create HandLandmarker", e)
-            publish(
-                HandTrackingResult.Error(
-                    SystemClock.uptimeMillis(),
-                    "Could not load the hand model ($modelAssetPath): ${e.message}"
-                )
-            )
+            onInitFailed(e)
+        } catch (e: LinkageError) {
+            // Native library missing or incompatible with the device ABI: report, don't crash.
+            onInitFailed(e)
         }
+    }
+
+    private fun onInitFailed(e: Throwable) {
+        Log.e(TAG, "Failed to create HandLandmarker", e)
+        publish(
+            HandTrackingResult.Error(
+                SystemClock.uptimeMillis(),
+                "Could not load the hand model ($modelAssetPath): ${e.message}"
+            )
+        )
     }
 
     /**
