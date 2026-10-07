@@ -1,5 +1,6 @@
 package com.example.parkinson.ui.format
 
+import android.annotation.SuppressLint
 import android.icu.text.SimpleDateFormat
 import android.icu.util.ULocale
 import java.text.NumberFormat
@@ -23,6 +24,7 @@ object PersianFormat {
         }.format(value)
 
     /** e.g. ۱۴۰۵/۰۷/۱۵ - ۱۴:۳۰ */
+    @SuppressLint("SimpleDateFormat") // The locale is explicit: fa_IR with the Persian calendar.
     fun dateTime(epochMs: Long): String =
         SimpleDateFormat("yyyy/MM/dd - HH:mm", ULocale("fa_IR@calendar=persian")).format(Date(epochMs))
 }
