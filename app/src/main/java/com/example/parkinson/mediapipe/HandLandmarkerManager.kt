@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.example.parkinson.camera.FrameAnalyzer
+import com.example.parkinson.diagnostics.TapDiagnostics
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
@@ -24,7 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *   // in your ImageAnalysis analyzer:
  *   manager.detect(imageProxy); imageProxy.close()
  *   // observe:
- *   manager.result.collect { ... }
+ *   manager.result.collect { ... }                 // UI only: StateFlow drops intermediate values
+ *   manager.resultListener = { result -> ... }     // every result, called on the MediaPipe thread
  *   // when the screen is destroyed:
  *   manager.close()
  */
@@ -42,6 +44,13 @@ class HandLandmarkerManager(
 
     private val _result = MutableStateFlow<HandTrackingResult>(HandTrackingResult.NoHandDetected(0L))
     val result: StateFlow<HandTrackingResult> = _result.asStateFlow()
+
+    /**
+     * Called synchronously for EVERY result, on the MediaPipe result thread (unlike [result],
+     * which conflates). Use this to feed anything that must not miss frames, e.g. the tapping engine.
+     */
+    @Volatile
+    var resultListener: ((HandTrackingResult) -> Unit)? = null
 
     /** The hand the user selected. null = accept any hand. */
     @Volatile
@@ -80,9 +89,11 @@ class HandLandmarkerManager(
             handLandmarker = HandLandmarker.createFromOptions(context.applicationContext, options)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create HandLandmarker", e)
-            _result.value = HandTrackingResult.Error(
-                SystemClock.uptimeMillis(),
-                "Could not load the hand model ($modelAssetPath): ${e.message}"
+            publish(
+                HandTrackingResult.Error(
+                    SystemClock.uptimeMillis(),
+                    "Could not load the hand model ($modelAssetPath): ${e.message}"
+                )
             )
         }
     }
@@ -109,12 +120,16 @@ class HandLandmarkerManager(
                 .setRotationDegrees(rotation)
                 .build()
 
-            landmarker.detectAsync(mpImage, processing, nextTimestamp())
+            val frameTs = nextTimestamp()
+            TapDiagnostics.onFrameAnalyzed(frameTs)
+            landmarker.detectAsync(mpImage, processing, frameTs)
         } catch (e: Exception) {
             Log.e(TAG, "detect failed", e)
-            _result.value = HandTrackingResult.Error(
-                SystemClock.uptimeMillis(),
-                e.message ?: "Unknown detection error"
+            publish(
+                HandTrackingResult.Error(
+                    SystemClock.uptimeMillis(),
+                    e.message ?: "Unknown detection error"
+                )
             )
         }
     }
@@ -135,8 +150,9 @@ class HandLandmarkerManager(
 
         val ts = handResult.timestampMs()
         val handsCount = handResult.landmarks().size
+        TapDiagnostics.onResultReceived(SystemClock.uptimeMillis(), ts)
 
-        _result.value = when {
+        val next = when {
             handsCount == 0 -> {
                 consecutiveMisses++
                 if (hadHand && consecutiveMisses >= trackingLostAfterFrames) {
@@ -156,12 +172,22 @@ class HandLandmarkerManager(
                 buildSingleHandResult(handResult, ts)
             }
         }
+        publish(next)
+    }
+
+    private fun publish(result: HandTrackingResult) {
+        _result.value = result
+        resultListener?.invoke(result)
     }
 
     private fun buildSingleHandResult(handResult: HandLandmarkerResult, ts: Long): HandTrackingResult {
         val category = handResult.handedness().firstOrNull()?.firstOrNull()
         val confidence = category?.score() ?: 0f
         val side = HandLandmarkMapper.toHandSide(category?.categoryName(), flipHandedness)
+        TapDiagnostics.log(
+            "HAND ts=$ts label=${category?.categoryName()} score=${TapDiagnostics.f(confidence, 3)} " +
+                "flip=$flipHandedness mapped=$side expected=$expectedHand"
+        )
 
         if (side == null || confidence < minHandednessScore) {
             return HandTrackingResult.LowConfidence(ts, confidence)
@@ -185,9 +211,11 @@ class HandLandmarkerManager(
 
     private fun onError(e: RuntimeException) {
         Log.e(TAG, "MediaPipe error", e)
-        _result.value = HandTrackingResult.Error(
-            SystemClock.uptimeMillis(),
-            e.message ?: "MediaPipe error"
+        publish(
+            HandTrackingResult.Error(
+                SystemClock.uptimeMillis(),
+                e.message ?: "MediaPipe error"
+            )
         )
     }
 
@@ -195,6 +223,7 @@ class HandLandmarkerManager(
     @Synchronized
     fun close() {
         closed = true
+        resultListener = null
         try {
             handLandmarker?.close()
         } catch (e: Exception) {

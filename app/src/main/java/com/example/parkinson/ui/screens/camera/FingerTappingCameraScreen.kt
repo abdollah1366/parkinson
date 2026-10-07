@@ -52,6 +52,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.parkinson.R
 import com.example.parkinson.camera.CameraController
@@ -62,11 +64,18 @@ import com.example.parkinson.mediapipe.HandLandmarkerManager
 import com.example.parkinson.mediapipe.HandSide
 import com.example.parkinson.mediapipe.HandTrackingResult
 import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.tapping.FingerTappingSession
+import com.example.parkinson.tapping.SessionInvalidReason
+import com.example.parkinson.tapping.SessionState
+import com.example.parkinson.tapping.isActive
+import com.example.parkinson.tapping.toPersianMessage
 import com.example.parkinson.ui.components.PrimaryButton
+import java.util.Locale
 
 @Composable
 fun FingerTappingCameraScreen(
     selectedHand: SelectedHand?,
+    session: FingerTappingSession,
     onNextClicked: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -81,6 +90,9 @@ fun FingerTappingCameraScreen(
         HandLandmarkerManager(context)
     }
     val trackingState by handLandmarkerManager.result.collectAsState()
+
+    val sessionState by session.state.collectAsState()
+    val liveTapCount by session.tapCount.collectAsState()
 
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
 
@@ -142,10 +154,29 @@ fun FingerTappingCameraScreen(
     }
 
     DisposableEffect(Unit) {
+        // Every MediaPipe result goes straight to the session (no frame-dropping StateFlow).
+        handLandmarkerManager.resultListener = session::onTrackingResult
         onDispose {
+            handLandmarkerManager.resultListener = null
+            // Rotation: the camera restarts, so a running session cannot continue -> INVALID.
+            // Leaving the screen: discard the session entirely.
+            if ((context as? Activity)?.isChangingConfigurations == true) {
+                session.abort()
+            } else {
+                session.reset()
+            }
             cameraController.releaseResources()
             handLandmarkerManager.close()
         }
+    }
+
+    // App sent to the background (home, lock screen, another app) during a session -> INVALID.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) session.abort()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Status / Guide message evaluation
@@ -341,6 +372,9 @@ fun FingerTappingCameraScreen(
                                 textAlign = TextAlign.Center
                             )
                         }
+
+                        // 4. Session overlay (countdown / recording / processing)
+                        SessionOverlay(sessionState = sessionState, tapCount = liveTapCount)
                     }
                 }
             }
@@ -379,6 +413,11 @@ fun FingerTappingCameraScreen(
                 }
             }
 
+            if (sessionState is SessionState.Done || sessionState is SessionState.Invalid) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SessionResultCard(sessionState = sessionState)
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Privacy Note
@@ -394,12 +433,98 @@ fun FingerTappingCameraScreen(
         }
 
         // Primary Action Button
-        PrimaryButton(
-            text = stringResource(R.string.btn_prepare_test),
-            onClick = onNextClicked,
-            enabled = (isPermissionGranted && cameraState is CameraState.CameraReady && isHandValid),
-            modifier = Modifier.padding(top = 8.dp)
+        val canStart = isPermissionGranted && cameraState is CameraState.CameraReady && isHandValid
+        when (sessionState) {
+            is SessionState.Done -> PrimaryButton(
+                text = stringResource(R.string.btn_continue),
+                onClick = onNextClicked,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            is SessionState.Invalid -> PrimaryButton(
+                text = stringResource(R.string.btn_try_again),
+                onClick = { session.reset() },
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            else -> PrimaryButton(
+                text = if (sessionState.isActive) "آزمون در حال انجام است..." else "شروع آزمون",
+                onClick = { session.start() },
+                enabled = canStart && !sessionState.isActive,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionOverlay(
+    sessionState: SessionState,
+    tapCount: Int,
+) {
+    val text = when (sessionState) {
+        is SessionState.Countdown -> "${sessionState.secondsLeft}"
+        is SessionState.Recording -> "⏱ ${sessionState.secondsLeft} ثانیه  •  ضربه‌ها: $tapCount"
+        is SessionState.Processing -> "در حال پردازش..."
+        else -> return
+    }
+    Text(
+        text = text,
+        style = if (sessionState is SessionState.Countdown) {
+            MaterialTheme.typography.displayLarge
+        } else {
+            MaterialTheme.typography.titleLarge
+        },
+        color = MaterialTheme.colorScheme.onPrimary,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.85f))
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    )
+}
+
+@Composable
+private fun SessionResultCard(sessionState: SessionState) {
+    val lines = when (sessionState) {
+        is SessionState.Done -> {
+            val m = sessionState.outcome.metrics
+            listOf(
+                "تعداد ضربه‌ها: ${m.tapCount}",
+                "سرعت: ${String.format(Locale.US, "%.1f", m.frequencyHz)} ضربه در ثانیه",
+                "شاخص پژوهشی: ${sessionState.outcome.score} از ۱۰۰",
+                "این نتیجه تشخیص پزشکی نیست."
+            )
+        }
+
+        is SessionState.Invalid -> listOf(
+            when (val reason = sessionState.reason) {
+                SessionInvalidReason.Interrupted ->
+                    "آزمون قطع شد و نتیجه‌ای ثبت نشد. لطفاً دوباره تلاش کنید."
+
+                is SessionInvalidReason.Scoring -> reason.reason.toPersianMessage()
+            }
         )
+
+        else -> return
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            lines.forEach { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
     }
 }
 

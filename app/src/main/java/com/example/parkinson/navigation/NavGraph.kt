@@ -92,6 +92,7 @@ fun ParkinsonNavGraph(
 
             FingerTappingCameraScreen(
                 selectedHand = selectedHand,
+                session = fingerTappingViewModel.session,
                 onNextClicked = {
                     navController.navigate(Screen.FingerTappingCameraPlaceholder.route)
                 }

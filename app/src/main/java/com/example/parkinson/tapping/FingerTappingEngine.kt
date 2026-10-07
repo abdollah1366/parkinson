@@ -1,5 +1,6 @@
 package com.example.parkinson.tapping
 
+import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.mediapipe.HandLandmark
 import com.example.parkinson.mediapipe.HandLandmarkIndex
 import com.example.parkinson.mediapipe.HandTrackingResult
@@ -24,8 +25,11 @@ import kotlin.math.sqrt
  * Usage (timestamps must come from the same clock as HandTrackingResult.timestampMs,
  * i.e. SystemClock.uptimeMillis()):
  *   engine.start(SystemClock.uptimeMillis())
- *   handManager.result.collect { engine.onFrame(it) }
+ *   handManager.resultListener = { engine.onFrame(it) }   // every frame, not the conflated StateFlow
  *   val metrics = engine.finish(SystemClock.uptimeMillis())
+ * In the app this is driven by FingerTappingSession.
+ *
+ * Thread-safe: onFrame() runs on the MediaPipe thread while start/finish/reset run on the main thread.
  */
 class FingerTappingEngine(
     private val closeThreshold: Float = 0.25f,
@@ -53,12 +57,17 @@ class FingerTappingEngine(
     private val _opening = MutableStateFlow(0f)
     val opening: StateFlow<Float> = _opening.asStateFlow()
 
+    @Synchronized
     fun start(timestampMs: Long) {
         reset()
         running = true
         startMs = timestampMs
+        TapDiagnostics.log(
+            "ENGINE start ts=$timestampMs close=$closeThreshold open=$openThreshold smoothing=$smoothing"
+        )
     }
 
+    @Synchronized
     fun reset() {
         running = false
         phase = Phase.UNKNOWN
@@ -71,6 +80,7 @@ class FingerTappingEngine(
         _opening.value = 0f
     }
 
+    @Synchronized
     fun onFrame(result: HandTrackingResult) {
         if (!running) return
         totalFrames++
@@ -108,13 +118,25 @@ class FingerTappingEngine(
                     taps += TapEvent(hand.timestampMs, peakInOpenPhase)
                     phase = Phase.CLOSED
                     _tapCount.value = taps.size
+                    TapDiagnostics.log(
+                        "TAP n=${taps.size} ts=${hand.timestampMs} tRelMs=${hand.timestampMs - startMs} " +
+                            "peak=${TapDiagnostics.f(peakInOpenPhase)} value=${TapDiagnostics.f(value)}"
+                    )
                 }
             }
         }
+        TapDiagnostics.log(
+            "ENGINE ts=${hand.timestampMs} raw=${TapDiagnostics.f(raw)} smoothed=${TapDiagnostics.f(value)} phase=$phase"
+        )
     }
 
+    @Synchronized
     fun finish(endTimestampMs: Long): FingerTappingMetrics {
         running = false
+        TapDiagnostics.log(
+            "ENGINE finish ts=$endTimestampMs durationMs=${endTimestampMs - startMs} " +
+                "totalFrames=$totalFrames trackedFrames=$trackedFrames taps=${taps.size}"
+        )
         return computeMetrics(endTimestampMs)
     }
 
