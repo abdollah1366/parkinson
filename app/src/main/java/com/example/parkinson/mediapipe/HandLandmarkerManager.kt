@@ -191,10 +191,13 @@ class HandLandmarkerManager(
         val category = handResult.handedness().firstOrNull()?.firstOrNull()
         val confidence = category?.score() ?: 0f
         val side = HandLandmarkMapper.toHandSide(category?.categoryName(), flipHandedness)
-        TapDiagnostics.log(
-            "HAND ts=$ts label=${category?.categoryName()} score=${TapDiagnostics.f(confidence, 3)} " +
-                "flip=$flipHandedness mapped=$side expected=$expectedHand"
-        )
+        if (TapDiagnostics.enabled) {
+            // Checked first so release builds do not build this string for every frame.
+            TapDiagnostics.log(
+                "HAND ts=$ts label=${category?.categoryName()} score=${TapDiagnostics.f(confidence, 3)} " +
+                    "flip=$flipHandedness mapped=$side expected=$expectedHand"
+            )
+        }
 
         if (side == null || confidence < minHandednessScore) {
             return HandTrackingResult.LowConfidence(ts, confidence)

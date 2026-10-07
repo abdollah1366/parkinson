@@ -8,18 +8,19 @@ import java.util.Locale
 import kotlin.math.hypot
 
 /**
- * Temporary diagnostic logging for real-device validation (Phase 5A).
- * Everything goes to one Logcat tag: [TAG]. Read-only: nothing here affects detection or scoring.
+ * Diagnostic logging for real-device validation. Enabled only in debuggable builds
+ * (ParkinsonApplication). Everything goes to one Logcat tag: [TAG]. Read-only: nothing here
+ * affects detection, quality or scoring. No personal data is logged.
  *
  * Line prefixes (key=value pairs, timestamps are SystemClock.uptimeMillis()):
- *   FPS    once per second: frames sent to MediaPipe / results received
+ *   FPS    once per second: frames sent to MediaPipe / results received, average latency
  *   HAND   raw MediaPipe handedness for every single-hand result
- *   FRAME  every result seen by the session (state, timestamp, gap, thumb/index, distance)
+ *   FRAME  every result seen by the session (state, timestamp, gap, thumb/index, distance, ratio)
  *   GAP    a gap between consecutive results larger than [GAP_WARN_MS]
  *   STATE  session state change
- *   ENGINE engine start/finish and per-frame smoothed value while recording
- *   TAP    tap detected by the engine
- *   RESULT session outcome and metrics
+ *   TAP    each tap found by the offline analysis after the recording
+ *   RESULT detection counters, frame statistics, quality status/issues and score
+ *   ERROR  storage or unexpected analysis failure
  */
 object TapDiagnostics {
 
