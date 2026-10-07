@@ -1,0 +1,104 @@
+<resources>
+    <!-- App Details -->
+    <string name="app_name">پایش حرکتی</string>
+    <string name="app_subtitle">ارزیابی و پایش حرکات</string>
+
+    <!-- Welcome Screen -->
+    <string name="welcome_title">به پایش حرکتی خوش آمدید</string>
+    <string name="welcome_description">با انجام ارزیابی‌های کوتاه می‌توانید روند حرکات خود را در طول زمان بررسی کنید.</string>
+    <string name="btn_start">شروع</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting">سلام 👋</string>
+    <string name="home_subtitle">امروز وضعیت حرکتی خود را بررسی کنید.</string>
+    <string name="card_assessment_title">ارزیابی حرکتی</string>
+    <string name="card_assessment_description">این ارزیابی چند دقیقه زمان می‌برد.</string>
+    <string name="btn_start_assessment">شروع ارزیابی</string>
+    <string name="section_last_assessment">آخرین ارزیابی</string>
+    <string name="empty_assessment_history">هنوز ارزیابی‌ای انجام نشده است.</string>
+
+    <!-- Common / UX -->
+    <string name="step_progress">مرحله %1$d از %2$d</string>
+    <string name="btn_continue">ادامه</string>
+    <string name="btn_back">بازگشت</string>
+
+    <!-- Finger Tapping Intro Screen -->
+    <string name="finger_tapping_title">آزمون ضربه زدن انگشت‌ها</string>
+    <string name="finger_tapping_short_desc">در این آزمون، حرکت انگشت شست و اشاره شما برای مدت کوتاهی بررسی می‌شود.</string>
+    <string name="duration_title">مدت آزمون</string>
+    <string name="duration_value">حدود ۳۰ ثانیه</string>
+    <string name="evaluated_features_title">چه چیزی بررسی می‌شود؟</string>
+    <string name="feature_speed">سرعت حرکت انگشت‌ها</string>
+    <string name="feature_rhythm">نظم حرکت</string>
+    <string name="feature_amplitude">دامنه حرکت</string>
+    <string name="feature_fatigue">تغییرات حرکت در طول آزمون</string>
+    <string name="disclaimer_title">توجه</string>
+    <string name="disclaimer_text">این آزمون یک ابزار ارزیابی حرکتی است و به‌تنهایی برای تشخیص بیماری کافی نیست.</string>
+
+    <!-- Hand Selection Screen -->
+    <string name="hand_selection_title">انتخاب دست</string>
+    <string name="hand_selection_desc">لطفاً دستی را انتخاب کنید که می‌خواهید با آن آزمون را انجام دهید.</string>
+    <string name="hand_right">دست راست</string>
+    <string name="hand_left">دست چپ</string>
+    <string name="selected_badge">✓ انتخاب شد</string>
+
+    <!-- Preparation Screen -->
+    <string name="preparation_title">آماده‌سازی آزمون</string>
+    <string name="prep_step_1">گوشی را روی یک سطح ثابت قرار دهید.</string>
+    <string name="prep_step_2">دوربین گوشی باید روبه‌روی دست شما باشد.</string>
+    <string name="prep_step_3">دست انتخاب‌شده را داخل محدوده تصویر قرار دهید.</string>
+    <string name="prep_step_4">نوک انگشت شست و اشاره را به‌آرامی به هم بزنید.</string>
+    <string name="important_note_title">نکته مهم</string>
+    <string name="important_note_text">در طول آزمون سعی کنید گوشی ثابت بماند و فقط دست شما حرکت کند.</string>
+    <string name="for_better_results_title">برای نتیجه بهتر</string>
+    <string name="condition_lighting">نور محیط کافی باشد.</string>
+    <string name="condition_one_hand">فقط یک دست مقابل دوربین باشد.</string>
+    <string name="condition_hand_in_frame">دست کاملاً داخل تصویر قرار داشته باشد.</string>
+    <string name="condition_phone_stable">گوشی ثابت باشد.</string>
+    <string name="condition_natural_speed">حرکت را با سرعت طبیعی انجام دهید.</string>
+
+    <!-- Ready Screen -->
+    <string name="ready_title">آماده شروع هستید؟</string>
+    <string name="selected_hand_label">دست انتخاب‌شده:</string>
+    <string name="test_duration_label">مدت زمان آزمون:</string>
+    <string name="test_duration_value">۱۰ ثانیه</string>
+    <string name="ready_countdown_note">پس از شروع، ۳ ثانیه برای آماده شدن فرصت دارید.</string>
+    <string name="btn_ready">آماده‌ام</string>
+
+    <!-- Camera Screen & Permissions -->
+    <string name="camera_permission_title">برای انجام آزمون حرکتی، دسترسی به دوربین لازم است.</string>
+    <string name="camera_permission_desc">دوربین فقط هنگام انجام آزمون برای بررسی حرکت دست استفاده می‌شود.</string>
+    <string name="btn_enable_camera">فعال کردن دوربین</string>
+
+    <string name="camera_denied_title">دسترسی به دوربین فعال نشد.</string>
+    <string name="camera_denied_desc">برای انجام این آزمون، دسترسی به دوربین لازم است.</string>
+    <string name="btn_try_again">تلاش دوباره</string>
+    <string name="btn_open_settings">باز کردن تنظیمات</string>
+
+    <string name="camera_status_initializing">در حال آماده‌سازی دوربین...</string>
+    <string name="camera_status_ready">دوربین آماده است</string>
+    <string name="camera_status_unavailable">دوربین در دسترس نیست</string>
+
+    <string name="guide_place_hand">دست خود را داخل کادر قرار دهید</string>
+    <string name="guide_selected_hand_only">فقط دست انتخاب‌شده را مقابل دوربین قرار دهید.</string>
+
+    <string name="tips_title">نکات مهم</string>
+    <string name="tip_keep_phone_stable">گوشی را ثابت نگه دارید.</string>
+    <string name="tip_sufficient_light">نور محیط کافی باشد.</string>
+    <string name="tip_hand_in_frame">دست کاملاً داخل کادر باشد.</string>
+    <string name="tip_selected_hand_only">فقط دست انتخاب‌شده در تصویر باشد.</string>
+
+    <string name="privacy_camera_note">تصویر دوربین فقط برای انجام ارزیابی حرکتی استفاده می‌شود.</string>
+    <string name="btn_prepare_test">آماده‌سازی آزمون</string>
+
+    <!-- Camera Placeholder Screen -->
+    <string name="placeholder_title">آزمون آماده اجراست</string>
+    <string name="placeholder_subtitle">در مرحله بعد تشخیص حرکت انگشت‌ها (MediaPipe) به این بخش اضافه خواهد شد.</string>
+    <string name="btn_return_home">بازگشت به صفحه اصلی</string>
+
+    <!-- Accessibility Descriptions -->
+    <string name="cd_app_logo">لوگوی پایش حرکتی</string>
+    <string name="cd_medical_icon">آیکون پزشکی</string>
+    <string name="cd_hand_icon">آیکون دست</string>
+    <string name="cd_camera_preview">پیش‌نمایش زنده دوربین</string>
+</resources>

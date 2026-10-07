@@ -1,0 +1,209 @@
+package com.example.parkinson.mediapipe
+
+import android.content.Context
+import android.os.SystemClock
+import android.util.Log
+import androidx.camera.core.ImageProxy
+import com.example.parkinson.camera.FrameAnalyzer
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Wraps MediaPipe HandLandmarker (LIVE_STREAM mode).
+ *
+ * Usage:
+ *   val manager = HandLandmarkerManager(context)
+ *   manager.expectedHand = HandSide.RIGHT          // the hand chosen by the user
+ *   // in your ImageAnalysis analyzer:
+ *   manager.detect(imageProxy); imageProxy.close()
+ *   // observe:
+ *   manager.result.collect { ... }
+ *   // when the screen is destroyed:
+ *   manager.close()
+ */
+class HandLandmarkerManager(
+    context: Context,
+    private val modelAssetPath: String = "hand_landmarker.task",
+    private val minDetectionConfidence: Float = 0.5f,
+    private val minPresenceConfidence: Float = 0.5f,
+    private val minTrackingConfidence: Float = 0.5f,
+    /** Below this handedness score the result is reported as LowConfidence. */
+    private val minHandednessScore: Float = 0.6f,
+    /** Frames without a hand before NoHandDetected becomes TrackingLost. */
+    private val trackingLostAfterFrames: Int = 5
+) : FrameAnalyzer {
+
+    private val _result = MutableStateFlow<HandTrackingResult>(HandTrackingResult.NoHandDetected(0L))
+    val result: StateFlow<HandTrackingResult> = _result.asStateFlow()
+
+    /** The hand the user selected. null = accept any hand. */
+    @Volatile
+    var expectedHand: HandSide? = null
+
+    /** See HandLandmarkMapper.toHandSide. Toggle if left/right are inverted on the device. */
+    @Volatile
+    var flipHandedness: Boolean = true
+
+    private var handLandmarker: HandLandmarker? = null
+
+    @Volatile private var closed = false
+    @Volatile private var hadHand = false
+    @Volatile private var uprightWidth = 0
+    @Volatile private var uprightHeight = 0
+    @Volatile private var consecutiveMisses = 0
+    private var lastTimestampMs = 0L
+
+    init {
+        try {
+            val baseOptions = BaseOptions.builder()
+                .setModelAssetPath(modelAssetPath)
+                .build()
+
+            val options = HandLandmarker.HandLandmarkerOptions.builder()
+                .setBaseOptions(baseOptions)
+                .setRunningMode(RunningMode.LIVE_STREAM)
+                .setNumHands(2) // 2 so that "multiple hands" can be detected
+                .setMinHandDetectionConfidence(minDetectionConfidence)
+                .setMinHandPresenceConfidence(minPresenceConfidence)
+                .setMinTrackingConfidence(minTrackingConfidence)
+                .setResultListener { handResult, _ -> onResult(handResult) }
+                .setErrorListener { e -> onError(e) }
+                .build()
+
+            handLandmarker = HandLandmarker.createFromOptions(context.applicationContext, options)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create HandLandmarker", e)
+            _result.value = HandTrackingResult.Error(
+                SystemClock.uptimeMillis(),
+                "Could not load the hand model ($modelAssetPath): ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Sends one camera frame to MediaPipe. Does NOT close the ImageProxy; the caller must.
+     * Requires CameraX 1.3+ (ImageProxy.toBitmap()).
+     */
+    @Synchronized
+    fun detect(imageProxy: ImageProxy) {
+        val landmarker = handLandmarker
+        if (closed || landmarker == null) return
+
+        try {
+            val rotation = imageProxy.imageInfo.rotationDegrees
+            val bitmap = imageProxy.toBitmap()
+
+            val swapped = rotation == 90 || rotation == 270
+            uprightWidth = if (swapped) bitmap.height else bitmap.width
+            uprightHeight = if (swapped) bitmap.width else bitmap.height
+
+            val mpImage = BitmapImageBuilder(bitmap).build()
+            val processing = ImageProcessingOptions.builder()
+                .setRotationDegrees(rotation)
+                .build()
+
+            landmarker.detectAsync(mpImage, processing, nextTimestamp())
+        } catch (e: Exception) {
+            Log.e(TAG, "detect failed", e)
+            _result.value = HandTrackingResult.Error(
+                SystemClock.uptimeMillis(),
+                e.message ?: "Unknown detection error"
+            )
+        }
+    }
+
+    /** Called by the camera pipeline for every frame. The caller closes the ImageProxy. */
+    override fun analyze(imageProxy: ImageProxy) = detect(imageProxy)
+
+    private fun nextTimestamp(): Long {
+        // MediaPipe requires strictly increasing timestamps.
+        var ts = SystemClock.uptimeMillis()
+        if (ts <= lastTimestampMs) ts = lastTimestampMs + 1
+        lastTimestampMs = ts
+        return ts
+    }
+
+    private fun onResult(handResult: HandLandmarkerResult) {
+        if (closed) return
+
+        val ts = handResult.timestampMs()
+        val handsCount = handResult.landmarks().size
+
+        _result.value = when {
+            handsCount == 0 -> {
+                consecutiveMisses++
+                if (hadHand && consecutiveMisses >= trackingLostAfterFrames) {
+                    HandTrackingResult.TrackingLost(ts)
+                } else {
+                    HandTrackingResult.NoHandDetected(ts)
+                }
+            }
+
+            handsCount > 1 -> {
+                consecutiveMisses = 0
+                HandTrackingResult.MultipleHandsDetected(ts, handsCount)
+            }
+
+            else -> {
+                consecutiveMisses = 0
+                buildSingleHandResult(handResult, ts)
+            }
+        }
+    }
+
+    private fun buildSingleHandResult(handResult: HandLandmarkerResult, ts: Long): HandTrackingResult {
+        val category = handResult.handedness().firstOrNull()?.firstOrNull()
+        val confidence = category?.score() ?: 0f
+        val side = HandLandmarkMapper.toHandSide(category?.categoryName(), flipHandedness)
+
+        if (side == null || confidence < minHandednessScore) {
+            return HandTrackingResult.LowConfidence(ts, confidence)
+        }
+
+        val expected = expectedHand
+        if (expected != null && side != expected) {
+            return HandTrackingResult.WrongHandDetected(ts, expected = expected, detected = side)
+        }
+
+        hadHand = true
+        return HandTrackingResult.HandDetected(
+            timestampMs = ts,
+            landmarks = HandLandmarkMapper.toHandLandmarks(handResult.landmarks()[0]),
+            handSide = side,
+            confidence = confidence,
+            imageWidth = uprightWidth,
+            imageHeight = uprightHeight
+        )
+    }
+
+    private fun onError(e: RuntimeException) {
+        Log.e(TAG, "MediaPipe error", e)
+        _result.value = HandTrackingResult.Error(
+            SystemClock.uptimeMillis(),
+            e.message ?: "MediaPipe error"
+        )
+    }
+
+    /** Releases the MediaPipe resources. Call from onCleared()/onDispose. */
+    @Synchronized
+    fun close() {
+        closed = true
+        try {
+            handLandmarker?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "close failed", e)
+        }
+        handLandmarker = null
+    }
+
+    private companion object {
+        const val TAG = "HandLandmarkerManager"
+    }
+}
