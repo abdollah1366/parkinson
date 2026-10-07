@@ -58,6 +58,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.parkinson.R
 import com.example.parkinson.camera.CameraController
@@ -180,7 +181,10 @@ fun FingerTappingCameraScreen(
         }
     }
 
-    DisposableEffect(lifecycleOwner) {
+    // Observe the ACTIVITY lifecycle, not the navigation entry: leaving this screen (back) also
+    // stops the entry, and must reset the session (onDispose above), not report an interruption.
+    val activityLifecycleOwner = (context as? LifecycleOwner) ?: lifecycleOwner
+    DisposableEffect(activityLifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 // App sent to the background (home, lock screen, another app) during a session -> INVALID.
@@ -195,8 +199,8 @@ fun FingerTappingCameraScreen(
                 else -> Unit
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        activityLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { activityLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // A camera failure ends a running session with an error instead of a partial result.

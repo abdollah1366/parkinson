@@ -8,7 +8,17 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import com.example.parkinson.MainActivity
+import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.tapping.FingerTappingSession
+import com.example.parkinson.tapping.SessionInvalidReason
+import com.example.parkinson.tapping.SessionState
+import com.example.parkinson.tapping.isActive
+import com.example.parkinson.viewmodel.FingerTappingViewModel
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,6 +81,70 @@ class AppNavigationTest {
         // System back returns to the ready screen.
         rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         waitFor("آماده شروع هستید؟")
+    }
+
+    private fun openCameraScreen() {
+        waitFor("به پایش حرکتی خوش آمدید")
+        clickWhenShown("شروع")
+        clickWhenShown("شروع ارزیابی")
+        clickWhenShown("ادامه")
+        waitFor("انتخاب دست")
+        rule.onNodeWithText("دست راست").performClick()
+        clickWhenShown("ادامه")
+        waitFor("آماده‌سازی آزمون")
+        clickWhenShown("ادامه")
+        clickWhenShown("آماده‌ام")
+        waitFor("برای انجام آزمون حرکتی، دسترسی به دوربین لازم است.")
+    }
+
+    private fun session(): FingerTappingSession {
+        lateinit var session: FingerTappingSession
+        rule.activityRule.scenario.onActivity {
+            session = ViewModelProvider(it, FingerTappingViewModel.Factory)[FingerTappingViewModel::class.java].session
+        }
+        return session
+    }
+
+    @Test
+    fun rotationDuringATestEndsAsInterruptedWithoutResult() {
+        openCameraScreen()
+        // Start directly: under Robolectric there is no camera, so the start button stays disabled.
+        rule.activityRule.scenario.onActivity { session().start(SelectedHand.RIGHT) }
+        assertTrue(session().state.value.isActive)
+
+        rule.activityRule.scenario.recreate()
+
+        waitFor("نتیجه‌ای ثبت نشد")
+        rule.onNodeWithText("آزمون پیش از پایان قطع شد", substring = true).assertIsDisplayed()
+        assertTrue(session().state.value !is SessionState.Done)
+
+        // Retry returns to a fresh camera screen.
+        clickWhenShown("تلاش دوباره")
+        waitFor("برای انجام آزمون حرکتی، دسترسی به دوربین لازم است.")
+        assertEquals(SessionState.Idle, session().state.value)
+    }
+
+    @Test
+    fun leavingDuringATestDiscardsIt() {
+        openCameraScreen()
+        rule.activityRule.scenario.onActivity { session().start(SelectedHand.RIGHT) }
+        rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+        waitFor("آماده شروع هستید؟")
+        rule.waitForIdle()
+        assertEquals(SessionState.Idle, session().state.value)
+    }
+
+    @Test
+    fun backgroundingDuringATestEndsAsInterrupted() {
+        openCameraScreen()
+        rule.activityRule.scenario.onActivity { session().start(SelectedHand.RIGHT) }
+        // Home button / screen lock: the activity is stopped.
+        rule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        assertEquals(SessionState.Invalid(SessionInvalidReason.Interrupted), session().state.value)
+        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        waitFor("نتیجه‌ای ثبت نشد")
+        rule.onNodeWithText("آزمون پیش از پایان قطع شد", substring = true).assertIsDisplayed()
     }
 
     @Test
