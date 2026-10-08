@@ -1,5 +1,6 @@
 package com.example.parkinson.tapping
 
+import com.example.parkinson.mediapipe.HandSideStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.raw.FrameStatus
 import com.example.parkinson.tapping.raw.TapFrame
@@ -40,6 +41,21 @@ class SyntheticTapping(
 
     /** Constant opening (no tapping) when set. */
     var constantOpening: Double? = null
+
+    /** Mean frame luma (0..255); 120 = normal indoor exposure. */
+    var meanLuma: Float? = 120f
+
+    /** Time ranges (relative to start, ms) whose frames carry a given left/right label status. */
+    val sideRanges = mutableListOf<Triple<Long, Long, HandSideStatus>>()
+
+    /** Time ranges whose frames were submitted to MediaPipe but produced no result (dropped). */
+    val droppedRanges = mutableListOf<Pair<Long, Long>>()
+
+    fun side(fromMs: Long, toMs: Long, status: HandSideStatus): SyntheticTapping = apply {
+        sideRanges += Triple(fromMs, toMs, status)
+    }
+
+    fun dropped(fromMs: Long, toMs: Long): SyntheticTapping = apply { droppedRanges += fromMs to toMs }
 
     fun regular(hz: Double): SyntheticTapping = apply {
         val period = 1000.0 / hz
@@ -88,12 +104,21 @@ class SyntheticTapping(
             val rel = i * step
             if (rel > durationMs) break
             val ts = startMs + Math.round(rel)
+            val seq = i.toLong()
+            if (droppedRanges.any { rel >= it.first && rel < it.second }) {
+                i++
+                continue
+            }
             val status = statusRanges.firstOrNull { rel >= it.first && rel < it.second }?.third ?: FrameStatus.VALID
+            val side = sideRanges.firstOrNull { rel >= it.first && rel < it.second }?.third ?: HandSideStatus.MATCHES
             frames += if (status == FrameStatus.VALID) {
                 val opening = (openingAt(rel) + random.nextGaussian() * noiseSigma).coerceAtLeast(0.0)
-                TapFrame(i, ts, FrameStatus.VALID, opening * handScalePx, handScalePx, 0.95)
+                TapFrame(
+                    frames.size, ts, FrameStatus.VALID, opening * handScalePx, handScalePx, 0.95,
+                    sideStatus = side, meanLuma = meanLuma, sequence = seq
+                )
             } else {
-                TapFrame(i, ts, status)
+                TapFrame(frames.size, ts, status, meanLuma = meanLuma, sequence = seq)
             }
             i++
         }

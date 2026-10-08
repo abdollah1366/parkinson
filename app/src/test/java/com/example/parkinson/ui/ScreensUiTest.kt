@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -70,13 +71,16 @@ class ScreensUiTest {
     fun resultScreenShowsEveryMeasureAndTheDisclaimer() {
         setContent { FingerTappingResultScreen(Loadable.Loaded(valid), {}, {}, {}) }
         listOf(
-            "ارزیابی Finger Tapping", "تعداد ضربه", "سرعت ضربه", "ریتم حرکت", "دامنه حرکت",
-            "پایداری حرکت", "روند دامنه حرکت", "کیفیت ثبت", "امتیاز عملکرد حرکتی"
+            "نتیجه آزمون ضربه با انگشت", "تعداد ضربه", "سرعت ضربه", "نظم ضربه‌ها",
+            "دامنه حرکت", "پایداری حرکت", "کیفیت داده", "تفسیر نتیجه", "روند عملکرد"
         ).forEach { rule.onNodeWithText(it).performScrollTo().assertIsDisplayed() }
+        // The index card is one TalkBack sentence: "شاخص عملکرد حرکتی X از ۱۰۰، <band>".
+        rule.onNodeWithContentDescription("شاخص عملکرد حرکتی ${com.example.parkinson.ui.format.PersianFormat.integer(valid.performanceScore!!.total)} از ۱۰۰", substring = true)
+            .performScrollTo().assertIsDisplayed()
         rule.onNodeWithText(
             "این نتایج صرفاً برای ارزیابی و پایش عملکرد حرکتی هستند و به‌تنهایی تشخیص پزشکی محسوب نمی‌شوند."
         ).performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("از نظر بالینی اعتبارسنجی نشده است", substring = true).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("هنوز بر اساس داده هنجاری جمعیت بزرگ اعتبارسنجی نشده است", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -88,11 +92,11 @@ class ScreensUiTest {
     }
 
     @Test
-    fun lowQualityResultHasNoScore() {
-        assertNull(lowQuality.performanceScore)
+    fun lowQualityResultIsScoredWithLimitedReliability() {
+        assertEquals(com.example.parkinson.assessment.ReliabilityLevel.LIMITED, lowQuality.performanceScore!!.reliability)
         setContent { FingerTappingResultScreen(Loadable.Loaded(lowQuality), {}, {}, {}) }
-        rule.onNodeWithText("امتیاز محاسبه نشد", substring = true).performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("کیفیت ثبت: متوسط").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("نتیجه با اطمینان محدود قابل تفسیر است.", substring = true).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("کیفیت داده محدود بود.").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -130,7 +134,8 @@ class ScreensUiTest {
     fun invalidScreenExplainsAndOffersRetry() {
         var retries = 0
         setContent { InvalidResultScreen(InvalidResultKind.NO_HAND, onRetry = { retries++ }, onHome = {}) }
-        rule.onNodeWithText("کیفیت ثبت اطلاعات برای محاسبه نتیجه کافی نبود.").assertIsDisplayed()
+        // NO_HAND is insufficient motor data: the specific headline, not a generic or lighting message.
+        rule.onNodeWithText("داده کافی برای محاسبه نتیجه وجود ندارد.").assertIsDisplayed()
         rule.onNodeWithText("لطفاً دست را در محدوده دوربین نگه دارید و دوباره تلاش کنید.").assertIsDisplayed()
         rule.onNodeWithText("تلاش دوباره").assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(1, retries)
@@ -152,7 +157,8 @@ class ScreensUiTest {
         var opened: String? = null
         setContent { AssessmentHistoryScreen(Loadable.Loaded(listOf(valid, lowQuality)), onOpen = { opened = it.assessmentId }) }
         rule.onNodeWithText("تاریخچه ارزیابی‌ها").assertIsDisplayed()
-        rule.onNodeWithText("بدون امتیاز").assertIsDisplayed()
+        // Both results are scored now (the LOW_QUALITY one with limited reliability).
+        rule.onNodeWithText("شاخص عملکرد: ${com.example.parkinson.ui.format.PersianFormat.integer(lowQuality.performanceScore!!.total)} از ۱۰۰").assertIsDisplayed()
         rule.onNodeWithText("دست چپ").performClick()
         assertEquals("low-1", opened)
     }

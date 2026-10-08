@@ -1,5 +1,8 @@
 package com.example.parkinson.pronation
 
+import com.example.parkinson.assessment.PerformanceTrendState
+import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.assessment.MotorPerformanceBand
 import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.sensors.MotionSample
@@ -208,7 +211,6 @@ data class PronationQualityReport(
     val isUsable: Boolean get() = status == QualityStatus.VALID || status == QualityStatus.LOW_QUALITY
 }
 
-enum class PerformanceTrendState { STABLE, IMPROVING, DECLINING, INSUFFICIENT_DATA }
 
 /** "روند عملکرد در طول آزمون": segment scores and their change. Not disease progression. */
 data class PerformanceTrend(
@@ -230,7 +232,6 @@ data class ComponentScores(
     val trend: Int?
 )
 
-enum class ReliabilityLevel { RELIABLE, LIMITED, NOT_RELIABLE }
 
 /**
  * "شاخص عملکرد حرکتی" (Motor Performance Index), 0..100. An internal software index: NOT a
@@ -246,21 +247,6 @@ data class PronationSupinationPerformanceScore(
     val isClinicallyValidated: Boolean = false
 )
 
-/** Software interpretation bands, exact and non-overlapping over 0..100. */
-enum class MotorPerformanceBand(val min: Int, val max: Int) {
-    VERY_LOW(0, 19),
-    SIGNIFICANTLY_REDUCED(20, 39),
-    REDUCED(40, 59),
-    ACCEPTABLE(60, 79),
-    GOOD(80, 100);
-
-    companion object {
-        fun forScore(score: Int): MotorPerformanceBand {
-            require(score in 0..100) { "score out of range: $score" }
-            return entries.first { score in it.min..it.max }
-        }
-    }
-}
 
 /** Language-neutral interpretation codes; the UI turns them into Persian sentences. */
 enum class InterpretationNote {

@@ -1,5 +1,7 @@
 package com.example.parkinson.data
 
+import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.assessment.MotorPerformanceBand
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.driver.AndroidSQLiteDriver
@@ -59,7 +61,7 @@ class PronationSupinationStorageTest {
         val lowQuality = pronation("b", 2L, SyntheticRotation().sinusoid(1.5, 90.0).gap(5_000, 5_300))
         assertEquals(QualityStatus.LOW_QUALITY, lowQuality.qualityStatus)
         // LOW_QUALITY: stored with a score of limited reliability.
-        assertEquals(com.example.parkinson.pronation.ReliabilityLevel.LIMITED, lowQuality.reliability)
+        assertEquals(com.example.parkinson.assessment.ReliabilityLevel.LIMITED, lowQuality.reliability)
         assertEquals(lowQuality, lowQuality.toEntity().toDomain())
     }
 
@@ -184,8 +186,8 @@ class PronationSupinationStorageTest {
             cyclesPerMinute = 0.0, scoreTotal = 72, qualityStatus = "VALID", algorithmVersion = "ps-algo-1.0.0"
         ).toDomain()
         assertEquals(72, legacy.performanceScore)
-        assertEquals(com.example.parkinson.pronation.MotorPerformanceBand.ACCEPTABLE, legacy.interpretationBand)
-        assertEquals(com.example.parkinson.pronation.ReliabilityLevel.RELIABLE, legacy.reliability)
+        assertEquals(com.example.parkinson.assessment.MotorPerformanceBand.ACCEPTABLE, legacy.interpretationBand)
+        assertEquals(com.example.parkinson.assessment.ReliabilityLevel.RELIABLE, legacy.reliability)
         assertEquals(legacy.cyclesPerSecond * 60, legacy.cyclesPerMinute, 1e-9)
         assertEquals(emptyList<Float>(), legacy.velocityTrace)
     }

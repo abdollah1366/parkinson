@@ -2,7 +2,9 @@ package com.example.parkinson.tapping.raw
 
 import com.example.parkinson.mediapipe.HandLandmark
 import com.example.parkinson.mediapipe.HandLandmarkIndex
+import com.example.parkinson.mediapipe.FrameInfo
 import com.example.parkinson.mediapipe.HandSide
+import com.example.parkinson.mediapipe.HandSideStatus
 import com.example.parkinson.mediapipe.HandTrackingResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,17 +66,32 @@ class TapFrameExtractorTest {
         assertEquals(FrameStatus.NO_HAND, TapFrameExtractor.extract(0, HandTrackingResult.NoHandDetected(1)).status)
         assertEquals(FrameStatus.NO_HAND, TapFrameExtractor.extract(0, HandTrackingResult.TrackingLost(1)).status)
         assertEquals(
-            FrameStatus.WRONG_HAND,
-            TapFrameExtractor.extract(0, HandTrackingResult.WrongHandDetected(1, HandSide.LEFT, HandSide.RIGHT)).status
-        )
-        assertEquals(
             FrameStatus.MULTIPLE_HANDS,
             TapFrameExtractor.extract(0, HandTrackingResult.MultipleHandsDetected(1, 2)).status
         )
-        assertEquals(
-            FrameStatus.LOW_CONFIDENCE,
-            TapFrameExtractor.extract(0, HandTrackingResult.LowConfidence(1, 0.3f)).status
-        )
         assertEquals(FrameStatus.ERROR, TapFrameExtractor.extract(0, HandTrackingResult.Error(1, "x")).status)
+    }
+
+    @Test
+    fun uncertainOrMismatchedHandednessKeepsTheLandmarks() {
+        // The handedness score is left/right certainty, not landmark quality: never a reason to drop data.
+        for (status in HandSideStatus.entries) {
+            val h = hand()
+            val f = TapFrameExtractor.extract(0, h.copy(confidence = 0.3f, sideStatus = status))
+            assertEquals(status.name, FrameStatus.VALID, f.status)
+            assertEquals(40.0, f.thumbIndexDistancePx, 1e-3)
+            assertEquals(status, f.sideStatus)
+        }
+    }
+
+    @Test
+    fun frameInfoIsCarriedIntoTheFrame() {
+        val f = TapFrameExtractor.extract(0, hand().copy(frameInfo = FrameInfo(sequence = 7, meanLuma = 42f, cameraFramesSkipped = 2)))
+        assertEquals(7L, f.sequence)
+        assertEquals(42f, f.meanLuma!!, 0f)
+        assertEquals(2, f.cameraFramesSkipped)
+        val none = TapFrameExtractor.extract(1, HandTrackingResult.NoHandDetected(1, FrameInfo(8, 30f, 0)))
+        assertEquals(FrameStatus.NO_HAND, none.status)
+        assertEquals(30f, none.meanLuma!!, 0f)
     }
 }

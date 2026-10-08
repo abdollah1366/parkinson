@@ -37,10 +37,10 @@ import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.pronation.InterpretationNote
-import com.example.parkinson.pronation.MotorPerformanceBand
-import com.example.parkinson.pronation.PerformanceTrendState
+import com.example.parkinson.assessment.MotorPerformanceBand
+import com.example.parkinson.assessment.PerformanceTrendState
 import com.example.parkinson.pronation.PronationSupinationResult
-import com.example.parkinson.pronation.ReliabilityLevel
+import com.example.parkinson.assessment.ReliabilityLevel
 import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.QualityChip
 import com.example.parkinson.ui.components.handLabel

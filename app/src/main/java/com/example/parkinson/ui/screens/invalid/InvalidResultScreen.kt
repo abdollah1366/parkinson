@@ -76,9 +76,9 @@ fun InvalidResultScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (kind != InvalidResultKind.INTERRUPTED) {
+                kind.headline?.let { headline ->
                     Text(
-                        text = stringResource(R.string.invalid_headline),
+                        text = stringResource(headline),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold

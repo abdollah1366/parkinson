@@ -3,32 +3,8 @@ package com.example.parkinson.tapping.metrics
 import com.example.parkinson.tapping.Stats
 import com.example.parkinson.tapping.detection.DetectionResult
 import com.example.parkinson.tapping.detection.TapEvent
-import com.example.parkinson.tapping.raw.FrameStatus
-import com.example.parkinson.tapping.raw.TapFrame
 import kotlin.math.abs
 import kotlin.math.max
-
-/** Technical statistics of the recorded frames (input to QUALITY CONTROL). */
-data class FrameStatistics(
-    val totalFrames: Int,
-    val validFrames: Int,
-    val noHandFrames: Int,
-    val wrongHandFrames: Int,
-    val multipleHandsFrames: Int,
-    val lowConfidenceFrames: Int,
-    val outOfFrameFrames: Int,
-    val errorFrames: Int,
-    /** Results per second actually delivered by camera + MediaPipe. */
-    val fps: Double,
-    val medianFrameIntervalMs: Double?,
-    /** Periods without valid hand data longer than the dropout threshold. */
-    val dropoutCount: Int,
-    val dropoutTotalMs: Long,
-    val longestDropoutMs: Long
-) {
-    val validFramePercent: Double get() = if (totalFrames > 0) validFrames * 100.0 / totalFrames else 0.0
-    fun fraction(count: Int): Double = if (totalFrames > 0) count.toDouble() / totalFrames else 0.0
-}
 
 /** Early / middle / late thirds of the recording. Values are null when a third has too few taps. */
 data class TrendWindows(
@@ -37,6 +13,16 @@ data class TrendWindows(
     val late: Double?,
     /** (late - early) / early x 100. Negative = lower at the end. A measured trend only. */
     val relativeChangePercent: Double?
+)
+
+/** One third (early / middle / late) of the recording. null = too few taps in that third. */
+data class TapSegmentMetrics(
+    val segment: Int,
+    val tapCount: Int,
+    val rateHz: Double,
+    val meanAmplitude: Double?,
+    val amplitudeCvPercent: Double?,
+    val intervalCvPercent: Double?
 )
 
 /** METRICS layer: measured values only, no interpretation. Amplitudes are in palm sizes. */
@@ -71,57 +57,17 @@ data class MotorMetrics(
     /** Linear-regression slope of amplitude over time, as % of the mean amplitude per second. */
     val amplitudeSlopePercentPerSecond: Double?,
     val meanEventConfidence: Double?,
+    /** Mean closing speed of the taps, palm sizes per second. */
+    val meanClosingVelocity: Double?,
+    val closingVelocityCvPercent: Double?,
+    /** Early / middle / late thirds (taps assigned by their closing time). */
+    val segments: List<TapSegmentMetrics>,
     val frames: FrameStatistics,
     /** Recorded duration / planned duration x 100 (max 100). */
     val recordingCompletenessPercent: Double,
     /** Share of the recording covered by valid hand data (100 - dropout share). */
     val validCoveragePercent: Double
 )
-
-object FrameStatisticsCalculator {
-
-    /** A gap without valid frames is a dropout when longer than max(this, 3 x median interval). */
-    const val MIN_DROPOUT_MS = 150L
-
-    fun compute(frames: List<TapFrame>, startMs: Long, endMs: Long): FrameStatistics {
-        val sorted = frames.sortedBy { it.timestampMs }
-        val intervals = sorted.zipWithNext { a, b -> (b.timestampMs - a.timestampMs).toDouble() }
-        val medianInterval = Stats.median(intervals)
-        val fps = if (sorted.size >= 2) {
-            val span = sorted.last().timestampMs - sorted.first().timestampMs
-            if (span > 0) (sorted.size - 1) * 1000.0 / span else 0.0
-        } else 0.0
-
-        val threshold = max(MIN_DROPOUT_MS.toDouble(), 3 * (medianInterval ?: 0.0))
-        val validTimes = sorted.filter { it.isValid }.map { it.timestampMs }
-        val gaps = ArrayList<Long>()
-        if (validTimes.isEmpty()) {
-            gaps += endMs - startMs
-        } else {
-            gaps += validTimes.first() - startMs
-            validTimes.zipWithNext { a, b -> gaps += b - a }
-            gaps += endMs - validTimes.last()
-        }
-        val dropouts = gaps.filter { it > threshold }
-
-        fun count(status: FrameStatus) = sorted.count { it.status == status }
-        return FrameStatistics(
-            totalFrames = sorted.size,
-            validFrames = count(FrameStatus.VALID),
-            noHandFrames = count(FrameStatus.NO_HAND),
-            wrongHandFrames = count(FrameStatus.WRONG_HAND),
-            multipleHandsFrames = count(FrameStatus.MULTIPLE_HANDS),
-            lowConfidenceFrames = count(FrameStatus.LOW_CONFIDENCE),
-            outOfFrameFrames = count(FrameStatus.OUT_OF_FRAME),
-            errorFrames = count(FrameStatus.ERROR),
-            fps = fps,
-            medianFrameIntervalMs = medianInterval,
-            dropoutCount = dropouts.size,
-            dropoutTotalMs = dropouts.sum(),
-            longestDropoutMs = dropouts.maxOrNull() ?: 0L
-        )
-    }
-}
 
 object MotorMetricsCalculator {
 
@@ -187,6 +133,9 @@ object MotorMetricsCalculator {
             rateTrend = rateTrend(taps, startMs, durationMs),
             amplitudeSlopePercentPerSecond = amplitudeSlope(taps, startMs),
             meanEventConfidence = Stats.mean(taps.map { it.confidence }),
+            meanClosingVelocity = Stats.mean(taps.map { it.closingVelocity }),
+            closingVelocityCvPercent = Stats.cvPercent(taps.map { it.closingVelocity }),
+            segments = segments(taps, startMs, durationMs),
             frames = frames,
             recordingCompletenessPercent = if (plannedDurationMs > 0) {
                 (durationMs * 100.0 / plannedDurationMs).coerceAtMost(100.0)
@@ -194,6 +143,21 @@ object MotorMetricsCalculator {
             validCoveragePercent = ((1.0 - dropoutShare) * 100.0).coerceIn(0.0, 100.0)
         )
     }
+
+    private fun segments(taps: List<TapEvent>, startMs: Long, durationMs: Long): List<TapSegmentMetrics> =
+        (0..2).map { w ->
+            val inThird = taps.filter { thirdOf(it, startMs, durationMs) == w }
+            val intervals = inThird.zipWithNext { a, b -> (b.timestampMs - a.timestampMs).toDouble() }
+            val amplitudes = inThird.map { it.amplitude }
+            TapSegmentMetrics(
+                segment = w,
+                tapCount = inThird.size,
+                rateHz = if (durationMs > 0) inThird.size / (durationMs / 3000.0) else 0.0,
+                meanAmplitude = if (inThird.size >= MIN_TAPS_PER_WINDOW) amplitudes.average() else null,
+                amplitudeCvPercent = Stats.cvPercent(amplitudes),
+                intervalCvPercent = Stats.cvPercent(intervals)
+            )
+        }
 
     private fun thirdOf(tap: TapEvent, startMs: Long, durationMs: Long): Int {
         if (durationMs <= 0) return 0

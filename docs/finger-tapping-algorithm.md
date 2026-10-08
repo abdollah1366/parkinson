@@ -2,307 +2,336 @@
 
 | | |
 |---|---|
-| Algorithm version | `ft-algo-1.0.2` (`FingerTappingVersions.ALGORITHM_VERSION`) |
-| Scoring version | `ft-score-0.1.0-preliminary` (`FingerTappingVersions.SCORING_VERSION`) |
-| Clinical validation | **None.** All thresholds are engineering values chosen for technical robustness. They have not been calibrated against patient or normative data. |
+| Algorithm version | `ft-algo-1.1.0` (`FingerTappingVersions.ALGORITHM_VERSION`) |
+| Scoring version | `1.0` (`FingerTappingVersions.SCORING_VERSION`) |
+| Scoring reference | `internal-software-reference-ft-1.0`, **not normative** |
+| Clinical validation | **None.** Every threshold, weight and range is an engineering value chosen for technical robustness. None has been calibrated against patient or normative data. |
+| Device validation | **Pending** (see `finger-tapping-device-test.md`) |
 
 > This software measures finger movement. It does not diagnose Parkinson's disease or any
-> other condition, and its score is not a disease probability. Results are meant to support
-> monitoring and clinician review only.
+> other condition, and its index is not a disease probability. Results support monitoring and
+> clinician review only.
 
 Bump `ALGORITHM_VERSION` for any change to signal processing, detection, metric formulas or
-quality rules, and `SCORING_VERSION` for any change to the score. Both versions are stored with
+quality rules. Bump `SCORING_VERSION` for any change to the score. Both versions are stored with
 every assessment.
+
+## 0. Root-cause analysis of "insufficient data" / "lighting" (fixed in ft-algo-1.1.0)
+
+The app never measured light. The two "lighting" texts came from:
+* the tip `invalid_tip_light`, which was attached **only** to the `INSUFFICIENT_FPS` rejection;
+* the camera screen's "کیفیت تصویر" ("image quality") line, which was computed from the
+  **handedness score**.
+
+Usable motor data were lost or left unscored at six points:
+
+| # | Where | Defect | Effect |
+|---|---|---|---|
+| 1 | `HandLandmarkerManager` / `HandednessMapper.decide` | Handedness score < 0.6 → `LowConfidence`; confident other label → `WrongHandDetected`; **both dropped the landmarks**. The handedness score is left/right certainty and drops when the hand is seen edge-on, which is typical while pinching. | Valid landmark frames became invalid, raising valid-frame and dropout failures (`TOO_FEW_VALID_FRAMES` / `EXCESSIVE_DROPOUT` → "insufficient data"). Gaps > 250 ms also split the signal, so taps were discarded (`TOO_FEW_TAPS`). |
+| 2 | `setNumHands(2)` | In LIVE_STREAM mode MediaPipe re-runs palm detection on every frame while fewer than numHands hands are tracked. With one hand, every frame pays for palm detection plus landmarks. | A lower result rate led to `INSUFFICIENT_FPS` (< 12 fixed), which showed «نور محیط را بیشتر کنید». Dim light also lowers the camera frame rate, compounding this. |
+| 3 | `TapStateMachine.evaluate` | Tap confidence multiplied by the mean **handedness score**. | Correct taps of an edge-on hand scored low, giving `LOW_EVENT_CONFIDENCE` → LOW_QUALITY. |
+| 4 | `PerformanceScorer` | Score only for `VALID`. | Every LOW_QUALITY result was saved **without a score** ("score not recorded"). |
+| 5 | `QualityAssessor` | Tracking measured as a share of **frames**. Frames without a hand are cheaper to process (palm detection only), so they arrive more often. A fixed fps ≥ 12 rule applied regardless of the tap rate. | Tracking was underestimated. Slow, measurable tapping was rejected at low fps. |
+| 6 | Camera screen | "کیفیت تصویر: …" derived from the handedness score; `LowConfidence` shown as poor quality. | Misleading "image/lighting" feedback. |
+
+The fixes, in order:
+1. Landmarks are always kept: `HandDetected` carries a `HandSideStatus` (MATCHES / UNCERTAIN / MISMATCH) and the hand is checked over the whole recording.
+2. `maxHands = 1`.
+3. Tap confidence uses amplitude, continuity and start only.
+4. LOW_QUALITY results are scored with reliability LIMITED.
+5. Tracking is the **time** share with landmarks, and the frame-rate requirement depends on the measured tap rate.
+6. Brightness is measured (mean luma) and is a warning layer only.
+7. CameraX RGBA output removes the per-frame YUV conversion.
+8. The live counter uses the final pipeline.
+
+No threshold was simply lowered. Every requirement now follows from the 10-second protocol and from sampling theory (sections 7 and 8).
 
 ## 1. Pipeline and layers
 
 ```
-CameraX ImageAnalysis (KEEP_ONLY_LATEST)
-  -> HandLandmarkerManager (MediaPipe LIVE_STREAM)
-  -> HandTrackingResult  --resultListener (synchronous, every result)-->  FingerTappingSession
-       RAW DATA          tapping/raw        TapFrame per result inside the recording window
-       SIGNAL            tapping/signal     TapSignalProcessor
-       EVENTS            tapping/detection  TapStateMachine / TapDetector (+ LiveTapCounter, display only)
-       METRICS           tapping/metrics    FrameStatisticsCalculator, MotorMetricsCalculator
-       QUALITY CONTROL   tapping/quality    QualityAssessor
-       SCORING           tapping/scoring    PerformanceScorer
-       RESULT            tapping/result     FingerTappingAssessment (stored in Room)
-       INTERPRETATION    ui/                Persian wording only; no clinical labels
+CameraX ImageAnalysis (KEEP_ONLY_LATEST, RGBA_8888)        frames dropped while busy are counted (sensor timestamps)
+  -> HandLandmarkerManager (MediaPipe LIVE_STREAM, 1 hand)  FrameInfo per frame: sequence, mean luma, camera frames skipped
+  -> HandTrackingResult --resultListener (every result, synchronous)--> FingerTappingSession
+       RAW DATA        tapping/raw        TapFrame (landmark validity, side status, luma, sequence)
+       SIGNAL          tapping/signal     TapSignalProcessor
+       EVENTS          tapping/detection  TapStateMachine / TapDetector  (one source: live count = same pipeline)
+       METRICS         tapping/metrics    FrameStatisticsCalculator, MotorMetricsCalculator (+ segments)
+       QUALITY         tapping/quality    FingerTappingQualityEngine (camera / hand / tracking / taps / recording)
+       SCORE           tapping/scoring    FingerTappingScoreEngine  (+ FingerTappingInterpreter)
+       RESULT          tapping/result     FingerTappingAssessment (+ TapPayload) -> Room -> History
 ```
 
-The `HandLandmarkerManager.result` StateFlow conflates values and is used **only** by the UI
-(overlay, guidance). The session receives every result through `resultListener`, called on the
-MediaPipe result thread. Frames, the recording window and the live counter are guarded by one
-lock in the session.
-
-All analysis layers are pure functions of their inputs. The same recording always produces the
-same events, metrics, quality report and score.
+* **What the UI uses.** The `result` StateFlow (conflated) feeds the overlay and guidance. The
+  `liveStatus` StateFlow feeds the rolling camera and tracking status.
+* **What the session uses.** The session gets **every** result through `resultListener`; the
+  high-frequency pipeline never goes through a conflated StateFlow.
+* **Determinism.** All analysis layers are pure functions; the same recording always produces the same output.
 
 ## 1a. Handedness (which physical hand is in the frame)
 
-`HandednessMapper` (mediapipe/) is the only place where the MediaPipe label becomes a hand side.
+`HandednessMapper` is the only place a MediaPipe label becomes a hand side. Its mapping has not
+changed since `ft-algo-1.0.1`: frames are unmirrored, so the label is the physical hand. The old
+`ft-algo-1.0.0` flip was wrong and was removed after the first device test.
 
-| Step | Effect on left/right |
+Since `ft-algo-1.1.0` the per-frame decision only labels the frame:
+
+| Decision | Status | Landmarks |
+|---|---|---|
+| Label is the selected hand, score ≥ 0.6 | MATCHES | kept |
+| Score < 0.6 | UNCERTAIN | kept |
+| Label is the other hand, score ≥ 0.6 | MISMATCH | kept |
+
+Only one hand is tracked, so all frames come from the same physical hand. The recording-level
+check (section 7) counts the side-confident frames:
+
+| Share of side-confident frames labelled as the other hand | Result |
 |---|---|
-| CameraX ImageAnalysis frame (front or back lens) | not mirrored; lens is irrelevant |
-| `ImageProxy.toBitmap()` + `ImageProcessingOptions.rotationDegrees` | rotation only; chirality unchanged |
-| MediaPipe Tasks handedness label | describes the hand as it appears in the unmirrored frame = the physical hand |
-| Mirrored front-camera `PreviewView` | display only; `HandLandmarkMapper.mapToView(mirror = true)` moves overlay points, never the label |
-| Hand-selection UI → `SelectedHand.toHandSide()` | identity (LEFT → LEFT, RIGHT → RIGHT) |
-| `HandTrackingResult.handSide`, `TapFrame.handSide`, wrong-hand checks | use the physical side unchanged |
-
-`ft-algo-1.0.0` applied the legacy MediaPipe Hands rule ("labels assume a selfie-mirrored input")
-and inverted every label. The frames sent here are not mirrored, so the inversion was wrong:
-on the first physical-device test the real left hand was reported as right and vice versa, and a
-patient who selected the correct hand got "wrong hand" frames. `ft-algo-1.0.1` takes the label
-as-is for unmirrored frames and inverts it only when a frame is actually mirrored
-(`FrameMirroring.HORIZONTAL`). Landmark coordinates and tap detection are unchanged.
-
-Assessments stored with `ft-algo-1.0.0` keep the hand the patient selected. Because that version
-rejected the correct hand, a 1.0.0 result can only exist if the patient held up the opposite hand
-from the one selected. Compare such records with care.
+| ≥ 50 % | `WRONG_HAND` (INVALID) |
+| ≥ 20 % | `HAND_SIDE_UNCERTAIN` (LOW_QUALITY) |
+| fewer than 10 side-confident frames at all | `HAND_SIDE_UNCERTAIN` (LOW_QUALITY) |
 
 ## 1b. Landmark coordinate frame (overlay and distances)
 
 | Step | Coordinate frame |
 |---|---|
 | `ImageProxy.toBitmap()` | sensor-oriented (unrotated) frame, not mirrored |
-| MediaPipe landmarks | normalized to that **unrotated** input image, origin top-left, y down. `rotationDegrees` only rotates MediaPipe's internal crop; results are projected back onto the input image |
-| `HandLandmarkMapper.toHandLandmarks(…, rotationDegrees)` | rotates clockwise by `ImageInfo.rotationDegrees` into the **upright** frame: 90° `(1−y, x)`, 180° `(1−x, 1−y)`, 270° `(y, 1−x)` |
-| `HandDetected.imageWidth/imageHeight` | upright size (swapped for 90°/270°) |
-| `HandLandmarkMapper.mapToView` | FILL_CENTER scale + offset into the overlay; front camera mirrors x only |
+| MediaPipe landmarks | normalized to that unrotated input image, origin top-left, y down |
+| `HandLandmarkMapper.toHandLandmarks(…, rotationDegrees)` | rotated clockwise into the upright frame: 90° `(1−y, x)`, 180° `(1−x, 1−y)`, 270° `(y, 1−x)` |
+| `HandDetected.imageWidth/imageHeight` | upright size of **that** frame (rotation and size are kept per frame until its result arrives) |
+| `HandLandmarkMapper.mapToView` | FILL_CENTER scale and offset; the front camera mirrors x only |
 
-Up to `ft-algo-1.0.1` the rotation step was missing: sensor-frame landmarks were drawn as if
-upright, so the skeleton appeared rotated/inverted relative to the hand in the preview (the
-reported "fingers drawn top to bottom"). The rotation is a pure rotation with no mirror, so
-handedness is unchanged. With the upright size, pixel distances equal the true image distances.
-Before the fix, sensor x was scaled by the upright width (and y by the upright height), which
-distorted `thumbIndexDistancePx` and `handScalePx` by the image aspect ratio. Hence the version
-bump to `ft-algo-1.0.2`. Tap detection and its thresholds are unchanged.
+## 1c. MediaPipe configuration
+
+All values are engineering defaults.
+
+| Option | Value | Why |
+|---|---|---|
+| Running mode | LIVE_STREAM | asynchronous; MediaPipe drops frames while busy (measured as pipeline drops) |
+| numHands | 1 | palm detection runs only when the hand is lost, not on every frame (section 0, row 2) |
+| minHandDetectionConfidence | 0.5 | MediaPipe default. Lower admits false palms; higher loses real hands in dim or blurred frames |
+| minHandPresenceConfidence | 0.5 | MediaPipe default; below it the hand is re-detected |
+| minTrackingConfidence | 0.5 | MediaPipe default |
+| handedness limit | 0.6 | only decides whether the left/right label is trusted; never discards landmarks |
+| Timestamps | `SystemClock.uptimeMillis`, strictly increasing | same clock as the session window |
+| Rotation | `ImageInfo.rotationDegrees` via `ImageProcessingOptions` | landmarks are rotated to upright afterwards (section 1b) |
+| Model | `hand_landmarker.task` asset | the sensor check verifies it exists |
+
+`ImageProxy.close()` is always called, in `CameraAnalyzer`'s `finally` block.
 
 ## 2. Session
 
 States: `IDLE → COUNTDOWN (3 s) → RECORDING (10 s) → PROCESSING → DONE | INVALID | ERROR`.
 
-* **Recording window.** A result belongs to the recording if its camera timestamp
-  `t ∈ [start, start + 10 000 ms]`. Frames from the countdown are never used. After the
-  window closes, the session waits 200 ms for frames captured in time but still inside MediaPipe.
-* **No partial results.** If the session is interrupted it ends as `INVALID(Interrupted)`, and
-  no metrics are computed. Interruptions are: leaving the screen, rotation, the app going to the
-  background, or the screen locking.
-* **Errors** produce `ERROR` and no result:
-  * a camera error reported by the screen;
-  * no MediaPipe result for 2 s (frame starvation);
-  * 5 consecutive MediaPipe errors;
-  * a storage failure;
-  * any unexpected analysis exception.
-* **Saving.** A usable result (quality `VALID` or `LOW_QUALITY`) is saved to Room *before*
-  `DONE` is published. `INVALID` and `INSUFFICIENT_DATA` recordings are not stored.
+* **Recording window.** A result belongs to the recording if its frame timestamp is in
+  `[start, start + 10 000 ms]`. Frames from the countdown are never used. After the window closes,
+  the session waits 200 ms for frames that were captured in time but are still inside MediaPipe.
+* **Live tap count «ضربه‌ها: X».** Every 300 ms the frames received so far go through
+  `FingerTappingAnalyzer.detectTaps()`, which is the **same** signal processing and detection as
+  the final result, off the main thread. The old separate causal `LiveTapCounter` was removed, so
+  there is one authoritative tap-event source. `liveStats` carries frames, landmark frames,
+  tracking, taps, rejected candidates and rate for the debug panel.
+* **No partial results.** Leaving the screen, rotation, backgrounding or locking ends the session
+  as `INVALID(Interrupted)`.
+* **Errors.** Camera error, no result for 2 s, 5 consecutive MediaPipe errors, storage failure and
+  any unexpected exception each give `ERROR`.
+* **Saving.** A usable result (`VALID` or `LOW_QUALITY`) is saved to Room *before* `DONE` is
+  published. `INVALID` and `INSUFFICIENT_DATA` recordings are never stored.
 
 ## 3. Raw data (`TapFrame`)
 
-Each MediaPipe result becomes a `TapFrame` with these fields:
+Fields: index, timestamp, status, thumb-index distance (px), palm scale (px), handedness score,
+side, side status, mean luma, sequence number, and camera frames skipped.
 
-* `index`, `timestampMs`, `status`;
-* thumb-index distance (px);
-* palm scale (px);
-* handedness confidence and side.
-
-The possible statuses are `VALID`, `NO_HAND`, `WRONG_HAND`, `MULTIPLE_HANDS`, `LOW_CONFIDENCE`,
-`OUT_OF_FRAME` and `ERROR`.
-
-* Distance `d = |P4 − P8|`, where P4 is the thumb tip and P8 the index tip. Coordinates are
-  converted to pixels of the upright image (x·width, y·height), because normalized x and y have
-  different scales.
-* Palm scale `s = mean(|P0−P5|, |P0−P9|, |P0−P17|, |P5−P17|)`, using the wrist and the
-  index/middle/pinky MCP joints. The mean of four segments changes less than any single segment
-  when the hand rotates.
-* `OUT_OF_FRAME`: a frame gets this status if any of these holds:
+* **Statuses.** `VALID` (landmarks usable), `NO_HAND`, `MULTIPLE_HANDS`, `OUT_OF_FRAME` and `ERROR`.
+  Handedness no longer creates a status.
+* **Distance.** `d = |P4 − P8|` in pixels of the upright image.
+* **Palm scale.** `s = mean(|P0−P5|, |P0−P9|, |P0−P17|, |P5−P17|)`.
+* **OUT_OF_FRAME** means any of:
   * fewer than 21 landmarks;
   * non-finite coordinates;
-  * the thumb or index tip lies more than 2 % outside the image;
-  * the palm scale is under 1 px.
+  * a tip more than 2 % outside the image;
+  * a palm scale under 1 px.
 
 ## 4. Signal processing (`TapSignalProcessor`, `SignalConfig`)
 
-1. **Normalization.** The opening is `o = d / s̃`, where `s̃` is the median palm scale of the valid
-   frames within ±500 ms. The unit is "palm sizes", so the signal does not depend on the distance
-   to the camera, and no parameter is a pixel value.
-2. **Invalid frames** (any status other than `VALID`) are excluded. An opening above 3.0 palm
-   sizes is rejected as a landmark glitch.
-3. **Dropout segmentation.** Gaps of up to 250 ms between valid frames are bridged. A longer gap
-   starts a new segment, and the detector resets at segment starts.
-4. **Smoothing.** A zero-phase exponential filter (forward then backward) with τ = 25 ms, where
-   `α = 1 − exp(−Δt/τ)` uses the real frame interval. It restarts in every segment.
-5. **Noise estimate.** `σ = 1.4826 · MAD(raw − smoothed)`.
-6. **Movement floor.** `floor = min(max(0.15, 6σ), max(0.40, 0.15))`. A local range below the
-   floor is treated as "no movement" (`active = false`), and no tap can be produced there.
-7. **Adaptive envelope.** For each sample, the baseline `low` = P5 and the peak level `high` = P95
-   of the smoothed signal within a centered ±1.5 s window. The whole recording is used when the
-   window has fewer than 8 samples, which happens at the edges and after dropouts.
-8. **Adaptive hysteresis thresholds.** `close = low + 0.35·(high − low)` and
-   `open = low + 0.65·(high − low)`.
+1. **Normalization.** Opening `o = d / s̃`, where `s̃` is the median palm scale within ±500 ms. The unit is palm sizes.
+2. **Exclusions.** Only `VALID` frames are used; an opening above 3.0 is rejected as a glitch.
+3. **Gaps.** Gaps of up to 250 ms are bridged; a longer gap starts a new segment.
+4. **Smoothing.** Zero-phase exponential smoothing, τ = 25 ms, using the real frame intervals.
+5. **Noise.** `σ = 1.4826 · MAD(raw − smoothed)`.
+6. **Movement floor.** `min(max(0.15, 6σ), 0.40)`; below it there is no movement.
+7. **Adaptive envelope.** P5 / P95 within ±1.5 s.
+8. **Hysteresis thresholds.** Close at 0.35 and open at 0.65 of the local range.
 
-## 5. Tap event detection (`TapStateMachine`, `DetectionConfig`)
-
-State machine on the smoothed signal:
+## 5. Tap events (`TapStateMachine`, `DetectionConfig`)
 
 ```
 UNKNOWN --(≤ close)--> CLOSED --(≥ open)--> OPEN --(≤ close)--> [tap candidate] → CLOSED
 ```
 
-* **Tap definition.** A closing (OPEN → CLOSED) that follows an opening from a closed position.
-  The tap timestamp is the moment the signal crosses the close threshold, and inter-tap intervals
-  use these timestamps.
-* **Amplitude.** Measured on the raw signal: the raw peak in the OPEN phase minus the raw minimum
-  in the preceding CLOSED phase, in palm sizes. Smoothing attenuates peaks more at higher rates
-  (about 8 % at 2 Hz and 34 % at 5 Hz for 30 fps), so measuring amplitude on the smoothed signal
-  would make amplitude depend on speed.
-* **A candidate is rejected when:**
-  * *debounce*: the closing comes less than 100 ms after the previous accepted tap;
-  * *minimum event duration*: less than 60 ms passed from the closed minimum to the closing;
-  * *minimum amplitude*: the amplitude is below `max(0.4·range, 0.5·floor)`.
-* **Dropout recovery.** At a segment start (gap > 250 ms) the state resets to UNKNOWN. A cycle
-  in progress is discarded and counted as `discardedByDropout`, so a dropout can never be counted
-  as a tap. When `active = false` the state also resets, and the discarded cycle is counted as
-  `discardedInactive`.
-* **First event.** If the recording starts with the fingers open, the first closing is counted.
-  Its start level is the local baseline (`startEstimated = true`), its confidence is multiplied by
-  0.7, and the duration check is skipped.
-* **Final incomplete event.** If the recording ends in OPEN, that cycle is not counted and
-  `incompleteFinalCycle = true` is set.
-* **`TapEvent` fields:**
-  * index and timestamp;
-  * start (closed minimum) and peak time;
-  * amplitude, peak opening and trough opening;
-  * opening duration (start → peak) and closing duration (peak → closing);
-  * total duration (start → closing);
-  * confidence and `startEstimated`.
-* **Confidence** (0..1) is `√(amplitude/range) × continuity × tracking × start`:
-  * continuity is 0.6 if a frame gap inside the cycle exceeds 150 ms, otherwise 1;
-  * tracking is the mean MediaPipe handedness confidence over the cycle;
-  * start is 0.7 when the start was estimated, otherwise 1.
-* **Live counter.** The same state machine and parameters, with a causal EMA and a trailing 3 s
-  envelope. It is shown during RECORDING only and never stored. The stored count comes from the
-  offline analysis and may differ by about one tap.
+* **Tap.** A closing that follows an opening from a closed position. Its timestamp is the close-threshold crossing.
+* **Rejected candidates** (never counted, counted as rejected):
+  * debounce < 100 ms after the previous tap (maximum about 10 Hz);
+  * event duration < 60 ms;
+  * amplitude < max(0.4·range, 0.5·floor).
 
-## 6. Metrics (`MotorMetricsCalculator`)
+  Each tap is counted once, on the OPEN→CLOSED transition, never per frame, so jitter cannot
+  produce duplicate taps.
+* **Dropouts and inactivity** reset the state; a cycle in progress is discarded.
+* **First and last events.** If the recording starts with the fingers open, the first closing is
+  counted (`startEstimated`). An open cycle at the end is not counted.
+* **`TapEvent` fields:** timestamp; start and peak time; amplitude, peak and trough opening;
+  opening, closing and total duration; **closing velocity** (amplitude / closing duration, palm
+  sizes per second); confidence; `startEstimated`. The hand and finger (thumb–index) are the same
+  for the whole test and are stored with the result.
+* **Confidence** (0..1) = `√(amplitude/range) × continuity × start`:
+  * continuity is 0.6 with a gap > 150 ms inside the cycle;
+  * start is 0.7 when the start was estimated.
 
-`D` is the recording duration (end − start, normally 10 s). `Iₖ` are the intervals between
-consecutive tap timestamps, and `Aₖ` are the tap amplitudes.
+  The handedness score is **not** part of it (section 0, row 3).
 
-| Metric | Formula |
+## 6. Metrics (`MotorMetricsCalculator`, `FrameStatisticsCalculator`)
+
+Tap metrics are unchanged from 1.0.x:
+* count, rate, taps per 10 s;
+* intervals: mean, median, SD, CV, tap-to-tap variability;
+* amplitude: mean, median, SD, CV, minimum, maximum;
+* tap duration, consistency, pauses;
+* amplitude and rate trend, amplitude slope.
+
+New:
+* closing velocity: mean and CV;
+* **segments**: tap count, rate, mean amplitude, amplitude CV and interval CV for each third.
+
+Frame statistics are all derived from frame timestamps:
+
+| Statistic | Definition |
 |---|---|
-| Tap count | number of accepted taps |
-| Taps per second | count / D |
-| Taps per 10 s | taps per second × 10 |
-| Mean / median interval | mean(I), median(I) |
-| Interval SD | sample SD (n−1) of I |
-| Interval CV % | SD(I) / mean(I) × 100 |
-| Tap-to-tap variability % | mean(\|Iₖ₊₁ − Iₖ\|) / mean(I) × 100 |
-| Mean / median / min / max amplitude | of A (palm sizes) |
-| Amplitude SD, CV % | sample SD(A), SD/mean × 100 |
-| Tap duration | mean / median of event duration |
-| Movement consistency % | clamp(100 − (interval CV + amplitude CV)/2, 0, 100). Engineering composite. |
-| Pause count | intervals > 2 × median interval (needs ≥ 3 intervals) |
-| Amplitude trend | mean amplitude in the early / middle / late third of D (a third needs ≥ 2 taps); relative change = (late − early)/early × 100 |
-| Rate trend | taps per second in each third; relative change late vs early |
-| Amplitude slope | least-squares slope of A over time, as % of mean amplitude per second (needs ≥ 4 taps) |
-| FPS | (frames − 1) / (last − first frame timestamp) |
-| Valid frame % | VALID frames / all frames |
-| Dropout | a period without valid hand data longer than max(150 ms, 3 × median frame interval). Includes start→first valid and last valid→end. Count, total and longest duration are reported. |
-| Recording completeness % | D / planned duration × 100 (max 100) |
+| frames analyzed | MediaPipe results in the window |
+| valid landmark frames | `VALID` results |
+| fps | (frames − 1) / (last − first timestamp) |
+| dropout | a period without valid landmarks longer than max(150 ms, 3 × median interval), recording edges included |
+| usable duration | window − dropout time |
+| **tracking rate** | usable / window, i.e. the **time** share with landmarks (used for quality) |
+| frame tracking rate | valid / all frames (reported only: it is biased, because frames without a hand arrive faster) |
+| observed duration | first to last result plus one median interval |
+| camera frames skipped | from sensor timestamps: round(interval / camera period) − 1, where the period is the shortest recent interval |
+| pipeline frames dropped | sequence numbers submitted to MediaPipe without a result |
+| mean luma | mean of the 0..255 luma sampled on a 32 × 24 grid of each frame |
+| side status counts | MATCHES / UNCERTAIN / MISMATCH frames |
 
-A metric that needs more taps than were recorded is `null` ("not measurable"). It is never 0.
+## 7. Quality (`FingerTappingQualityEngine`, `QualityThresholds`)
 
-**Amplitude trend** is reported as a measured trend only. A negative value means the late taps
-were smaller than the early ones. The app does not label it pathological.
+There are separate layers. Camera/image quality is a warning signal: it can make a result
+LOW_QUALITY only when tracking is also reduced, and it can never reject one.
 
-## 7. Quality control (`QualityAssessor`, `QualityThresholds`)
+| Layer | Measure | GOOD | WARNING | POOR |
+|---|---|---|---|---|
+| Camera / image (`CameraQuality`) | mean luma | 50–225 | < 50 or > 225 | < 20 |
+| Hand detection + landmark tracking (`HandTrackingQuality`) | tracking rate (time) | ≥ 85 % | ≥ 60 % | < 60 % |
 
-Statuses, from best to worst: `VALID`, `LOW_QUALITY`, `INSUFFICIENT_DATA`, `INVALID`. The
-status is the worst severity among the issues found.
+| Issue | Severity | Rule | Reasoning |
+|---|---|---|---|
+| NO_FRAMES | INVALID | < 10 results | nothing was recorded |
+| RECORDING_INCOMPLETE | INVALID | observed duration < 90 % of 10 s | frames must really cover the test |
+| INSUFFICIENT_FPS | INVALID | fps < max(8, 4 × measured tap rate) | ≥ 2 samples per opening and per closing half-cycle |
+| WRONG_HAND | INVALID | ≥ 50 % of side-confident frames show the other hand (≥ 10 frames) | recording-level consensus |
+| MULTIPLE_HANDS | INVALID | ≥ 30 % of frames (only with maxHands > 1) | |
+| NO_HAND_DETECTED | INSUFFICIENT_DATA | no valid landmark frame | |
+| INSUFFICIENT_TRACKING | INSUFFICIENT_DATA | tracking rate < 60 % (< 6 s of landmarks) | rhythm needs most of the 10 s |
+| EXCESSIVE_DROPOUT | INSUFFICIENT_DATA | longest gap > 2 s | a fifth of the test missing in one piece |
+| NO_TAPPING_DETECTED / TOO_FEW_TAPS | INSUFFICIENT_DATA | 0 / < 4 taps | rhythm needs ≥ 3 intervals |
+| LOW_FPS | LOW_QUALITY | fps < 20 | |
+| CAMERA_FRAMES_DROPPED | LOW_QUALITY | > 30 % of camera frames dropped | |
+| REDUCED_TRACKING | LOW_QUALITY | 60 % ≤ tracking < 85 % | |
+| DROPOUTS_PRESENT | LOW_QUALITY | dropout > 10 % or longest > 750 ms | |
+| HAND_SIDE_UNCERTAIN | LOW_QUALITY | ≥ 20 % other-hand labels, or < 10 side-confident frames | |
+| UNSTABLE_TRACKING | LOW_QUALITY | palm-scale CV > 25 % | |
+| LIGHTING_AFFECTED_TRACKING | LOW_QUALITY | camera not GOOD **and** tracking not GOOD | |
+| NOISY_SIGNAL | LOW_QUALITY | noise / median amplitude > 0.20 | |
+| LOW_EVENT_CONFIDENCE | LOW_QUALITY | mean tap confidence < 0.5 | |
 
-| Issue | Severity | Rule |
-|---|---|---|
-| NO_FRAMES | INVALID | < 10 frames |
-| RECORDING_INCOMPLETE | INVALID | completeness < 95 % |
-| INSUFFICIENT_FPS | INVALID | fps < 12 |
-| LOW_FPS | LOW_QUALITY | 12 ≤ fps < 20 |
-| WRONG_HAND | INVALID | ≥ 30 % of frames show the other hand |
-| MULTIPLE_HANDS | INVALID | ≥ 30 % of frames show several hands |
-| NO_HAND_DETECTED | INVALID | valid < 60 % and (no valid frame or ≥ 50 % no-hand) |
-| TOO_FEW_VALID_FRAMES | INVALID | valid < 60 % (other cause) |
-| REDUCED_VALID_FRAMES | LOW_QUALITY | 60 % ≤ valid < 85 % |
-| EXCESSIVE_DROPOUT | INVALID | dropout > 30 % of D or longest > 2 s |
-| DROPOUTS_PRESENT | LOW_QUALITY | dropout > 10 % of D or longest > 750 ms |
-| UNSTABLE_TRACKING | LOW_QUALITY | palm-scale CV > 25 % (hand moving towards or away from the camera) |
-| NO_TAPPING_DETECTED | INSUFFICIENT_DATA | 0 taps |
-| TOO_FEW_TAPS | INSUFFICIENT_DATA | < 4 taps (rhythm needs ≥ 3 intervals) |
-| NOISY_SIGNAL | LOW_QUALITY | noise σ / median amplitude > 0.20 |
-| LOW_EVENT_CONFIDENCE | LOW_QUALITY | mean tap confidence < 0.5 |
-
-* **Quality score** (0–100) is the mean of four factors, each ramping linearly between its
-  "unusable" and "good" limits:
-  * fps from 12 to 20;
-  * valid fraction from 60 % to 85 %;
-  * dropout share from 30 % down to 10 %;
+* **Quality score** (0–100, «کیفیت داده»). The mean of four ramps:
+  * fps from the required rate to 20;
+  * tracking from 60 % to 85 %;
+  * dropout share;
   * mean tap confidence.
 * **What each status produces:**
-  * `VALID`: result and score.
-  * `LOW_QUALITY`: result **without** a score, plus a caution message.
-  * `INSUFFICIENT_DATA` / `INVALID`: no result. The user sees a simple explanation and a retry.
 
-## 8. Finger Tapping Performance Score (`PerformanceScorer`, `ScoringConfig`)
+  | Status | Result |
+  |---|---|
+  | VALID | result, score, reliability RELIABLE |
+  | LOW_QUALITY | result and score, reliability **LIMITED** («نتیجه با اطمینان محدود قابل تفسیر است.») |
+  | INSUFFICIENT_DATA | no result; «داده کافی برای محاسبه نتیجه وجود ندارد.» |
+  | INVALID | no result; «نتیجه قابل اعتماد نیست.» |
 
-**Preliminary engineering index, NOT clinically validated, NOT a diagnosis or probability.**
-Its only intended use is to compare a person with their own earlier tests. It is computed only
-when quality is `VALID`, and otherwise it is `null`.
+* **Tips.** The lighting tip («تشخیص دست در این شرایط پایدار نیست. لطفاً نور محیط را بهتر کنید.»)
+  appears **only** for insufficient tracking together with a camera warning. The frame-rate tip is
+  accurate: close other apps, and note that dim light slows some cameras.
 
-Components (0–100, linear and clamped). The reference values are engineering anchors, not
-clinical cutoffs:
+## 8. Motor Performance Index (`FingerTappingScoreEngine`, `ScoringConfig`)
 
-| Component | Mapping | Weight |
+«شاخص عملکرد حرکتی». It uses engineering weights and an internal software reference: NOT
+clinically validated, NOT a diagnosis or probability.
+
+| Component | Weight | Normalization |
 |---|---|---|
-| Rate | taps per second / 5.0 | 0.30 |
-| Rhythm | 1 − interval CV / 50 % | 0.20 |
-| Amplitude | mean amplitude / 1.0 palm size | 0.20 |
-| Amplitude trend | 1 + min(change, 0) / 50 % (no decrease or an increase = 100) | 0.15 |
-| Consistency | movement consistency % / 100 | 0.10 |
-| Data quality | quality score / 100 | 0.05 |
+| Speed | 30 % | tap rate, linear from 0.5 Hz (0) to 5 Hz (100) |
+| Regularity | 25 % | 100 × (1 − interval CV / 50 %) |
+| Amplitude | 20 % | mean opening, linear from 0.15 (movement floor) to 1.0 palm size |
+| Consistency | 15 % | movement consistency % |
+| Performance trend | 10 % | 100 up to a 5-point decline (late vs early segment score), 0 at 40 points |
 
-`total = round(Σ wᵢ·cᵢ / Σ wᵢ)`. A component that cannot be measured (the trend, when a third of
-the recording has fewer than 2 taps) is left out, and the remaining weights are renormalized.
+* **Segment score.** Speed, regularity and amplitude of one third, which needs ≥ 3 taps.
+* **Trend state.** DECLINING at ≤ −10 points, IMPROVING at ≥ +10, otherwise STABLE.
+  INSUFFICIENT_DATA when the early or late third cannot be scored.
+* **Missing components** are left out and the weights renormalized; everything is clamped to 0–100.
+* **Bands** (shared `MotorPerformanceBand`): 0–19, 20–39, 40–59, 60–79, 80–100.
+* **Interpretation** (`FingerTappingInterpreter`):
+  * speed and rhythm good / lower than the internal reference (with the "not a diagnosis" sentence);
+  * amplitude lower;
+  * trend stable / declining / improving;
+  * quality good / limited;
+  * lighting warning;
+  * repeat recommended.
 
 ## 9. Storage
 
-Room table `finger_tapping_assessments`, schema version 1. The schema is exported to
-`app/schemas/`.
+Room table `finger_tapping_assessments`. **DB v5** adds columns through an automatic migration, so
+existing rows are kept (`FingerTappingStorageTest` checks v4 → v5).
 
-* **Stored:** one row per usable assessment, with the measured values, quality status and
-  issues, quality score, score components, and the algorithm and scoring versions.
-* **Not stored:** raw frames, images or video, and personal identifiers.
-* **Name-based fields.** Enums are stored by name. Unknown names read back safely: an unknown
-  quality status reads as `INVALID`, and unknown issues are dropped.
-* **Backup.** Disabled (`allowBackup="false"`).
+* **Stored:**
+  * all metrics and the quality status, issues and score;
+  * score components and trend state, the early / middle / late segment scores, reliability, interpretation notes and reference name;
+  * the camera and tracking layers, tracking rate, usable duration, frames analyzed and valid, mean luma, camera and pipeline drops;
+  * closing velocity;
+  * a **compact per-tap payload**: tap times (ms from start), amplitudes, closing velocities and durations;
+  * the algorithm and scoring versions.
+* **Not stored:** frames, images or video, and personal identifiers.
+* **Older rows** (no reliability column) read back as RELIABLE if VALID and LIMITED otherwise.
+  Unknown enum names degrade safely.
+* **History** lists every type, newest first, with hand, date, the «شاخص عملکرد» and quality.
+  Tapping an entry opens the stored result.
 
-## 10. Validation status
+## 10. Diagnostics (debug builds only)
 
-* **Verified by deterministic unit tests** on synthetic signals:
-  * slow, normal, fast and very fast tapping;
-  * small and large amplitudes;
-  * irregular rhythm, noise and dropouts;
-  * wrong hand, no hand and low fps;
-  * incomplete recordings;
-  * debounce, hysteresis, first and final events;
-  * amplitude decrement;
-  * reproducibility of results and scores.
-* **Not yet verified:** behavior on real devices with real hands. In particular:
-  * the thresholds in sections 4, 5 and 7;
-  * MediaPipe handedness mapping: the reversed labels seen on the first device test were fixed in
-    `ft-algo-1.0.1` (see section 1a); this still needs re-checking with both hands on device;
-  * real frame rates;
-  * how close the live count is to the final count.
+* **Logcat `FTDiag`:**
+  * `FRAME` and `HAND` lines, with label, score, decision, luma and sequence;
+  * `FPS`;
+  * `TAP` per event;
+  * `RESULT` with duration, observed duration, frames analyzed, valid landmark frames, no-hand
+    and out-of-frame counts, side counts, camera and pipeline drops, fps, required fps, tracking
+    rate, usable duration, luma, camera and tracking layers, taps, rejected candidates, mean
+    interval, rate, amplitude, amplitude CV, longest gap, dropouts, noise, quality, issues, score
+    and trend.
+* **Debug panels:** the camera screen shows live camera, tracking, frame and tap figures; the
+  result screen shows the final layers, frames, drops, taps, quality and score.
+* No personal data is logged.
 
-  See the device validation checklist in the project report. Thresholds must be revisited with
-  real recordings, and any change must bump the version.
+## 11. Validation status
+
+* **Verified on synthetic data:**
+  * the analyzer, pipeline (all scenarios in section 0), score engine and session (including live = final count);
+  * storage, including the v4 → v5 migration;
+  * the UI.
+* **Pending on real devices.** See `finger-tapping-device-test.md`.

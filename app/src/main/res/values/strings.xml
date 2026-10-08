@@ -96,32 +96,16 @@
     <string name="session_processing">در حال پردازش…</string>
 
     <!-- Result Screen -->
-    <string name="result_title">ارزیابی Finger Tapping</string>
     <string name="result_tap_count">تعداد ضربه</string>
     <string name="result_tap_count_value">%1$s ضربه در %2$s ثانیه</string>
     <string name="result_tap_rate">سرعت ضربه</string>
     <string name="result_tap_rate_value">%1$s ضربه در ثانیه</string>
     <string name="result_tap_rate_desc">میانگین تعداد ضربه‌ها در هر ثانیه.</string>
-    <string name="result_rhythm">ریتم حرکت</string>
     <string name="result_rhythm_value">تغییرپذیری فاصله ضربه‌ها: %1$s٪</string>
-    <string name="result_rhythm_desc">هرچه این عدد کمتر باشد، فاصله زمانی ضربه‌ها یکنواخت‌تر بوده است.</string>
     <string name="result_amplitude">دامنه حرکت</string>
     <string name="result_amplitude_value">میانگین باز شدن انگشتان: %1$s٪ اندازه کف دست</string>
-    <string name="result_amplitude_desc">فاصله نوک شست و اشاره در بیشترین باز شدن، نسبت به اندازه کف دست.</string>
     <string name="result_consistency">پایداری حرکت</string>
-    <string name="result_consistency_value">%1$s از ۱۰۰</string>
     <string name="result_consistency_desc">یکنواختی سرعت و دامنه ضربه‌ها در طول آزمون؛ هرچه بیشتر، یکنواخت‌تر.</string>
-    <string name="result_trend">روند دامنه حرکت</string>
-    <string name="result_trend_value">تغییر از ابتدا تا انتهای آزمون: %1$s٪</string>
-    <string name="result_trend_desc">مقدار منفی یعنی دامنه حرکت در انتهای آزمون کمتر از ابتدای آن اندازه‌گیری شده است. این یک اندازه‌گیری است و به‌تنهایی معنای بالینی ندارد.</string>
-    <string name="result_quality">کیفیت ثبت</string>
-    <string name="result_quality_valid">مناسب</string>
-    <string name="result_quality_low">متوسط؛ نتایج را با احتیاط در نظر بگیرید.</string>
-    <string name="result_quality_value">%1$s (%2$s از ۱۰۰)</string>
-    <string name="result_score">امتیاز عملکرد حرکتی</string>
-    <string name="result_score_value">%1$s از ۱۰۰</string>
-    <string name="result_score_note">شاخص مهندسی اولیه برای مقایسه شما با ارزیابی‌های قبلی خودتان؛ از نظر بالینی اعتبارسنجی نشده است.</string>
-    <string name="result_score_unavailable">به دلیل کیفیت ناکافی ثبت، امتیاز محاسبه نشد.</string>
     <string name="result_not_measurable">قابل اندازه‌گیری نبود</string>
     <string name="result_disclaimer">این نتایج صرفاً برای ارزیابی و پایش عملکرد حرکتی هستند و به‌تنهایی تشخیص پزشکی محسوب نمی‌شوند.</string>
     <string name="result_details_show">نمایش جزئیات فنی (برای پزشک)</string>
@@ -134,7 +118,6 @@
 
     <!-- Invalid Result Screen -->
     <string name="invalid_title">نتیجه‌ای ثبت نشد</string>
-    <string name="invalid_headline">کیفیت ثبت اطلاعات برای محاسبه نتیجه کافی نبود.</string>
     <string name="invalid_interrupted">آزمون پیش از پایان قطع شد (خروج از برنامه، چرخش صفحه یا قفل شدن گوشی). نتیجه ناقص ذخیره نمی‌شود.</string>
     <string name="invalid_insufficient_frames">دوربین در بخش زیادی از آزمون، دست را به‌خوبی ثبت نکرد.</string>
     <string name="invalid_excessive_dropout">دست برای مدت طولانی از دید دوربین خارج شد.</string>
@@ -155,7 +138,6 @@
     <string name="invalid_tip_wrong_hand">لطفاً همان دستی را که انتخاب کرده‌اید مقابل دوربین قرار دهید.</string>
     <string name="invalid_tip_multiple_hands">لطفاً فقط یک دست را مقابل دوربین قرار دهید.</string>
     <string name="invalid_tip_stable">گوشی را ثابت نگه دارید و فاصله دست تا دوربین را تغییر ندهید.</string>
-    <string name="invalid_tip_light">نور محیط را بیشتر کنید و برنامه‌های دیگر را ببندید.</string>
     <string name="invalid_tip_tapping">نوک انگشت شست و اشاره را به‌طور کامل باز و بسته کنید و در تمام ۱۰ ثانیه ادامه دهید.</string>
     <string name="invalid_tip_camera">لطفاً دوباره تلاش کنید. اگر مشکل ادامه داشت، برنامه را ببندید و دوباره باز کنید.</string>
     <string name="invalid_tip_storage">لطفاً از کافی بودن فضای خالی گوشی مطمئن شوید و دوباره تلاش کنید.</string>
@@ -434,4 +416,56 @@
     <string name="ps_detail_algorithm">نسخه الگوریتم</string>
     <string name="ps_detail_scoring">نسخه امتیازدهی</string>
     <string name="history_item_pronation">%1$s چرخه • %2$s چرخه در ثانیه</string>
+
+    <!-- Finger Tapping: layered quality, live status, result (algorithm 1.1 / scoring 1.0) -->
+    <string name="ft_live_hand_ok">%1$s شناسایی شد ✓</string>
+    <string name="ft_live_wrong_hand">لطفاً %1$s خود را مقابل دوربین قرار دهید.</string>
+    <string name="ft_live_wrong_hand_status">دست دیگری شناسایی شد ⚠️</string>
+    <string name="ft_live_hand_ready">دست در موقعیت مناسب است.</string>
+    <string name="ft_live_hand_lost">دست از دید دوربین خارج شد. دست را داخل کادر نگه دارید.</string>
+    <string name="ft_live_waiting">در انتظار شناسایی دست…</string>
+    <string name="ft_live_error">امکان آماده‌سازی تشخیص دست وجود ندارد.</string>
+    <string name="ft_live_multiple_hands">فقط یک دست باید مقابل دوربین باشد.</string>
+    <string name="ft_live_tracking_good">تشخیص دست: پایدار (%1$s٪)</string>
+    <string name="ft_live_tracking_warning">تشخیص دست: نسبتاً پایدار (%1$s٪)</string>
+    <string name="ft_live_tracking_poor">تشخیص دست پایدار نیست. دست را کامل داخل کادر نگه دارید.</string>
+    <string name="ft_live_light_warning">نور محیط ایده‌آل نیست، اما تشخیص دست در حال انجام است.</string>
+    <string name="ft_live_light_tracking_poor">تشخیص دست در این شرایط پایدار نیست. لطفاً نور محیط را بهتر کنید.</string>
+    <string name="ft_result_title">نتیجه آزمون ضربه با انگشت</string>
+    <string name="ft_result_regularity">نظم ضربه‌ها</string>
+    <string name="ft_result_data_quality">کیفیت داده</string>
+    <string name="ft_result_tracking">ردیابی دست در %1$s٪ زمان آزمون برقرار بود.</string>
+    <string name="ft_result_trend">روند عملکرد</string>
+    <string name="ft_result_trend_segments">امتیاز بخش آغازین %1$s، میانی %2$s و پایانی %3$s از ۱۰۰.</string>
+    <string name="ft_note_speed_rhythm_good">حرکات ضربه‌ای با سرعت و نظم مناسب ثبت شدند.</string>
+    <string name="ft_note_speed_rhythm_lower">در این آزمون سرعت یا نظم حرکات نسبت به محدوده داخلی الگوریتم پایین‌تر بود. این نتیجه به‌تنهایی تشخیص پزشکی محسوب نمی‌شود.</string>
+    <string name="ft_note_amplitude_lower">باز شدن انگشتان نسبت به محدوده داخلی الگوریتم کمتر بود.</string>
+    <string name="ft_note_trend_stable">سرعت ضربه‌ها در طول آزمون نسبتاً پایدار بود.</string>
+    <string name="ft_note_trend_declining">در بخش پایانی آزمون کاهش نسبی سرعت یا دامنه ضربه‌ها مشاهده شد.</string>
+    <string name="ft_note_trend_improving">عملکرد در بخش پایانی آزمون نسبت به بخش آغازین بهتر بود.</string>
+    <string name="ft_note_quality_good">کیفیت داده برای تفسیر مناسب بود.</string>
+    <string name="ft_note_quality_limited">کیفیت داده محدود بود.</string>
+    <string name="ft_note_lighting">شرایط نور می‌تواند کیفیت تشخیص را کاهش دهد.</string>
+    <string name="ft_detail_duration">مدت ثبت / مدت قابل استفاده (ثانیه)</string>
+    <string name="ft_detail_taps_per_10s">ضربه در ۱۰ ثانیه</string>
+    <string name="ft_detail_interval">فاصله ضربه‌ها: میانگین / میانه / انحراف معیار (میلی‌ثانیه)</string>
+    <string name="ft_detail_interval_cv">تغییرپذیری فاصله‌ها: CV / ضربه‌به‌ضربه</string>
+    <string name="ft_detail_pauses">تعداد مکث‌ها</string>
+    <string name="ft_detail_amplitude">دامنه: میانه / کمترین / بیشترین (٪ کف دست)</string>
+    <string name="ft_detail_amplitude_cv">تغییرپذیری دامنه (CV)</string>
+    <string name="ft_detail_amplitude_thirds">دامنه در بخش‌ها: آغاز / میانه / پایان</string>
+    <string name="ft_detail_rate_thirds">سرعت آغاز / پایان (ضربه در ثانیه)</string>
+    <string name="ft_detail_velocity">سرعت بسته شدن: میانگین (کف دست بر ثانیه) / CV</string>
+    <string name="ft_detail_tap_duration">میانگین مدت هر ضربه (میلی‌ثانیه)</string>
+    <string name="ft_detail_fps">نتیجه پردازش در ثانیه</string>
+    <string name="ft_detail_tracking">ردیابی دست: زمان / فریم</string>
+    <string name="ft_detail_dropouts">قطعی ردیابی: تعداد / مجموع / طولانی‌ترین (میلی‌ثانیه)</string>
+    <string name="ft_detail_layers">کیفیت: دوربین / ردیابی / داده</string>
+    <string name="ft_detail_issues">مسائل کیفیت</string>
+    <string name="ft_detail_components">مؤلفه‌ها (سرعت / نظم / دامنه / پایداری / روند)</string>
+    <string name="invalid_headline_insufficient">داده کافی برای محاسبه نتیجه وجود ندارد.</string>
+    <string name="invalid_headline_unreliable">نتیجه قابل اعتماد نیست.</string>
+    <string name="invalid_poor_tracking">ردیابی دست در بخش زیادی از آزمون برقرار نبود.</string>
+    <string name="invalid_tip_light_tracking">تشخیص دست در این شرایط پایدار نیست. لطفاً نور محیط را بهتر کنید.</string>
+    <string name="invalid_tip_fps">برنامه‌های دیگر را ببندید و دوباره تلاش کنید. در محیط کم‌نور، دوربین برخی گوشی‌ها کندتر کار می‌کند و نور بیشتر می‌تواند کمک کند.</string>
 </resources>

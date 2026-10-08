@@ -1,5 +1,7 @@
 package com.example.parkinson.tapping
 
+import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.mediapipe.HandSideStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.quality.QualityIssue
 import com.example.parkinson.assessment.QualityStatus
@@ -152,21 +154,23 @@ class FingerTappingAnalyzerTest {
     fun multipleDropoutsLowerQuality() {
         val s = SyntheticTapping().regular(3.0)
             .status(2_000, 2_600, FrameStatus.NO_HAND)
-            .status(5_000, 5_600, FrameStatus.LOW_CONFIDENCE)
+            .status(5_000, 5_600, FrameStatus.NO_HAND)
             .status(8_000, 8_600, FrameStatus.NO_HAND)
         val a = analyze(s)
         assertEquals(3, a.metrics.frames.dropoutCount)
         assertEquals(QualityStatus.LOW_QUALITY, a.quality.status)
         assertTrue(QualityIssue.DROPOUTS_PRESENT in a.quality.issues)
-        assertNull("no score for a low-quality recording", a.score)
+        // LOW_QUALITY is scored, marked as limited reliability.
+        assertEquals(ReliabilityLevel.LIMITED, a.score!!.reliability)
         assertTrue(a.metrics.tapCount <= s.expectedTaps())
     }
 
     @Test
-    fun longDropoutInvalidates() {
+    fun longDropoutIsInsufficientData() {
+        // A 3 s gap: too little continuous motor data (not a technical failure of the recording).
         val s = SyntheticTapping().regular(3.0).status(3_000, 6_000, FrameStatus.NO_HAND)
         val a = analyze(s)
-        assertEquals(QualityStatus.INVALID, a.quality.status)
+        assertEquals(QualityStatus.INSUFFICIENT_DATA, a.quality.status)
         assertTrue(QualityIssue.EXCESSIVE_DROPOUT in a.quality.issues)
         assertNull(a.score)
     }
@@ -184,10 +188,24 @@ class FingerTappingAnalyzerTest {
     // 13
     @Test
     fun insufficientFpsIsInvalid() {
-        val s = SyntheticTapping(fps = 10.0).regular(2.0)
+        // 6 results/s is below the absolute floor: even slow taps get too few samples.
+        val s = SyntheticTapping(fps = 6.0).regular(1.0)
         val a = analyze(s)
         assertEquals(QualityStatus.INVALID, a.quality.status)
         assertTrue(QualityIssue.INSUFFICIENT_FPS in a.quality.issues)
+        assertNull(a.score)
+    }
+
+    @Test
+    fun frameRateRequirementFollowsTheTapRate() {
+        // 10 results/s resolve 2 Hz tapping (5 samples per tap): usable, LOW_QUALITY, scored.
+        val slow = analyze(SyntheticTapping(fps = 10.0).regular(2.0))
+        assertEquals(QualityStatus.LOW_QUALITY, slow.quality.status)
+        assertTrue(QualityIssue.LOW_FPS in slow.quality.issues)
+        assertNotNull(slow.score)
+        // The requirement rises with the measured tap rate (>= 4 samples per tap cycle).
+        val fast = analyze(SyntheticTapping(fps = 30.0).regular(4.0))
+        assertEquals(4 * fast.metrics.tapRateHz, fast.quality.requiredFps, 1e-9)
     }
 
     @Test
@@ -200,30 +218,37 @@ class FingerTappingAnalyzerTest {
 
     // 14
     @Test
-    fun noHandIsInvalid() {
+    fun noHandIsInsufficientData() {
+        // Frames arrived (the recording itself is fine) but they contain no hand: no motor data.
         val s = SyntheticTapping().regular(3.0).status(0, 20_000, FrameStatus.NO_HAND)
         val a = analyze(s)
         assertEquals(0, a.metrics.tapCount)
-        assertEquals(QualityStatus.INVALID, a.quality.status)
+        assertEquals(QualityStatus.INSUFFICIENT_DATA, a.quality.status)
+        assertNull(a.score)
         assertEquals(QualityIssue.NO_HAND_DETECTED, a.quality.primaryIssue)
     }
 
     // 15
     @Test
     fun wrongHandIsInvalid() {
-        val s = SyntheticTapping().regular(3.0).status(0, 20_000, FrameStatus.WRONG_HAND)
+        // Every frame confidently labelled as the other hand.
+        val s = SyntheticTapping().regular(3.0).side(0, 20_000, HandSideStatus.MISMATCH)
         val a = analyze(s)
-        assertEquals(0, a.metrics.tapCount)
         assertEquals(QualityStatus.INVALID, a.quality.status)
         assertEquals(QualityIssue.WRONG_HAND, a.quality.primaryIssue)
+        assertNull(a.score)
     }
 
     @Test
-    fun wrongHandForPartOfTheRecordingIsInvalid() {
-        val s = SyntheticTapping().regular(3.0).status(0, 3_500, FrameStatus.WRONG_HAND)
+    fun occasionalOtherHandLabelsKeepTheData() {
+        // 35 % of frames labelled as the other hand (e.g. the hand seen edge-on): the landmarks are
+        // the same single tracked hand, so the data stay; the side is flagged as uncertain.
+        val s = SyntheticTapping().regular(3.0).side(0, 3_500, HandSideStatus.MISMATCH)
         val a = analyze(s)
-        assertEquals(QualityStatus.INVALID, a.quality.status)
-        assertTrue(QualityIssue.WRONG_HAND in a.quality.issues)
+        assertEquals(QualityStatus.LOW_QUALITY, a.quality.status)
+        assertTrue(QualityIssue.HAND_SIDE_UNCERTAIN in a.quality.issues)
+        assertTaps(s.expectedTaps(), a.metrics.tapCount, tolerance = 1)
+        assertNotNull(a.score)
     }
 
     // 19
@@ -306,7 +331,8 @@ class FingerTappingAnalyzerTest {
         }
         val a = analyzer.analyze(base.recording().copy(frames = frames))
         assertTrue(QualityIssue.UNSTABLE_TRACKING in a.quality.issues)
-        assertNull(a.score)
+        // LOW_QUALITY: scored, marked as limited reliability.
+        assertEquals(ReliabilityLevel.LIMITED, a.score!!.reliability)
         // Normalization keeps the taps countable.
         assertTaps(base.expectedTaps(), a.metrics.tapCount, tolerance = 1)
     }
@@ -343,7 +369,7 @@ class FingerTappingAnalyzerTest {
         assertEquals(FingerTappingVersions.SCORING_VERSION, assessment.scoringVersion)
         assertEquals(FingerTappingVersions.SCORING_VERSION, assessment.performanceScore!!.scoringVersion)
         assertFalse(assessment.performanceScore!!.isClinicallyValidated)
-        assertTrue(FingerTappingVersions.SCORING_VERSION.contains("preliminary"))
+        assertEquals("1.0", FingerTappingVersions.SCORING_VERSION)
         assertTrue(Regex("""ft-algo-\d+\.\d+\.\d+""").matches(FingerTappingVersions.ALGORITHM_VERSION))
         assertEquals(SelectedHand.LEFT, assessment.hand)
         assertEquals(a.metrics.tapCount, assessment.tapCount)

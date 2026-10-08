@@ -14,11 +14,11 @@ import com.example.parkinson.pronation.InterpretationNote
 import com.example.parkinson.pronation.InternalSoftwareReference
 import com.example.parkinson.pronation.MeasureTrends
 import com.example.parkinson.pronation.MetricTrend
-import com.example.parkinson.pronation.MotorPerformanceBand
-import com.example.parkinson.pronation.PerformanceTrendState
+import com.example.parkinson.assessment.MotorPerformanceBand
+import com.example.parkinson.assessment.PerformanceTrendState
 import com.example.parkinson.pronation.PronationQualityIssue
 import com.example.parkinson.pronation.PronationSupinationResult
-import com.example.parkinson.pronation.ReliabilityLevel
+import com.example.parkinson.assessment.ReliabilityLevel
 import com.example.parkinson.pronation.TrendDirection
 import kotlinx.coroutines.flow.Flow
 import java.util.Locale

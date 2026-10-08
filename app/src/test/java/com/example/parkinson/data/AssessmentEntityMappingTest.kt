@@ -22,7 +22,7 @@ class AssessmentEntityMappingTest {
     }
 
     @Test
-    fun lowQualityAssessmentWithoutScoreRoundTrips() {
+    fun lowQualityAssessmentRoundTripsWithItsLimitedScore() {
         val a = assessment(
             SyntheticTapping().regular(3.0)
                 .status(2_000, 2_600, FrameStatus.NO_HAND)
@@ -30,10 +30,12 @@ class AssessmentEntityMappingTest {
                 .status(8_000, 8_600, FrameStatus.NO_HAND)
         )
         assertEquals(QualityStatus.LOW_QUALITY, a.qualityStatus)
-        assertNull(a.performanceScore)
+        // Previously a LOW_QUALITY result was stored WITHOUT a score; now it keeps one, marked LIMITED.
+        assertEquals(com.example.parkinson.assessment.ReliabilityLevel.LIMITED, a.performanceScore!!.reliability)
         val back = a.toEntity().toDomain()
         assertEquals(a, back)
-        assertNull(back.performanceScore)
+        assertEquals(a.performanceScore, back.performanceScore)
+        assertEquals(a.payload, back.payload)
     }
 
     @Test

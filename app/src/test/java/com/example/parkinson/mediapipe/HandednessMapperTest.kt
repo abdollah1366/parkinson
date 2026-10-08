@@ -101,9 +101,12 @@ class HandednessMapperTest {
         val detected = HandTrackingResult.HandDetected(1L, landmarks, HandSide.LEFT, 0.9f, 480, 640)
         assertEquals(HandSide.LEFT, TapFrameExtractor.extract(0, detected).handSide)
 
-        val wrong = HandTrackingResult.WrongHandDetected(2L, expected = HandSide.LEFT, detected = HandSide.RIGHT)
+        // A confident label of the other hand keeps the landmarks (VALID); the side is judged over
+        // the whole recording by the quality engine.
+        val wrong = HandTrackingResult.HandDetected(2L, landmarks, HandSide.RIGHT, 0.9f, 480, 640, HandSideStatus.MISMATCH)
         val frame = TapFrameExtractor.extract(1, wrong)
-        assertEquals(FrameStatus.WRONG_HAND, frame.status)
+        assertEquals(FrameStatus.VALID, frame.status)
         assertEquals(HandSide.RIGHT, frame.handSide)
+        assertEquals(HandSideStatus.MISMATCH, frame.sideStatus)
     }
 }

@@ -4,10 +4,10 @@ import android.os.SystemClock
 import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.mediapipe.HandTrackingResult
 import com.example.parkinson.model.SelectedHand
-import com.example.parkinson.tapping.detection.LiveTapCounter
 import com.example.parkinson.tapping.quality.QualityReport
 import com.example.parkinson.tapping.raw.TapFrame
 import com.example.parkinson.tapping.raw.TapFrameExtractor
+import com.example.parkinson.tapping.metrics.FrameStatisticsCalculator
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import kotlin.math.max
 import kotlin.math.min
 
 sealed interface SessionState {
@@ -43,6 +44,16 @@ val SessionState.isActive: Boolean
     get() = this is SessionState.Countdown ||
         this is SessionState.Recording ||
         this is SessionState.Processing
+
+/** Live recording figures (debug panel, warnings). */
+data class LiveTapStats(
+    val framesAnalyzed: Int = 0,
+    val validLandmarkFrames: Int = 0,
+    val trackingRate: Double = 0.0,
+    val tapEvents: Int = 0,
+    val rejectedTapCandidates: Int = 0,
+    val tapRateHz: Double = 0.0
+)
 
 sealed interface SessionInvalidReason {
     /** Stopped before the recording finished (screen left, app backgrounded, rotation, lock). */
@@ -92,6 +103,8 @@ class FingerTappingSession(
     private val frameStarvationMs: Long = 2_000L,
     /** This many MediaPipe errors in a row = tracking failure. */
     private val maxConsecutiveErrors: Int = 5,
+    /** Live tap count / statistics refresh period during RECORDING. */
+    private val liveUpdateIntervalMs: Long = 300L,
     private val analyzer: FingerTappingAnalyzer = FingerTappingAnalyzer(),
     private val processingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     /** Persists a usable result before DONE is published. */
@@ -103,8 +116,17 @@ class FingerTappingSession(
 
     private val _liveTapCount = MutableStateFlow(0)
 
-    /** Approximate tap count during RECORDING. Display only; the result is computed offline. */
+    /**
+     * Tap count during RECORDING, from the SAME pipeline as the final result (signal processing +
+     * tap detection on the frames received so far). The final analysis can still differ by the
+     * last, not yet completed tap.
+     */
     val liveTapCount: StateFlow<Int> = _liveTapCount.asStateFlow()
+
+    private val _liveStats = MutableStateFlow(LiveTapStats())
+
+    /** Frame / tracking / tap figures of the running recording (debug panel and warnings). */
+    val liveStats: StateFlow<LiveTapStats> = _liveStats.asStateFlow()
 
     private val lock = Any()
 
@@ -112,7 +134,6 @@ class FingerTappingSession(
     private var acceptFromMs = Long.MAX_VALUE
     private var acceptUntilMs = Long.MIN_VALUE
     private val frames = ArrayList<TapFrame>(1024)
-    private val liveCounter = LiveTapCounter()
     private var runId = 0
     private var lastFrameArrivalMs = 0L
     private var consecutiveErrors = 0
@@ -129,9 +150,7 @@ class FingerTappingSession(
             TapDiagnostics.onSessionFrame(result, _state.value.label(), inWindow, lastFrameArrivalMs)
             if (!inWindow) return
 
-            val frame = TapFrameExtractor.extract(frames.size, result)
-            frames += frame
-            _liveTapCount.value = liveCounter.onFrame(frame)
+            frames += TapFrameExtractor.extract(frames.size, result)
         }
     }
 
@@ -142,6 +161,7 @@ class FingerTappingSession(
             clearRecordingLocked()
             lastFrameArrivalMs = clock()
             consecutiveErrors = 0
+            lastLiveUpdateMs = null
             ++runId
         }
         job = scope.launch { run(id, hand) }
@@ -186,7 +206,7 @@ class FingerTappingSession(
                 acceptFromMs = startMs
                 acceptUntilMs = Long.MAX_VALUE
             }
-            if (!runTimed(id, recordingMs) { SessionState.Recording(it) }) return
+            if (!runTimed(id, recordingMs, onTick = { updateLive(id, startMs) }) { SessionState.Recording(it) }) return
 
             synchronized(lock) {
                 if (id != runId) return
@@ -210,7 +230,7 @@ class FingerTappingSession(
                 return
             }
 
-            val assessment = FingerTappingAnalyzer.toAssessment(analysis, newAssessmentId(), wallClock(), hand)
+            val assessment = FingerTappingAnalyzer.toAssessment(analysis, newAssessmentId(), wallClock(), hand, startMs)
             try {
                 onCompleted(assessment)
             } catch (e: CancellationException) {
@@ -231,7 +251,12 @@ class FingerTappingSession(
     }
 
     /** Ticks [durationMs], publishing a state each tick. Returns false if the run must stop. */
-    private suspend fun runTimed(id: Int, durationMs: Long, stateFor: (secondsLeft: Int) -> SessionState): Boolean {
+    private suspend fun runTimed(
+        id: Int,
+        durationMs: Long,
+        onTick: suspend () -> Unit = {},
+        stateFor: (secondsLeft: Int) -> SessionState
+    ): Boolean {
         val end = clock() + durationMs
         while (true) {
             val left = end - clock()
@@ -241,7 +266,37 @@ class FingerTappingSession(
                 return false
             }
             if (!publish(id, stateFor(ceilSeconds(left)))) return false
+            onTick()
             delay(min(tickMs, left))
+        }
+    }
+
+    private var lastLiveUpdateMs: Long? = null
+
+    /**
+     * Live figures from the frames received so far, through the same signal processing and tap
+     * detection as the final analysis (one tap-event source). Throttled; runs off the main thread.
+     */
+    private suspend fun updateLive(id: Int, startMs: Long) {
+        val now = clock()
+        val last = lastLiveUpdateMs
+        if (last != null && now - last < liveUpdateIntervalMs) return
+        lastLiveUpdateMs = now
+        val snapshot = synchronized(lock) { if (id != runId) return else frames.toList() }
+        val detection = withContext(processingDispatcher) { analyzer.detectTaps(snapshot) }
+        val stats = FrameStatisticsCalculator.compute(snapshot, startMs, max(now, startMs + 1))
+        synchronized(lock) {
+            if (id != runId) return
+            _liveTapCount.value = detection.events.size
+            val elapsedS = (now - startMs).coerceAtLeast(1L) / 1000.0
+            _liveStats.value = LiveTapStats(
+                framesAnalyzed = stats.totalFrames,
+                validLandmarkFrames = stats.validFrames,
+                trackingRate = stats.trackingRate,
+                tapEvents = detection.events.size,
+                rejectedTapCandidates = detection.rejectedDebounce + detection.rejectedTooShort + detection.rejectedTooSmall,
+                tapRateHz = detection.events.size / elapsedS
+            )
         }
     }
 
@@ -268,8 +323,8 @@ class FingerTappingSession(
         acceptFromMs = Long.MAX_VALUE
         acceptUntilMs = Long.MIN_VALUE
         frames.clear()
-        liveCounter.reset()
         _liveTapCount.value = 0
+        _liveStats.value = LiveTapStats()
     }
 
     private fun setStateLocked(state: SessionState) {
@@ -289,13 +344,20 @@ class FingerTappingSession(
         val m = analysis.metrics
         val q = analysis.quality
         TapDiagnostics.log(
-            "RESULT taps=${m.tapCount} rejected(debounce=${d.rejectedDebounce} short=${d.rejectedTooShort} " +
+            "RESULT durationMs=${m.recordingDurationMs} observedMs=${m.frames.observedDurationMs} " +
+                "framesAnalyzed=${m.frames.totalFrames} validLandmarkFrames=${m.frames.validFrames} " +
+                "noHand=${m.frames.noHandFrames} outOfFrame=${m.frames.outOfFrameFrames} " +
+                "side(match=${m.frames.sideMatchesFrames} uncertain=${m.frames.sideUncertainFrames} mismatch=${m.frames.sideMismatchFrames}) " +
+                "cameraSkipped=${m.frames.cameraFramesSkipped} pipelineDropped=${m.frames.pipelineFramesDropped} " +
+                "fps=${TapDiagnostics.f(m.frames.fps.toFloat(), 1)} requiredFps=${TapDiagnostics.f(q.requiredFps.toFloat(), 1)} " +
+                "trackingRate=${TapDiagnostics.f(q.trackingRate.toFloat(), 2)} usableMs=${q.usableDurationMs} " +
+                "luma=${m.frames.meanLuma} camera=${q.cameraQuality} tracking=${q.handTrackingQuality} " +
+                "taps=${m.tapCount} rejected(debounce=${d.rejectedDebounce} short=${d.rejectedTooShort} " +
                 "small=${d.rejectedTooSmall} dropout=${d.discardedByDropout} inactive=${d.discardedInactive}) " +
-                "incompleteLast=${d.incompleteFinalCycle} frames=${m.frames.totalFrames} valid=${m.frames.validFrames} " +
-                "fps=${TapDiagnostics.f(m.frames.fps.toFloat(), 1)} dropouts=${m.frames.dropoutCount} " +
-                "dropoutMs=${m.frames.dropoutTotalMs} noise=${TapDiagnostics.f(analysis.signal.noiseSigma.toFloat())} " +
-                "floor=${TapDiagnostics.f(analysis.signal.movementFloor.toFloat())} " +
-                "quality=${q.status} issues=${q.issues} score=${analysis.score?.total}"
+                "incompleteLast=${d.incompleteFinalCycle} meanIntervalMs=${m.meanIntervalMs} rateHz=${TapDiagnostics.f(m.tapRateHz.toFloat(), 2)} " +
+                "meanAmp=${m.meanAmplitude} ampCv=${m.amplitudeCvPercent} longestGapMs=${m.frames.longestDropoutMs} " +
+                "dropouts=${m.frames.dropoutCount} noise=${TapDiagnostics.f(analysis.signal.noiseSigma.toFloat())} " +
+                "quality=${q.status} issues=${q.issues} score=${analysis.score?.total} trend=${analysis.score?.trendState}"
         )
     }
 

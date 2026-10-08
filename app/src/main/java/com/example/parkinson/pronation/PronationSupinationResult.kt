@@ -1,5 +1,8 @@
 package com.example.parkinson.pronation
 
+import com.example.parkinson.assessment.PerformanceTrendState
+import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.assessment.MotorPerformanceBand
 import com.example.parkinson.assessment.AssessmentQuality
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.assessment.AssessmentType

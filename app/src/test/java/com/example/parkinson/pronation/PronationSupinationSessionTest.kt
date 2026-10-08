@@ -1,5 +1,7 @@
 package com.example.parkinson.pronation
 
+import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.assessment.MotorPerformanceBand
 import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.sensors.MotionSample

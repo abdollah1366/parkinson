@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.parkinson.mediapipe.HandLandmarkIndex
 import com.example.parkinson.mediapipe.HandLandmarkMapper
-import com.example.parkinson.mediapipe.HandSide
 import com.example.parkinson.mediapipe.HandTrackingResult
 
 private val LineColor = Color(0xCCFFFFFF)
@@ -66,28 +65,3 @@ fun HandLandmarkOverlay(
     }
 }
 
-/** Persian status text for the camera screen. */
-fun HandTrackingResult.toStatusMessage(): String = when (this) {
-    is HandTrackingResult.NoHandDetected ->
-        "دستی دیده نمی‌شود. دست خود را مقابل دوربین قرار دهید."
-
-    is HandTrackingResult.HandDetected ->
-        "دست شناسایی شد ✓"
-
-    is HandTrackingResult.WrongHandDetected ->
-        "لطفاً دست ${expected.persianName()} را مقابل دوربین قرار دهید."
-
-    is HandTrackingResult.TrackingLost ->
-        "ردیابی دست قطع شد. دست را دوباره مقابل دوربین بگیرید."
-
-    is HandTrackingResult.LowConfidence ->
-        "دست واضح نیست. نور را بیشتر کنید و دست را ثابت نگه دارید."
-
-    is HandTrackingResult.MultipleHandsDetected ->
-        "بیش از یک دست دیده می‌شود. فقط یک دست مقابل دوربین باشد."
-
-    is HandTrackingResult.Error ->
-        "خطا در تشخیص دست: $message"
-}
-
-private fun HandSide.persianName(): String = if (this == HandSide.RIGHT) "راست" else "چپ"

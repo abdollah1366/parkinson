@@ -1,5 +1,7 @@
 package com.example.parkinson.pronation
 
+import com.example.parkinson.assessment.PerformanceTrendState
+import com.example.parkinson.assessment.ReliabilityLevel
 import com.example.parkinson.assessment.QualityStatus
 import kotlin.math.max
 import kotlin.math.roundToInt

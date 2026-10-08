@@ -62,6 +62,14 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.parkinson.R
 import com.example.parkinson.camera.CameraController
+import com.example.parkinson.diagnostics.TapDiagnostics
+import com.example.parkinson.mediapipe.CameraQuality
+import com.example.parkinson.mediapipe.HandSideStatus
+import com.example.parkinson.mediapipe.HandTrackingQuality
+import com.example.parkinson.mediapipe.LiveVisionStatus
+import com.example.parkinson.tapping.LiveTapStats
+import com.example.parkinson.ui.format.PersianFormat
+import java.util.Locale
 import com.example.parkinson.camera.CameraLens
 import com.example.parkinson.camera.CameraPreview
 import com.example.parkinson.camera.CameraState
@@ -214,62 +222,38 @@ fun FingerTappingCameraScreen(
         }
     }
 
-    // Status / Guide message evaluation
-    val (guideMessage, patientStatusText, qualityText, isHandValid) = when (val state = trackingState) {
-        is HandTrackingResult.HandDetected -> {
-            val quality = confidenceToQualityText(state.confidence)
-            Quadruple(
-                "عالی! دست شما در موقعیت مناسب قرار دارد.",
-                "$handText شناسایی شد ✓",
-                "کیفیت تصویر: $quality",
-                true
-            )
+    // Status texts from the separate quality layers. The handedness score is NOT an image or
+    // lighting measure; brightness comes from the measured luma, tracking from delivered landmarks.
+    val vision by handLandmarkerManager.liveStatus.collectAsState()
+    val liveStats by session.liveStats.collectAsState()
+    val handOkText = stringResource(R.string.ft_live_hand_ok, handText)
+    val (guideMessage, patientStatusText, isHandValid) = when (val state = trackingState) {
+        is HandTrackingResult.HandDetected -> if (state.sideStatus == HandSideStatus.MISMATCH) {
+            Triple(stringResource(R.string.ft_live_wrong_hand, handText), stringResource(R.string.ft_live_wrong_hand_status), false)
+        } else {
+            Triple(stringResource(R.string.ft_live_hand_ready), handOkText, true)
         }
 
-        is HandTrackingResult.WrongHandDetected -> {
-            Quadruple(
-                "لطفاً $handText خود را مقابل دوربین قرار دهید.",
-                "دست اشتباه شناسایی شد ⚠️",
-                "کیفیت تصویر: نامناسب",
-                false
-            )
-        }
+        is HandTrackingResult.TrackingLost ->
+            Triple(stringResource(R.string.ft_live_hand_lost), stringResource(R.string.ft_live_waiting), false)
 
-        is HandTrackingResult.TrackingLost, is HandTrackingResult.LowConfidence -> {
-            Quadruple(
-                "لطفاً دست خود را کمی ثابت‌تر نگه دارید.",
-                "در حال لرزش‌گیری...",
-                "کیفیت تصویر: متوسط",
-                false
-            )
-        }
+        is HandTrackingResult.MultipleHandsDetected ->
+            Triple(stringResource(R.string.ft_live_multiple_hands), stringResource(R.string.ft_live_multiple_hands), false)
 
-        is HandTrackingResult.MultipleHandsDetected -> {
-            Quadruple(
-                "فقط یک دست باید مقابل دوربین باشد.",
-                "بیش از یک دست دیده می‌شود ⚠️",
-                "کیفیت تصویر: نامناسب",
-                false
-            )
-        }
+        is HandTrackingResult.Error ->
+            Triple(stringResource(R.string.ft_live_error), stringResource(R.string.ft_live_error), false)
 
-        is HandTrackingResult.Error -> {
-            Quadruple(
-                "امکان آماده‌سازی تشخیص دست وجود ندارد.",
-                "خطا در تشخیص",
-                "کیفیت تصویر: نامشخص",
-                false
-            )
-        }
-
-        else -> {
-            Quadruple(
-                stringResource(R.string.guide_place_hand),
-                "در انتظار شناسایی دست...",
-                "کیفیت تصویر: نامشخص",
-                false
-            )
-        }
+        is HandTrackingResult.NoHandDetected ->
+            Triple(stringResource(R.string.guide_place_hand), stringResource(R.string.ft_live_waiting), false)
+    }
+    val trackingPercent = PersianFormat.integer(Math.round(vision.trackingRate * 100).toInt())
+    val qualityText = when {
+        vision.cameraQuality != CameraQuality.GOOD && vision.trackingQuality == HandTrackingQuality.POOR ->
+            stringResource(R.string.ft_live_light_tracking_poor)
+        vision.cameraQuality != CameraQuality.GOOD -> stringResource(R.string.ft_live_light_warning)
+        vision.trackingQuality == HandTrackingQuality.GOOD -> stringResource(R.string.ft_live_tracking_good, trackingPercent)
+        vision.trackingQuality == HandTrackingQuality.WARNING -> stringResource(R.string.ft_live_tracking_warning, trackingPercent)
+        else -> stringResource(R.string.ft_live_tracking_poor)
     }
 
     Column(
@@ -464,6 +448,12 @@ fun FingerTappingCameraScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Developer diagnostics: debuggable builds only, never in release builds.
+            if (TapDiagnostics.enabled) {
+                DebugVisionPanel(vision, liveStats, sessionState)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // Privacy Note
             Text(
                 text = "🔒 " + stringResource(R.string.privacy_camera_note),
@@ -560,19 +550,6 @@ private fun CameraErrorCard(
         }
     }
 }
-
-private fun confidenceToQualityText(confidence: Float): String = when {
-    confidence >= 0.85f -> "عالی"
-    confidence >= 0.70f -> "خوب"
-    else -> "متوسط"
-}
-
-private data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D,
-)
 
 @Composable
 private fun CameraStatusPill(
@@ -702,4 +679,31 @@ private fun openAppSettings(context: Context) {
         data = Uri.fromParts("package", context.packageName, null)
     }
     context.startActivity(intent)
+}
+
+/** Live camera / tracking / tap figures for physical-device calibration (debug builds only). */
+@Composable
+private fun DebugVisionPanel(vision: LiveVisionStatus, stats: LiveTapStats, state: SessionState) {
+    val lines = listOf(
+        "Camera: ${vision.cameraQuality} (luma ${vision.meanLuma?.let { Math.round(it) } ?: "—"})",
+        "Hand tracking: ${vision.trackingQuality} ${Math.round(vision.trackingRate * 100)}% (2 s)",
+        "Results/s: ${String.format(Locale.US, "%.1f", vision.resultsPerSecond)}",
+        "Frames received / submitted / results: ${vision.framesReceived} / ${vision.framesSubmitted} / ${vision.resultsReceived}",
+        "Dropped camera / pipeline: ${vision.cameraFramesSkipped} / ${vision.pipelineFramesDropped}",
+        "Recording frames / valid landmarks: ${stats.framesAnalyzed} / ${stats.validLandmarkFrames}",
+        "Recording tracking: ${Math.round(stats.trackingRate * 100)}%",
+        "Tap events / rejected candidates: ${stats.tapEvents} / ${stats.rejectedTapCandidates}",
+        "Tap rate: ${String.format(Locale.US, "%.2f", stats.tapRateHz)}/s",
+        "Session: ${state::class.simpleName}"
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("DEBUG", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Left) }
+        }
+    }
 }

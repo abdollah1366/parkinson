@@ -22,7 +22,7 @@ import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.assessment.SensorCheckResult
 import com.example.parkinson.assessment.SensorRequirement
 import com.example.parkinson.model.SelectedHand
-import com.example.parkinson.pronation.MotorPerformanceBand
+import com.example.parkinson.assessment.MotorPerformanceBand
 import com.example.parkinson.pronation.PronationError
 import com.example.parkinson.pronation.PronationQualityIssue
 import com.example.parkinson.pronation.PronationQualityReport

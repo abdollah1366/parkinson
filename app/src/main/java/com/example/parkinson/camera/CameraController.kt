@@ -65,8 +65,13 @@ class CameraController(
                     previewUseCase = preview
 
                     // 2. Build ImageAnalysis UseCase (Backpressure: keep latest frame)
+                    // KEEP_ONLY_LATEST: while the analyzer is busy CameraX drops frames instead of
+                    // queueing them (low latency; drops are counted from the sensor timestamps).
+                    // RGBA output: CameraX converts YUV in native code, so ImageProxy.toBitmap()
+                    // is a cheap copy instead of a per-frame conversion.
                     val imageAnalysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                         .build()
 
                     imageAnalysis.setAnalyzer(

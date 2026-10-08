@@ -37,7 +37,9 @@ data class TapEvent(
     val openingDurationMs: Long,
     /** Closing phase: peak -> closing moment. */
     val closingDurationMs: Long,
-    /** 0..1, from amplitude margin, frame continuity and hand-tracking confidence. */
+    /** Mean closing speed (amplitude / closing duration), palm sizes per second. */
+    val closingVelocity: Double,
+    /** 0..1, from amplitude margin, landmark continuity and whether the start was observed. */
     val confidence: Double,
     /** The recording began with the fingers open, so the start level is taken from the envelope. */
     val startEstimated: Boolean
@@ -83,8 +85,6 @@ class TapStateMachine(private val config: DetectionConfig = DetectionConfig()) {
     // at higher tap rates, which would make the amplitude depend on the speed.
     private var rawTrough = 0.0
     private var rawPeak = 0.0
-    private var cycleConfidenceSum = 0.0
-    private var cycleSamples = 0
     private var cycleMaxGapMs = 0L
     private var lastSampleMs = -1L
     private var lastTapMs = -1L
@@ -150,8 +150,6 @@ class TapStateMachine(private val config: DetectionConfig = DetectionConfig()) {
             }
 
             Phase.OPEN -> {
-                cycleConfidenceSum += s.confidence
-                cycleSamples++
                 cycleMaxGapMs = max(cycleMaxGapMs, gap)
                 if (v > peakValue) {
                     peakValue = v
@@ -191,8 +189,6 @@ class TapStateMachine(private val config: DetectionConfig = DetectionConfig()) {
         peakValue = s.smoothed
         rawPeak = s.raw
         peakMs = s.timestampMs
-        cycleConfidenceSum = s.confidence
-        cycleSamples = 1
         cycleMaxGapMs = 0L
     }
 
@@ -220,11 +216,14 @@ class TapStateMachine(private val config: DetectionConfig = DetectionConfig()) {
             }
         }
 
+        // Event confidence describes the TAP measurement: how clearly it rose above the local
+        // envelope, whether landmarks were continuous and whether its start was observed. The
+        // MediaPipe handedness score is deliberately not used: it is left/right certainty, not
+        // landmark accuracy (using it made correct taps of an edge-on hand "low confidence").
         val amplitudeFactor = (amplitude / max(s.range, 1e-9)).coerceIn(0.0, 1.0)
         val continuityFactor = if (cycleMaxGapMs > config.maxCycleGapMs) 0.6 else 1.0
-        val trackingFactor = (cycleConfidenceSum / max(cycleSamples, 1)).coerceIn(0.0, 1.0)
         val startFactor = if (troughEstimated) 0.7 else 1.0
-        val confidence = (sqrt(amplitudeFactor) * continuityFactor * trackingFactor * startFactor).coerceIn(0.0, 1.0)
+        val confidence = (sqrt(amplitudeFactor) * continuityFactor * startFactor).coerceIn(0.0, 1.0)
 
         val event = TapEvent(
             index = events.size,
@@ -236,6 +235,8 @@ class TapStateMachine(private val config: DetectionConfig = DetectionConfig()) {
             troughOpening = rawTrough,
             openingDurationMs = peakMs - troughMs,
             closingDurationMs = t - peakMs,
+            // Mean closing speed in palm sizes per second.
+            closingVelocity = amplitude / (max(t - peakMs, 1L) / 1000.0),
             confidence = confidence,
             startEstimated = troughEstimated
         )

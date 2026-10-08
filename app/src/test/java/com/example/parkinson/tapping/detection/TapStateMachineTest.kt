@@ -119,14 +119,15 @@ class TapStateMachineTest {
     }
 
     @Test
-    fun liveCounterTracksOfflineCount() {
+    fun liveCountUsesTheSamePipelineAsTheFinalResult() {
+        // One tap-event source: the live count is detectTaps() on the frames received so far.
         val s = SyntheticTapping(noiseSigma = 0.02).regular(3.0)
-        val live = LiveTapCounter()
-        var liveCount = 0
-        s.frames().forEach { liveCount = live.onFrame(it) }
-        val offline = TapDetector.detect(TapSignalProcessor.process(s.frames())).events.size
-        assertTrue("live $liveCount offline $offline", abs(liveCount - offline) <= 2)
-        live.reset()
-        assertEquals(0, live.tapCount)
+        val analyzer = com.example.parkinson.tapping.FingerTappingAnalyzer()
+        val live = analyzer.detectTaps(s.frames()).events.size
+        val final = analyzer.analyze(s.recording()).metrics.tapCount
+        assertEquals(final, live)
+        // Partway through, the live count is the count of the frames so far.
+        val half = s.frames().filter { it.timestampMs <= s.startMs + 5_000 }
+        assertTrue(abs(analyzer.detectTaps(half).events.size - 15) <= 1)
     }
 }

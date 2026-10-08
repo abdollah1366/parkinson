@@ -1,8 +1,10 @@
 package com.example.parkinson.tapping
 
+import com.example.parkinson.mediapipe.FrameInfo
 import com.example.parkinson.mediapipe.HandLandmark
 import com.example.parkinson.mediapipe.HandLandmarkIndex
 import com.example.parkinson.mediapipe.HandSide
+import com.example.parkinson.mediapipe.HandSideStatus
 import com.example.parkinson.mediapipe.HandTrackingResult
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.quality.QualityIssue
@@ -43,7 +45,7 @@ class FingerTappingSessionTest {
         )
 
     /** Thumb-index opening of [ratio] palm sizes in a 100 x 100 image. */
-    private fun hand(ts: Long, ratio: Double): HandTrackingResult {
+    private fun hand(ts: Long, ratio: Double, side: HandSideStatus = HandSideStatus.MATCHES, luma: Float? = 120f): HandTrackingResult {
         val lm = MutableList(HandLandmarkIndex.COUNT) { HandLandmark(it, 0.5f, 0.5f, 0f) }
         lm[HandLandmarkIndex.WRIST] = HandLandmark(0, 0.5f, 0.9f, 0f)
         lm[HandLandmarkIndex.INDEX_FINGER_MCP] = HandLandmark(5, 0.45f, 0.6f, 0f)
@@ -53,7 +55,7 @@ class FingerTappingSessionTest {
         val half = (ratio * 25.2 / 100.0 / 2.0).toFloat()
         lm[HandLandmarkIndex.THUMB_TIP] = HandLandmark(4, 0.5f - half, 0.4f, 0f)
         lm[HandLandmarkIndex.INDEX_FINGER_TIP] = HandLandmark(8, 0.5f + half, 0.4f, 0f)
-        return HandTrackingResult.HandDetected(ts, lm, HandSide.RIGHT, 0.95f, 100, 100)
+        return HandTrackingResult.HandDetected(ts, lm, HandSide.RIGHT, 0.95f, 100, 100, side, FrameInfo(ts / 33, luma, 0))
     }
 
     private fun tapping3Hz(ts: Long) = hand(ts, 0.08 + 0.9 * (1 - cos(2 * PI * 3.0 * ts / 1000.0)) / 2)
@@ -174,7 +176,8 @@ class FingerTappingSessionTest {
     @Test
     fun wrongHandIsRejectedByQualityControl() = runTest {
         val session = newSession()
-        feed(session, untilMs = 14_000) { HandTrackingResult.WrongHandDetected(it, HandSide.RIGHT, HandSide.LEFT) }
+        // Every frame confidently labelled as the other hand: the recording-level check rejects it.
+        feed(session, untilMs = 14_000) { hand(it, 0.08 + 0.9 * (1 - cos(2 * PI * 3.0 * it / 1000.0)) / 2, HandSideStatus.MISMATCH) }
         session.start(SelectedHand.RIGHT)
         advanceTimeBy(14_000)
         runCurrent()
@@ -239,5 +242,58 @@ class FingerTappingSessionTest {
         runCurrent()
         assertTrue(session.state.value is SessionState.Done)
         assertEquals(2, saved.size)
+    }
+
+    private fun tapping(ts: Long, side: HandSideStatus = HandSideStatus.MATCHES, luma: Float? = 120f) =
+        hand(ts, 0.08 + 0.9 * (1 - cos(2 * PI * 3.0 * ts / 1000.0)) / 2, side, luma)
+
+    // CRITICAL 30 (session level): a dark image with good landmarks is scored and saved.
+    @Test
+    fun lightingWarningWithGoodTrackingIsScoredAndSaved() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000) { tapping(it, luma = 30f) }
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        val state = session.state.value
+        assertTrue("was $state", state is SessionState.Done)
+        val a = (state as SessionState.Done).assessment
+        assertEquals(com.example.parkinson.mediapipe.CameraQuality.WARNING, a.cameraQuality)
+        assertTrue(a.performanceScore != null)
+        assertEquals(listOf(a), saved)
+    }
+
+    // Root cause 1 at session level: low handedness certainty on every frame still completes.
+    @Test
+    fun uncertainHandednessStillCompletesAndIsSaved() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000) { tapping(it, side = HandSideStatus.UNCERTAIN) }
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(14_000)
+        runCurrent()
+        val a = (session.state.value as SessionState.Done).assessment
+        assertEquals(QualityStatus.LOW_QUALITY, a.qualityStatus)
+        assertTrue(abs(a.tapCount - 30) <= 1)
+        assertTrue(a.performanceScore != null)
+        assertEquals(1, saved.size)
+    }
+
+    // One tap-event source: the last live count equals the final count.
+    @Test
+    fun liveCountAndStatsComeFromTheSamePipeline() = runTest {
+        val session = newSession()
+        feed(session, untilMs = 14_000)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(3_000 + 9_950)
+        val live = session.liveTapCount.value
+        val stats = session.liveStats.value
+        assertTrue("live $live", live in 28..30)
+        assertEquals(live, stats.tapEvents)
+        assertTrue(stats.framesAnalyzed > 250)
+        assertTrue(stats.trackingRate > 0.9)
+        advanceTimeBy(1_000)
+        runCurrent()
+        val final = (session.state.value as SessionState.Done).assessment.tapCount
+        assertTrue("live $live final $final", abs(final - live) <= 1)
     }
 }
