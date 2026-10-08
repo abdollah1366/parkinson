@@ -28,7 +28,10 @@ import com.example.parkinson.ui.screens.invalid.InvalidResultScreen
 import com.example.parkinson.ui.screens.preparation.FingerTappingPreparationScreen
 import com.example.parkinson.ui.screens.ready.FingerTappingReadyScreen
 import com.example.parkinson.ui.screens.result.FingerTappingResultScreen
+import com.example.parkinson.ui.screens.pronation.PronationSupinationIntroScreen
+import com.example.parkinson.ui.screens.pronation.PronationSupinationTestScreen
 import com.example.parkinson.ui.screens.result.HandStabilityResultScreen
+import com.example.parkinson.ui.screens.result.PronationSupinationResultScreen
 import com.example.parkinson.ui.screens.selection.FingerTappingHandSelectionScreen
 import com.example.parkinson.ui.screens.sensorcheck.SensorCheckScreen
 import com.example.parkinson.ui.screens.splash.SplashScreen
@@ -39,10 +42,12 @@ import com.example.parkinson.viewmodel.AssessmentHistoryViewModel
 import com.example.parkinson.viewmodel.FingerTappingViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
+import com.example.parkinson.viewmodel.PronationSupinationViewModel
 
 /** Result screen route of a stored result of any type. */
 fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
     AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
+    AssessmentType.PRONATION_SUPINATION -> Screen.PronationSupinationResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
 
@@ -56,6 +61,7 @@ fun ParkinsonNavGraph(
     navController: NavHostController,
     fingerTappingViewModel: FingerTappingViewModel = viewModel(factory = FingerTappingViewModel.Factory),
     handStabilityViewModel: HandStabilityViewModel = viewModel(factory = HandStabilityViewModel.Factory),
+    pronationViewModel: PronationSupinationViewModel = viewModel(factory = PronationSupinationViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -74,6 +80,7 @@ fun ParkinsonNavGraph(
     fun goToNextTest(current: AssessmentType) {
         fingerTappingViewModel.resetFlow()
         handStabilityViewModel.resetFlow()
+        pronationViewModel.resetFlow()
         val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
         navController.navigate(route) {
             popUpTo(Screen.Home.route)
@@ -293,6 +300,67 @@ fun ParkinsonNavGraph(
                 onNextTest = { goToNextTest(AssessmentType.HAND_STABILITY) },
                 onHome = {
                     handStabilityViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Pronation / Supination ------------------------------------------------------
+
+        composable(Screen.PronationSupinationIntro.route) {
+            PronationSupinationIntroScreen {
+                // A new run never shows a previous outcome.
+                pronationViewModel.resetFlow()
+                navController.navigate(Screen.PronationSupinationHandSelection.route)
+            }
+        }
+
+        composable(Screen.PronationSupinationHandSelection.route) {
+            // The hand comes from this explicit selection, never from the sensor data.
+            val selectedHand by pronationViewModel.selectedHand.collectAsState()
+            FingerTappingHandSelectionScreen(
+                selectedHand = selectedHand,
+                onHandSelected = { hand -> pronationViewModel.selectHand(hand) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.PRONATION_SUPINATION.id))
+                }
+            )
+        }
+
+        composable(Screen.PronationSupinationTest.route) {
+            val selectedHand by pronationViewModel.selectedHand.collectAsState()
+            PronationSupinationTestScreen(
+                selectedHand = selectedHand,
+                session = pronationViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.PronationSupinationResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onHome = {
+                    pronationViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.PronationSupinationResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.pronationSupination(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            PronationSupinationResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    pronationViewModel.session.reset()
+                    pronationViewModel.selectHand(hand)
+                    navController.navigate(Screen.PronationSupinationTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.PRONATION_SUPINATION) },
+                onHome = {
+                    pronationViewModel.resetFlow()
                     goHome()
                 }
             )

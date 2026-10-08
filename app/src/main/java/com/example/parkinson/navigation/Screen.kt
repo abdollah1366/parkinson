@@ -38,6 +38,14 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "hand_stability_result/${Uri.encode(assessmentId)}"
     }
 
+    object PronationSupinationIntro : Screen("pronation_supination_intro")
+    object PronationSupinationHandSelection : Screen("pronation_supination_hand_selection")
+    object PronationSupinationTest : Screen("pronation_supination_test")
+
+    object PronationSupinationResult : Screen("pronation_supination_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "pronation_supination_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"

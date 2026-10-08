@@ -92,7 +92,7 @@ fun HandStabilityIntroScreen(onContinueClicked: () -> Unit) {
 }
 
 @Composable
-private fun InfoRowCard(label: String, value: String) {
+internal fun InfoRowCard(label: String, value: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
@@ -112,7 +112,7 @@ private fun InfoRowCard(label: String, value: String) {
 }
 
 @Composable
-private fun ListCard(title: String, items: List<String>, numbered: Boolean) {
+internal fun ListCard(title: String, items: List<String>, numbered: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

@@ -30,9 +30,9 @@ class AssessmentCatalogTest {
     }
 
     @Test
-    fun onlyFingerTappingAndHandStabilityCanStart() {
+    fun onlyImplementedTestsCanStart() {
         assertEquals(
-            listOf(AssessmentType.FINGER_TAPPING, AssessmentType.HAND_STABILITY),
+            listOf(AssessmentType.FINGER_TAPPING, AssessmentType.HAND_STABILITY, AssessmentType.PRONATION_SUPINATION),
             AssessmentCatalog.available.map { it.type }
         )
     }
@@ -53,6 +53,11 @@ class AssessmentCatalogTest {
         assertEquals(Screen.FingerTappingPreparation.route, AssessmentCatalog[AssessmentType.FINGER_TAPPING].afterSensorCheckRoute)
         assertEquals(Screen.HandStabilityIntro.route, AssessmentCatalog[AssessmentType.HAND_STABILITY].startRoute)
         assertEquals(Screen.HandStabilityTest.route, AssessmentCatalog[AssessmentType.HAND_STABILITY].afterSensorCheckRoute)
+        val ps = AssessmentCatalog[AssessmentType.PRONATION_SUPINATION]
+        assertEquals(Screen.PronationSupinationIntro.route, ps.startRoute)
+        assertEquals(Screen.PronationSupinationTest.route, ps.afterSensorCheckRoute)
+        assertEquals(AssessmentStatus.AVAILABLE, ps.status)
+        assertEquals("PronationSupinationTest", ps.englishName)
     }
 
     @Test
@@ -63,6 +68,10 @@ class AssessmentCatalogTest {
         val hs = AssessmentCatalog[AssessmentType.HAND_STABILITY]
         assertEquals(15, hs.durationSeconds)
         assertEquals(setOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), hs.sensors.toSet())
+        val ps = AssessmentCatalog[AssessmentType.PRONATION_SUPINATION]
+        assertEquals(10, ps.durationSeconds)
+        assertEquals(setOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), ps.sensors.toSet())
+        assertTrue(ps.requiresHandSelection)
         assertTrue(ft.requiresHandSelection && hs.requiresHandSelection)
     }
 
@@ -83,7 +92,8 @@ class AssessmentCatalogTest {
     @Test
     fun nextAvailableTestCycles() {
         assertEquals(AssessmentType.HAND_STABILITY, AssessmentCatalog.nextAvailableAfter(AssessmentType.FINGER_TAPPING)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
+        assertEquals(AssessmentType.PRONATION_SUPINATION, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.PRONATION_SUPINATION)?.type)
         assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
     }
 

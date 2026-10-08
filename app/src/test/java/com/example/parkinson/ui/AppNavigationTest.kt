@@ -222,14 +222,51 @@ class AppNavigationTest {
         rule.onNodeWithText("شروع آزمون").assertIsEnabled()
     }
 
+    private fun openPronationSensorCheck() {
+        waitFor("به پایش حرکتی خوش آمدید")
+        clickWhenShown("شروع")
+        openFromCatalog("آزمون چرخش دست")
+        waitFor("گوشی را مطابق دستور در دست بگیرید و کف دست را به‌آرامی به بالا و پایین بچرخانید.")
+        rule.onNodeWithText("چرخش دست").assertIsDisplayed()
+        clickWhenShown("ادامه")
+        waitFor("انتخاب دست")
+        rule.onNodeWithText("دست راست").performClick()
+        clickWhenShown("ادامه")
+        waitFor("بررسی حسگرها")
+    }
+
+    @Test
+    fun pronationSupinationIsBlockedWithoutGyroscope() {
+        openPronationSensorCheck()
+        rule.onNodeWithText("حسگر ژیروسکوپ در این دستگاه در دسترس نیست.").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("ادامه").assertIsNotEnabled()
+    }
+
+    @Test
+    fun pronationSupinationIsSelectableAndRunnable() {
+        val sensors = shadowOf(RuntimeEnvironment.getApplication().getSystemService(SensorManager::class.java))
+        sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_ACCELEROMETER))
+        sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_GYROSCOPE))
+        openPronationSensorCheck()
+        rule.onNodeWithText("همه حسگرهای لازم در دسترس هستند.").assertIsDisplayed()
+        clickWhenShown("ادامه")
+        waitFor("وقتی آماده بودید، گوشی را در دست راست بگیرید و دکمه شروع را بزنید.")
+        clickWhenShown("شروع آزمون")
+        waitFor("آماده شوید… ۵")
+        rule.onNodeWithText("لغو آزمون").assertIsEnabled().performClick()
+        // Cancelled before the end: no result, a clear explanation and a retry.
+        waitFor("تلاش مجدد")
+        rule.onNodeWithText("آزمون پیش از پایان قطع شد", substring = true).assertIsDisplayed()
+    }
+
     @Test
     fun unimplementedTestCannotStart() {
         waitFor("به پایش حرکتی خوش آمدید")
         clickWhenShown("شروع")
-        openFromCatalog("چرخش دست")
+        openFromCatalog("باز و بسته کردن دست")
         rule.waitForIdle()
         // Still on the test selection screen; the card is disabled and nothing was started.
-        rule.onNodeWithText("چرخش دست").assertIsDisplayed().assertIsNotEnabled()
+        rule.onNodeWithText("باز و بسته کردن دست").assertIsDisplayed().assertIsNotEnabled()
         rule.onNodeWithText("روش انجام").assertDoesNotExist()
         rule.onNodeWithText("شروع آزمون").assertDoesNotExist()
     }

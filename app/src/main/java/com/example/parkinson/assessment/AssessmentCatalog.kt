@@ -66,11 +66,19 @@ object AssessmentCatalog {
             startRoute = Screen.HandStabilityIntro.route,
             afterSensorCheckRoute = Screen.HandStabilityTest.route
         ),
-        planned(
-            AssessmentType.PRONATION_SUPINATION, R.string.test_ps_title, "Pronation / Supination",
-            R.string.test_ps_desc, R.string.test_ps_purpose,
-            listOf(SensorRequirement.GYROSCOPE, SensorRequirement.ACCELEROMETER),
-            durationSeconds = 15, hand = true, icon = "🔄"
+        AssessmentDefinition(
+            type = AssessmentType.PRONATION_SUPINATION,
+            title = R.string.test_ps_title,
+            englishName = "PronationSupinationTest",
+            description = R.string.test_ps_desc,
+            purpose = R.string.test_ps_purpose,
+            sensors = listOf(SensorRequirement.GYROSCOPE, SensorRequirement.ACCELEROMETER),
+            status = AssessmentStatus.AVAILABLE,
+            durationSeconds = 10,
+            requiresHandSelection = true,
+            icon = "🔄",
+            startRoute = Screen.PronationSupinationIntro.route,
+            afterSensorCheckRoute = Screen.PronationSupinationTest.route
         ),
         planned(
             AssessmentType.HAND_OPEN_CLOSE, R.string.test_oc_title, "Hand Opening / Closing",

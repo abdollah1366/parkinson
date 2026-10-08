@@ -27,18 +27,23 @@ interface AssessmentDao {
     fun observeById(id: String): Flow<AssessmentEntity?>
 }
 
-/** v2 adds the hand_stability_assessments table; v1 Finger Tapping rows are kept unchanged. */
+/**
+ * v2 adds hand_stability_assessments, v3 adds pronation_supination_assessments. Both are
+ * automatic migrations; existing rows are kept unchanged.
+ */
 @Database(
-    entities = [AssessmentEntity::class, HandStabilityEntity::class],
-    version = 2,
+    entities = [AssessmentEntity::class, HandStabilityEntity::class, PronationSupinationEntity::class],
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)]
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)]
 )
 abstract class AssessmentDatabase : RoomDatabase() {
 
     abstract fun assessmentDao(): AssessmentDao
 
     abstract fun handStabilityDao(): HandStabilityDao
+
+    abstract fun pronationSupinationDao(): PronationSupinationDao
 
     companion object {
         private const val NAME = "assessments.db"
