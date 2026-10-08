@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Algorithm version | `ft-algo-1.0.1` (`FingerTappingVersions.ALGORITHM_VERSION`) |
+| Algorithm version | `ft-algo-1.0.2` (`FingerTappingVersions.ALGORITHM_VERSION`) |
 | Scoring version | `ft-score-0.1.0-preliminary` (`FingerTappingVersions.SCORING_VERSION`) |
 | Clinical validation | **None.** All thresholds are engineering values chosen for technical robustness. They have not been calibrated against patient or normative data. |
 
@@ -61,6 +61,24 @@ as-is for unmirrored frames and inverts it only when a frame is actually mirrore
 Assessments stored with `ft-algo-1.0.0` keep the hand the patient selected. Because that version
 rejected the correct hand, a 1.0.0 result can only exist if the patient held up the opposite hand
 from the one selected. Compare such records with care.
+
+## 1b. Landmark coordinate frame (overlay and distances)
+
+| Step | Coordinate frame |
+|---|---|
+| `ImageProxy.toBitmap()` | sensor-oriented (unrotated) frame, not mirrored |
+| MediaPipe landmarks | normalized to that **unrotated** input image, origin top-left, y down. `rotationDegrees` only rotates MediaPipe's internal crop; results are projected back onto the input image |
+| `HandLandmarkMapper.toHandLandmarks(…, rotationDegrees)` | rotates clockwise by `ImageInfo.rotationDegrees` into the **upright** frame: 90° `(1−y, x)`, 180° `(1−x, 1−y)`, 270° `(y, 1−x)` |
+| `HandDetected.imageWidth/imageHeight` | upright size (swapped for 90°/270°) |
+| `HandLandmarkMapper.mapToView` | FILL_CENTER scale + offset into the overlay; front camera mirrors x only |
+
+Up to `ft-algo-1.0.1` the rotation step was missing: sensor-frame landmarks were drawn as if
+upright, so the skeleton appeared rotated/inverted relative to the hand in the preview (the
+reported "fingers drawn top to bottom"). The rotation is a pure rotation with no mirror, so
+handedness is unchanged. With the upright size, pixel distances equal the true image distances.
+Before the fix, sensor x was scaled by the upright width (and y by the upright height), which
+distorted `thumbIndexDistancePx` and `handScalePx` by the image aspect ratio. Hence the version
+bump to `ft-algo-1.0.2`. Tap detection and its thresholds are unchanged.
 
 ## 2. Session
 

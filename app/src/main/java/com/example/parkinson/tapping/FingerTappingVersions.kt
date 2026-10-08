@@ -8,7 +8,7 @@ package com.example.parkinson.tapping
  * See docs/finger-tapping-algorithm.md.
  */
 object FingerTappingVersions {
-    const val ALGORITHM_VERSION = "ft-algo-1.0.1"
+    const val ALGORITHM_VERSION = "ft-algo-1.0.2"
 
     /** "preliminary": engineering reference values, NOT clinically validated. */
     const val SCORING_VERSION = "ft-score-0.1.0-preliminary"

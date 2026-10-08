@@ -68,6 +68,7 @@ class HandLandmarkerManager(
     @Volatile private var hadHand = false
     @Volatile private var uprightWidth = 0
     @Volatile private var uprightHeight = 0
+    @Volatile private var frameRotationDegrees = 0
     @Volatile private var consecutiveMisses = 0
     private var lastTimestampMs = 0L
 
@@ -123,6 +124,7 @@ class HandLandmarkerManager(
             val swapped = rotation == 90 || rotation == 270
             uprightWidth = if (swapped) bitmap.height else bitmap.width
             uprightHeight = if (swapped) bitmap.width else bitmap.height
+            frameRotationDegrees = rotation
 
             val mpImage = BitmapImageBuilder(bitmap).build()
             val processing = ImageProcessingOptions.builder()
@@ -214,7 +216,7 @@ class HandLandmarkerManager(
         hadHand = true
         return HandTrackingResult.HandDetected(
             timestampMs = ts,
-            landmarks = HandLandmarkMapper.toHandLandmarks(handResult.landmarks()[0]),
+            landmarks = HandLandmarkMapper.toHandLandmarks(handResult.landmarks()[0], frameRotationDegrees),
             handSide = side,
             confidence = confidence,
             imageWidth = uprightWidth,
