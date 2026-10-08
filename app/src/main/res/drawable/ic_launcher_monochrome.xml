@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Adaptive icon foreground (108 x 108; everything inside the 66 dp safe circle).
-    Neurology + motor assessment: a brain (two hemispheres with gyri, top view) and one motor
-    neuron (amber) whose axon runs from the motor cortex to the midline and down the brainstem
-    into a movement trace. No text, no generic "network" pattern.
+    Monochrome layer for themed icons (Android 13+). One color; the system tints it.
+    Same geometry as ic_launcher_foreground, without translucent fills.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,21 +9,12 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group android:translateY="1.5">
-
-        <!-- Hemispheres: soft fill so the silhouette reads at small sizes. -->
-        <path
-            android:fillColor="#24FFFFFF"
-            android:pathData="M51.6,28.5C46.9,24.6 40.2,25.3 37.2,30.4C31.6,31.2 28.6,36.9 30.4,41.6C26.9,45.6 27.9,52.4 32.2,55.2C32.6,61.1 38.4,64.9 43.9,63.3C47.2,66.3 50.6,65.5 51.6,62.9ZM56.4,28.5C61.1,24.6 67.8,25.3 70.8,30.4C76.4,31.2 79.4,36.9 77.6,41.6C81.1,45.6 80.1,52.4 75.8,55.2C75.4,61.1 69.6,64.9 64.1,63.3C60.8,66.3 57.4,65.5 56.4,62.9Z" />
-
-        <!-- Gyri (anatomical folds). -->
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#B3FFFFFF"
+            android:strokeColor="#FFFFFFFF"
             android:strokeWidth="1.8"
             android:strokeLineCap="round"
             android:pathData="M33.8,45.2C37.6,44.1 40.6,46.3 39.9,50.2M47.2,50.6C43.9,51.9 43.4,55.8 46.4,57.6M62.5,31.8C66.2,32.9 67.4,36.4 65.4,39.2M74.2,45.2C70.4,44.1 67.4,46.3 68.1,50.2M60.8,50.6C64.1,51.9 64.6,55.8 61.6,57.6" />
-
-        <!-- Hemisphere outlines. -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#FFFFFFFF"
@@ -33,23 +22,19 @@
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:pathData="M51.6,28.5C46.9,24.6 40.2,25.3 37.2,30.4C31.6,31.2 28.6,36.9 30.4,41.6C26.9,45.6 27.9,52.4 32.2,55.2C32.6,61.1 38.4,64.9 43.9,63.3C47.2,66.3 50.6,65.5 51.6,62.9ZM56.4,28.5C61.1,24.6 67.8,25.3 70.8,30.4C76.4,31.2 79.4,36.9 77.6,41.6C81.1,45.6 80.1,52.4 75.8,55.2C75.4,61.1 69.6,64.9 64.1,63.3C60.8,66.3 57.4,65.5 56.4,62.9Z" />
-
-        <!-- Motor neuron: soma in the motor cortex, axon to the midline and down the brainstem. -->
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#FFFFC870"
+            android:strokeColor="#FFFFFFFF"
             android:strokeWidth="2.2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:pathData="M44,41.5C48.5,42.5 53.6,46 54,53L54,69.5" />
         <path
-            android:fillColor="#FFFFC870"
+            android:fillColor="#FFFFFFFF"
             android:pathData="M44,41.5m-3.8,0a3.8,3.8 0,1 1,7.6 0a3.8,3.8 0,1 1,-7.6 0" />
-
-        <!-- Movement trace (the measured motor output). -->
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#FFFFC870"
+            android:strokeColor="#FFFFFFFF"
             android:strokeWidth="2.8"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
