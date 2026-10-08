@@ -27,6 +27,8 @@ class SyntheticRotation(
     var accelNoise: Double = 0.02,
     var gyroBiasDegS: Double = 0.0,
     var baselineMs: Long = 5_000,
+    /** false = the device has no accelerometer: only gyroscope events are produced. */
+    var accelerometer: Boolean = true,
     axis: DoubleArray = doubleArrayOf(0.3, 0.9, 0.3),
     seed: Int = 11
 ) {
@@ -35,6 +37,7 @@ class SyntheticRotation(
     private var angle: (Double) -> Double = { 0.0 }
     private val gaps = mutableListOf<LongRange>()
     private var duplicateEvery = 0
+    private var corruptEvery = 0
     private var translationAmp = 0.0
     private var translationHz = 0.0
     private val startNs = 2_000_000_000L
@@ -69,22 +72,25 @@ class SyntheticRotation(
     /** No samples of either sensor in [fromMs, toMs) of the recording. */
     fun gap(fromMs: Long, toMs: Long) = apply { gaps += fromMs until toMs }
 
+    /** Every [every]-th gyroscope sample of the recording becomes NaN (invalid data). */
+    fun corruptGyroEvery(every: Int) = apply { corruptEvery = every }
+
     /** Every [every]-th event is delivered twice (same timestamp). */
     fun duplicates(every: Int) = apply { duplicateEvery = every }
 
     fun recording(hand: SelectedHand = SelectedHand.RIGHT) =
-        PronationRecording(samples(), baselineSamples(), plannedMs, hand)
+        PronationRecording(samples(), baselineSamples(), plannedMs, hand, accelerometerAvailable = accelerometer)
 
     fun samples(): List<MotionSample> {
         val out = ArrayList<MotionSample>()
-        stream(MotionSensorType.ACCELEROMETER, accelHz, out, recording = true)
+        if (accelerometer) stream(MotionSensorType.ACCELEROMETER, accelHz, out, recording = true)
         stream(MotionSensorType.GYROSCOPE, gyroHz, out, recording = true)
         return out.sortedBy { it.timestampNs }
     }
 
     fun baselineSamples(): List<MotionSample> {
         val out = ArrayList<MotionSample>()
-        stream(MotionSensorType.ACCELEROMETER, accelHz, out, recording = false)
+        if (accelerometer) stream(MotionSensorType.ACCELEROMETER, accelHz, out, recording = false)
         stream(MotionSensorType.GYROSCOPE, gyroHz, out, recording = false)
         return out.sortedBy { it.timestampNs }
     }
@@ -100,7 +106,10 @@ class SyntheticRotation(
             if (recording && gaps.any { tMs.toLong() in it }) continue
             val t = tMs / 1000.0
             val ns = offsetNs + (tMs * 1e6).toLong()
-            val s = if (type == MotionSensorType.ACCELEROMETER) accel(t, ns, recording) else gyro(t, ns, recording)
+            var s = if (type == MotionSensorType.ACCELEROMETER) accel(t, ns, recording) else gyro(t, ns, recording)
+            if (recording && type == MotionSensorType.GYROSCOPE && corruptEvery > 0 && i % corruptEvery == 0) {
+                s = s.copy(x = Float.NaN)
+            }
             out += s
             count++
             if (duplicateEvery > 0 && recording && count % duplicateEvery == 0) out += s

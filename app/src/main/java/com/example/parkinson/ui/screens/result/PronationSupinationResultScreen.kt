@@ -1,8 +1,10 @@
 package com.example.parkinson.ui.screens.result
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,10 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -25,30 +27,64 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
 import com.example.parkinson.model.SelectedHand
-import com.example.parkinson.pronation.MetricTrend
+import com.example.parkinson.pronation.InterpretationNote
+import com.example.parkinson.pronation.MotorPerformanceBand
+import com.example.parkinson.pronation.PerformanceTrendState
 import com.example.parkinson.pronation.PronationSupinationResult
-import com.example.parkinson.pronation.TrendDirection
+import com.example.parkinson.pronation.ReliabilityLevel
 import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.QualityChip
 import com.example.parkinson.ui.components.handLabel
-import com.example.parkinson.ui.components.qualityLabel
 import com.example.parkinson.ui.format.PersianFormat
+import com.example.parkinson.ui.screens.pronation.TrendBars
+import com.example.parkinson.ui.screens.pronation.VelocityChart
 import com.example.parkinson.viewmodel.Loadable
-import kotlin.math.abs
+
+@StringRes
+fun bandLabel(band: MotorPerformanceBand): Int = when (band) {
+    MotorPerformanceBand.GOOD -> R.string.ps_band_good
+    MotorPerformanceBand.ACCEPTABLE -> R.string.ps_band_acceptable
+    MotorPerformanceBand.REDUCED -> R.string.ps_band_reduced
+    MotorPerformanceBand.SIGNIFICANTLY_REDUCED -> R.string.ps_band_significantly_reduced
+    MotorPerformanceBand.VERY_LOW -> R.string.ps_band_very_low
+}
+
+@StringRes
+fun noteText(note: InterpretationNote): Int = when (note) {
+    InterpretationNote.SPEED_AND_RHYTHM_GOOD -> R.string.ps_note_speed_rhythm_good
+    InterpretationNote.SPEED_OR_RHYTHM_LOWER -> R.string.ps_note_speed_rhythm_lower
+    InterpretationNote.AMPLITUDE_LOWER -> R.string.ps_note_amplitude_lower
+    InterpretationNote.PAUSES_OBSERVED -> R.string.ps_note_pauses
+    InterpretationNote.TREND_DECLINING -> R.string.ps_note_trend_declining
+    InterpretationNote.TREND_IMPROVING -> R.string.ps_note_trend_improving
+    InterpretationNote.QUALITY_GOOD -> R.string.ps_note_quality_good
+    InterpretationNote.QUALITY_LIMITED -> R.string.ps_note_quality_limited
+    InterpretationNote.GYROSCOPE_ONLY -> R.string.ps_note_gyroscope_only
+    InterpretationNote.REPEAT_RECOMMENDED -> R.string.ps_note_repeat
+}
+
+@StringRes
+fun trendLabel(state: PerformanceTrendState): Int = when (state) {
+    PerformanceTrendState.STABLE -> R.string.ps_trend_stable
+    PerformanceTrendState.IMPROVING -> R.string.ps_trend_improving
+    PerformanceTrendState.DECLINING -> R.string.ps_trend_declining
+    PerformanceTrendState.INSUFFICIENT_DATA -> R.string.ps_trend_insufficient
+}
 
 @Composable
 fun PronationSupinationResultScreen(
     result: Loadable<PronationSupinationResult?>,
     onRepeat: (SelectedHand) -> Unit,
-    onNextTest: () -> Unit,
+    onBackToTests: () -> Unit,
     onHome: () -> Unit,
 ) {
     when (result) {
@@ -69,7 +105,7 @@ fun PronationSupinationResultScreen(
                     PrimaryButton(text = stringResource(R.string.btn_back_home), onClick = onHome)
                 }
             } else {
-                PronationContent(value, onRepeat, onNextTest, onHome)
+                PronationContent(value, onRepeat, onBackToTests, onHome)
             }
         }
     }
@@ -79,11 +115,10 @@ fun PronationSupinationResultScreen(
 private fun PronationContent(
     r: PronationSupinationResult,
     onRepeat: (SelectedHand) -> Unit,
-    onNextTest: () -> Unit,
+    onBackToTests: () -> Unit,
     onHome: () -> Unit,
 ) {
     var showDetails by rememberSaveable { mutableStateOf(false) }
-    fun d(v: Double, digits: Int = 1) = PersianFormat.decimal(v, digits)
 
     Column(
         modifier = Modifier
@@ -107,58 +142,40 @@ private fun PronationContent(
         )
         QualityChip(r.qualityStatus)
 
-        MetricCard(
-            title = stringResource(R.string.ps_result_cycles),
-            value = stringResource(R.string.ps_result_cycles_value, PersianFormat.integer(r.cycleCount)),
-            description = stringResource(R.string.ps_result_cycles_desc)
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_speed),
-            value = stringResource(R.string.ps_result_speed_value, d(r.cycleRateHz, 2)),
-            description = r.angularVelocityPeak?.let { stringResource(R.string.ps_result_speed_desc, d(it, 0)) }
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_rhythm),
-            value = r.medianCycleDurationMs?.let { stringResource(R.string.ps_result_rhythm_value, d(it / 1000.0, 2)) }
-                ?: stringResource(R.string.ps_trend_unavailable),
-            description = r.cycleVariability?.let { stringResource(R.string.ps_result_rhythm_desc, d(it, 0)) }
-                ?: stringResource(R.string.ps_result_rhythm_unavailable)
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_amplitude),
-            value = r.movementAmplitude?.let { stringResource(R.string.ps_result_amplitude_value, d(it, 0)) }
-                ?: stringResource(R.string.ps_trend_unavailable),
-            description = r.amplitudeVariability?.let { stringResource(R.string.ps_result_amplitude_desc, d(it, 0)) }
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_consistency),
-            value = r.movementConsistency?.let { stringResource(R.string.ps_result_consistency_value, d(it, 0)) }
-                ?: stringResource(R.string.ps_trend_unavailable),
-            description = stringResource(
-                R.string.ps_result_consistency_desc,
-                PersianFormat.integer(r.pauseCount),
-                d(r.pauseDurationMs / 1000.0, 1)
-            )
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_trend),
-            value = listOf(
-                stringResource(R.string.ps_trend_amplitude, trendText(r.trend?.amplitudeDeg)),
-                stringResource(R.string.ps_trend_velocity, trendText(r.trend?.peakVelocityDegS)),
-                stringResource(R.string.ps_trend_duration, trendText(r.trend?.cycleDurationMs))
-            ).joinToString("\n"),
-            description = stringResource(R.string.ps_result_trend_desc)
-        )
-        MetricCard(
-            title = stringResource(R.string.ps_result_quality),
-            value = stringResource(
-                R.string.ps_result_quality_value,
-                qualityLabel(r.qualityStatus),
-                PersianFormat.integer(r.qualityScore),
-                PersianFormat.integer(Math.round(r.effectiveSamplingRate).toInt())
-            )
-        )
         IndexCard(r)
+        SummaryCard(r)
+        InterpretationCard(r)
+
+        if (r.velocityTrace.size >= 2) {
+            SectionCard(stringResource(R.string.ps_chart_velocity)) {
+                VelocityChart(
+                    trace = r.velocityTrace,
+                    traceHz = r.traceHz,
+                    description = stringResource(
+                        R.string.ps_chart_velocity_cd,
+                        PersianFormat.integer(Math.round(r.durationMs / 1000.0).toInt()),
+                        PersianFormat.integer(Math.round(r.maxAngularVelocity ?: 0.0).toInt())
+                    )
+                )
+                Text(
+                    stringResource(R.string.ps_chart_velocity_axis),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        SectionCard(stringResource(R.string.ps_chart_trend)) {
+            val labels = listOf(R.string.ps_segment_early, R.string.ps_segment_middle, R.string.ps_segment_late).map { stringResource(it) }
+            val scores = listOf(r.earlyScore, r.middleScore, r.lateScore)
+            val trend = stringResource(trendLabel(r.performanceTrend))
+            fun s(v: Int?) = v?.let { PersianFormat.integer(it) } ?: "—"
+            TrendBars(
+                scores = scores,
+                labels = labels,
+                description = stringResource(R.string.ps_chart_trend_cd, s(r.earlyScore), s(r.middleScore), s(r.lateScore), trend)
+            )
+            Text(trend, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -181,7 +198,7 @@ private fun PronationContent(
                 .heightIn(min = 48.dp)
         ) {
             Text(
-                text = stringResource(if (showDetails) R.string.result_details_hide else R.string.result_details_show),
+                text = stringResource(if (showDetails) R.string.ps_details_hide else R.string.ps_details_show),
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -190,13 +207,13 @@ private fun PronationContent(
         Spacer(modifier = Modifier.height(4.dp))
         PrimaryButton(text = stringResource(R.string.ps_btn_retry), onClick = { onRepeat(r.hand) })
         OutlinedButton(
-            onClick = onNextTest,
+            onClick = onBackToTests,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
             shape = MaterialTheme.shapes.medium
         ) {
-            Text(stringResource(R.string.btn_next_test), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.ps_btn_catalog), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         TextButton(
             onClick = onHome,
@@ -210,10 +227,15 @@ private fun PronationContent(
     }
 }
 
-/** "شاخص عملکرد حرکتی" with its research / non-diagnostic label. */
+/** "شاخص عملکرد حرکتی" with its band, reliability and the internal-reference note. */
 @Composable
 private fun IndexCard(r: PronationSupinationResult) {
     val score = r.performanceScore
+    val band = r.interpretationBand
+    val bandText = band?.let { stringResource(bandLabel(it)) }
+    val accessible = if (score != null && bandText != null) {
+        stringResource(R.string.ps_result_index_cd, PersianFormat.integer(score), bandText)
+    } else stringResource(R.string.ps_result_index_unavailable)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -222,33 +244,39 @@ private fun IndexCard(r: PronationSupinationResult) {
         shape = MaterialTheme.shapes.large,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = accessible },
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.ps_result_index),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = score?.let { stringResource(R.string.ps_result_index_value, PersianFormat.integer(it)) }
+                        ?: stringResource(R.string.ps_result_index_unavailable),
+                    style = if (score != null) MaterialTheme.typography.displaySmall else MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+                if (bandText != null) {
+                    Text(bandText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (r.reliability == ReliabilityLevel.LIMITED) {
+                Text(
+                    text = "⚠ " + stringResource(R.string.ps_reliability_limited),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             Text(
-                text = stringResource(R.string.ps_result_index),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = stringResource(R.string.ps_result_index_badge),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiaryContainer)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-            Text(
-                text = score?.let { stringResource(R.string.ps_result_index_value, PersianFormat.integer(it.total)) }
-                    ?: stringResource(R.string.ps_result_index_unavailable),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = stringResource(R.string.ps_result_index_desc),
-                style = MaterialTheme.typography.bodyMedium,
+                text = stringResource(R.string.ps_reference_note),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -256,54 +284,116 @@ private fun IndexCard(r: PronationSupinationResult) {
 }
 
 @Composable
-private fun trendText(t: MetricTrend?): String {
-    val change = t?.changePercent
-    return when (t?.direction) {
-        null -> stringResource(R.string.ps_trend_unavailable)
-        TrendDirection.STABLE -> stringResource(R.string.ps_trend_stable)
-        TrendDirection.INCREASED -> stringResource(R.string.ps_trend_increased, PersianFormat.decimal(abs(change ?: 0.0), 0))
-        TrendDirection.DECREASED -> stringResource(R.string.ps_trend_decreased, PersianFormat.decimal(abs(change ?: 0.0), 0))
+private fun SummaryCard(r: PronationSupinationResult) {
+    val na = stringResource(R.string.ps_value_unavailable)
+    @Composable
+    fun score(v: Int?) = v?.let { stringResource(R.string.ps_value_score, PersianFormat.integer(it)) } ?: na
+    SectionCard(stringResource(R.string.ps_summary_title)) {
+        SummaryRow(stringResource(R.string.ps_label_hand), handLabel(r.hand))
+        SummaryRow(
+            stringResource(R.string.ps_label_duration),
+            stringResource(R.string.ps_value_seconds, PersianFormat.decimal(r.durationMs / 1000.0, 1))
+        )
+        SummaryRow(stringResource(R.string.ps_label_cycles), PersianFormat.integer(r.cycleCount))
+        SummaryRow(stringResource(R.string.ps_label_speed), stringResource(R.string.ps_value_speed, PersianFormat.decimal(r.cyclesPerSecond, 1)))
+        SummaryRow(stringResource(R.string.ps_label_regularity), score(r.regularityScore))
+        SummaryRow(stringResource(R.string.ps_label_amplitude), score(r.amplitudeScore))
+        SummaryRow(stringResource(R.string.ps_label_consistency), score(r.consistencyScore))
+        SummaryRow(stringResource(R.string.ps_label_pauses), stringResource(R.string.ps_value_pauses, PersianFormat.integer(r.pauseCount)))
+        SummaryRow(stringResource(R.string.ps_label_quality), stringResource(R.string.ps_value_percent, PersianFormat.integer(r.qualityPercentage)))
     }
 }
 
-/** Raw measurements for a clinician. Units are explicit. */
+@Composable
+private fun InterpretationCard(r: PronationSupinationResult) {
+    if (r.interpretationNotes.isEmpty()) return
+    SectionCard(stringResource(R.string.ps_interpretation_title)) {
+        r.interpretationNotes.forEach { note ->
+            Text(stringResource(noteText(note)), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun SectionCard(title: String, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() }
+            )
+            content()
+        }
+    }
+}
+
+/** Label and value read together by TalkBack. */
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Column(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** Raw measurements for a clinician or researcher ("جزئیات فنی"), collapsed by default. */
 @Composable
 private fun PronationDetails(r: PronationSupinationResult) {
     fun d(v: Double?, digits: Int = 1) = v?.let { PersianFormat.decimal(it, digits) } ?: "—"
-    fun trio(t: MetricTrend?, digits: Int) = "${d(t?.early, digits)} / ${d(t?.middle, digits)} / ${d(t?.late, digits)}"
-    val s = r.performanceScore
+    fun pct(v: Double?) = v?.let { "${PersianFormat.decimal(it, 1)}٪" } ?: "—"
+    fun i(v: Int?) = v?.let { PersianFormat.integer(it) } ?: "—"
+    fun join(vararg parts: String) = parts.joinToString(" / ")
+    val t = r.measureTrends
     DetailsTable(
         listOf(
-            "مدت ثبت هم‌زمان" to "${d(r.durationMs / 1000.0, 1)} ثانیه",
-            "چرخه‌ها (کل / معتبر)" to "${PersianFormat.integer(r.cycleCount)} / ${PersianFormat.integer(r.validCycleCount)}",
-            "تعداد چرخه در ثانیه" to "${d(r.cycleRateHz, 2)} هرتز",
-            "مدت چرخه: میانگین / میانه" to "${d(r.meanCycleDurationMs, 0)} / ${d(r.medianCycleDurationMs, 0)} میلی‌ثانیه",
-            "تغییرپذیری زمان چرخه (CV)" to (r.cycleVariability?.let { "${d(it, 1)}٪" } ?: "—"),
-            "سرعت زاویه‌ای: میانگین / RMS" to "${d(r.angularVelocityMean)} / ${d(r.angularVelocityRms)} °/s",
-            "سرعت زاویه‌ای اوج (میانه)" to "${d(r.angularVelocityPeak)} °/s",
-            "تغییرپذیری سرعت اوج (CV)" to (r.angularVelocityVariability?.let { "${d(it, 1)}٪" } ?: "—"),
-            "دامنه حرکت (میانه)" to "${d(r.movementAmplitude)} درجه",
-            "تغییرپذیری دامنه (CV)" to (r.amplitudeVariability?.let { "${d(it, 1)}٪" } ?: "—"),
-            "پایداری حرکت" to (r.movementConsistency?.let { "${d(it, 0)}٪" } ?: "—"),
-            "توقف‌ها" to "${PersianFormat.integer(r.pauseCount)} بار، ${PersianFormat.integer(r.pauseDurationMs)} میلی‌ثانیه",
-            "بسامد غالب حرکت" to (r.dominantFrequencyHz?.let { "${d(it, 2)} هرتز" } ?: "—"),
-            "شتاب خطی (RMS)" to "${d(r.accelerationRms, 2)} m/s²",
-            "سهم محور اصلی چرخش" to "${d(r.rotationAxisSharePercent, 0)}٪",
-            "روند دامنه (آغاز / میانه / پایان)" to trio(r.trend?.amplitudeDeg, 0),
-            "روند سرعت اوج (آغاز / میانه / پایان)" to trio(r.trend?.peakVelocityDegS, 0),
-            "روند مدت چرخه (آغاز / میانه / پایان)" to trio(r.trend?.cycleDurationMs, 0),
-            "نرخ نمونه‌برداری واقعی (ژیروسکوپ / شتاب‌سنج)" to "${d(r.effectiveSamplingRate)} / ${d(r.accSamplingRateHz)} هرتز",
-            "نمونه‌های معتبر" to "${d(r.validSamplePercentage, 1)}٪",
-            "قطعی داده" to "${PersianFormat.integer(r.dropoutCount)} بار",
-            "کامل بودن ثبت" to "${d(r.completenessPercent, 1)}٪",
-            "مسائل کیفیت" to (r.qualityIssues.joinToString { it.name }.ifEmpty { "—" }),
-            "مؤلفه‌های شاخص" to (s?.let {
-                "سرعت ${PersianFormat.integer(it.rate)}، ریتم ${it.rhythm?.let(PersianFormat::integer) ?: "—"}، " +
-                    "دامنه ${PersianFormat.integer(it.amplitude)}، سرعت زاویه‌ای ${PersianFormat.integer(it.velocity)}، " +
-                    "پایداری ${it.consistency?.let(PersianFormat::integer) ?: "—"}، کیفیت ${PersianFormat.integer(it.dataQuality)}"
-            } ?: "—"),
-            "نسخه الگوریتم" to r.algorithmVersion,
-            "نسخه امتیازدهی" to r.scoringVersion
+            stringResource(R.string.ps_detail_cycles) to join(i(r.cycleCount), i(r.validCycleCount)),
+            stringResource(R.string.ps_detail_rate) to join(d(r.cyclesPerSecond, 2), d(r.cyclesPerMinute, 0)),
+            stringResource(R.string.ps_detail_cycle_duration) to join(d(r.meanCycleDurationMs, 0), d(r.medianCycleDurationMs, 0)),
+            stringResource(R.string.ps_detail_cycle_cv) to pct(r.cycleDurationVariability),
+            stringResource(R.string.ps_detail_amplitude) to join(d(r.meanAmplitude), d(r.medianAmplitude)),
+            stringResource(R.string.ps_detail_amplitude_cv) to pct(r.amplitudeVariability),
+            stringResource(R.string.ps_detail_velocity_mean) to join(d(r.meanAngularVelocity), d(r.angularVelocityRms)),
+            stringResource(R.string.ps_detail_velocity_peak) to join(d(r.peakAngularVelocity), d(r.maxAngularVelocity)),
+            stringResource(R.string.ps_detail_velocity_cv) to pct(r.velocityVariability),
+            stringResource(R.string.ps_detail_pauses) to
+                join(i(r.pauseCount), PersianFormat.integer(r.totalPauseDurationMs), PersianFormat.integer(r.longestPauseMs)),
+            stringResource(R.string.ps_detail_trend) to stringResource(trendLabel(r.performanceTrend)),
+            stringResource(R.string.ps_detail_segment_scores) to join(i(r.earlyScore), i(r.middleScore), i(r.lateScore)),
+            stringResource(R.string.ps_detail_segment_amplitude) to
+                join(d(t?.amplitudeDeg?.early, 0), d(t?.amplitudeDeg?.middle, 0), d(t?.amplitudeDeg?.late, 0)),
+            stringResource(R.string.ps_detail_segment_velocity) to
+                join(d(t?.peakVelocityDegS?.early, 0), d(t?.peakVelocityDegS?.middle, 0), d(t?.peakVelocityDegS?.late, 0)),
+            stringResource(R.string.ps_detail_components) to
+                join(i(r.speedScore), i(r.regularityScore), i(r.amplitudeScore), i(r.consistencyScore), i(r.trendScore)),
+            stringResource(R.string.ps_detail_frequency) to d(r.dominantFrequencyHz, 2),
+            stringResource(R.string.ps_detail_axis) to pct(r.rotationAxisSharePercent),
+            stringResource(R.string.ps_detail_noise) to d(r.noiseLevelDegS, 2),
+            stringResource(R.string.ps_detail_acceleration) to d(r.accelerationRms, 2),
+            stringResource(R.string.ps_detail_sampling) to join(d(r.samplingRate), d(r.accSamplingRate)),
+            stringResource(R.string.ps_detail_valid_samples) to pct(r.validSamplePercentage),
+            stringResource(R.string.ps_detail_dropouts) to
+                join(i(r.dropoutCount), i(r.estimatedMissingSamples), PersianFormat.integer(r.longestGapMs)),
+            stringResource(R.string.ps_detail_completeness) to pct(r.completenessPercent),
+            stringResource(R.string.ps_detail_issues) to r.qualityIssues.joinToString { it.name }.ifEmpty { "—" },
+            stringResource(R.string.ps_detail_reference) to r.referenceName,
+            stringResource(R.string.ps_detail_algorithm) to r.algorithmVersion,
+            stringResource(R.string.ps_detail_scoring) to r.scoringVersion
         )
     )
 }

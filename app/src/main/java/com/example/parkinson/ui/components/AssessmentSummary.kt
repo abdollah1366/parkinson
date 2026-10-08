@@ -27,7 +27,7 @@ fun keyMetricsLine(result: AssessmentResult): String = when (result) {
     is PronationSupinationResult -> stringResource(
         R.string.history_item_pronation,
         PersianFormat.integer(result.cycleCount),
-        PersianFormat.decimal(result.cycleRateHz)
+        PersianFormat.decimal(result.cyclesPerSecond)
     )
 
     else -> ""

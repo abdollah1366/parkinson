@@ -39,7 +39,6 @@ sealed class Screen(val route: String) {
     }
 
     object PronationSupinationIntro : Screen("pronation_supination_intro")
-    object PronationSupinationHandSelection : Screen("pronation_supination_hand_selection")
     object PronationSupinationTest : Screen("pronation_supination_test")
 
     object PronationSupinationResult : Screen("pronation_supination_result/{$ARG_ASSESSMENT_ID}") {

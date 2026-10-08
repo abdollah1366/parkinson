@@ -166,7 +166,7 @@ private fun TestCard(test: AssessmentDefinition, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = stringResource(R.string.catalog_sensors, sensorsLabel(test.sensors)),
+                    text = stringResource(R.string.catalog_sensors, sensorsLabel(test.allSensors)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

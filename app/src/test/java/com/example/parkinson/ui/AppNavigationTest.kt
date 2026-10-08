@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -226,37 +227,45 @@ class AppNavigationTest {
         waitFor("به پایش حرکتی خوش آمدید")
         clickWhenShown("شروع")
         openFromCatalog("آزمون چرخش دست")
-        waitFor("گوشی را مطابق دستور در دست بگیرید و کف دست را به‌آرامی به بالا و پایین بچرخانید.")
-        rule.onNodeWithText("چرخش دست").assertIsDisplayed()
-        clickWhenShown("ادامه")
-        waitFor("انتخاب دست")
-        rule.onNodeWithText("دست راست").performClick()
-        clickWhenShown("ادامه")
+        waitFor("گوشی را مطابق راهنمای برنامه در دست بگیرید و کف دست را به‌آرامی به سمت بالا و پایین بچرخانید.")
+        // The hand is chosen on the instruction screen; start is disabled until then.
+        rule.onNodeWithText("شروع آزمون").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("دست راست، انتخاب نشده").performScrollTo().performClick()
+        clickWhenShown("شروع آزمون")
         waitFor("بررسی حسگرها")
     }
 
     @Test
     fun pronationSupinationIsBlockedWithoutGyroscope() {
         openPronationSensorCheck()
-        rule.onNodeWithText("حسگر ژیروسکوپ در این دستگاه در دسترس نیست.").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("سنسور ژیروسکوپ در این دستگاه در دسترس نیست.").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("ادامه").assertIsNotEnabled()
     }
 
     @Test
-    fun pronationSupinationIsSelectableAndRunnable() {
+    fun pronationSupinationRunsWithGyroscopeAndAsksBeforeStopping() {
         val sensors = shadowOf(RuntimeEnvironment.getApplication().getSystemService(SensorManager::class.java))
-        sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_ACCELEROMETER))
+        // Gyroscope only: allowed, with an explicit warning about the missing accelerometer.
         sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_GYROSCOPE))
         openPronationSensorCheck()
-        rule.onNodeWithText("همه حسگرهای لازم در دسترس هستند.").assertIsDisplayed()
+        rule.onNodeWithText("آزمون فقط با ژیروسکوپ انجام می‌شود", substring = true).assertIsDisplayed()
         clickWhenShown("ادامه")
         waitFor("وقتی آماده بودید، گوشی را در دست راست بگیرید و دکمه شروع را بزنید.")
         clickWhenShown("شروع آزمون")
-        waitFor("آماده شوید… ۵")
+        waitFor("آماده‌سازی… ۵")
+        // Cancel asks first; "continue" keeps the test running.
         rule.onNodeWithText("لغو آزمون").assertIsEnabled().performClick()
-        // Cancelled before the end: no result, a clear explanation and a retry.
-        waitFor("تلاش مجدد")
-        rule.onNodeWithText("آزمون پیش از پایان قطع شد", substring = true).assertIsDisplayed()
+        waitFor("آیا می‌خواهید آزمون را متوقف کنید؟")
+        rule.onNodeWithText("ادامه آزمون").performClick()
+        rule.onNodeWithText("آیا می‌خواهید آزمون را متوقف کنید؟").assertDoesNotExist()
+        rule.onNodeWithText("لغو آزمون").performClick()
+        waitFor("خروج")
+        rule.onNodeWithText("خروج").performClick()
+        // Back on the test list (its cards are shown again); nothing was stored.
+        rule.waitUntil(timeoutMillis = 10_000) {
+            rule.onAllNodes(hasText("لغو آزمون")).fetchSemanticsNodes().isEmpty() &&
+                rule.onAllNodes(hasText("● آماده انجام")).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     @Test

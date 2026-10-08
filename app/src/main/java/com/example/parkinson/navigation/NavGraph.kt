@@ -76,6 +76,16 @@ fun ParkinsonNavGraph(
         }
     }
 
+    /** Back to the test selection screen, with Home below it. */
+    fun goToTestList() {
+        if (!navController.popBackStack(Screen.AssessmentCatalog.route, inclusive = false)) {
+            navController.navigate(Screen.AssessmentCatalog.route) {
+                popUpTo(Screen.Home.route)
+                launchSingleTop = true
+            }
+        }
+    }
+
     /** Starts the next available test of the catalog (falls back to the test selection screen). */
     fun goToNextTest(current: AssessmentType) {
         fingerTappingViewModel.resetFlow()
@@ -308,20 +318,14 @@ fun ParkinsonNavGraph(
         // --- Pronation / Supination ------------------------------------------------------
 
         composable(Screen.PronationSupinationIntro.route) {
-            PronationSupinationIntroScreen {
-                // A new run never shows a previous outcome.
-                pronationViewModel.resetFlow()
-                navController.navigate(Screen.PronationSupinationHandSelection.route)
-            }
-        }
-
-        composable(Screen.PronationSupinationHandSelection.route) {
-            // The hand comes from this explicit selection, never from the sensor data.
+            // Instructions + hand selection; the hand is an explicit choice, never inferred from sensors.
             val selectedHand by pronationViewModel.selectedHand.collectAsState()
-            FingerTappingHandSelectionScreen(
+            PronationSupinationIntroScreen(
                 selectedHand = selectedHand,
                 onHandSelected = { hand -> pronationViewModel.selectHand(hand) },
-                onContinueClicked = {
+                onStartClicked = {
+                    // A new run never shows a previous outcome.
+                    pronationViewModel.session.reset()
                     navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.PRONATION_SUPINATION.id))
                 }
             )
@@ -338,9 +342,9 @@ fun ParkinsonNavGraph(
                         launchSingleTop = true
                     }
                 },
-                onHome = {
-                    pronationViewModel.resetFlow()
-                    goHome()
+                onExit = {
+                    pronationViewModel.session.reset()
+                    goToTestList()
                 }
             )
         }
@@ -358,7 +362,10 @@ fun ParkinsonNavGraph(
                         popUpTo(Screen.Home.route)
                     }
                 },
-                onNextTest = { goToNextTest(AssessmentType.PRONATION_SUPINATION) },
+                onBackToTests = {
+                    pronationViewModel.resetFlow()
+                    goToTestList()
+                },
                 onHome = {
                     pronationViewModel.resetFlow()
                     goHome()

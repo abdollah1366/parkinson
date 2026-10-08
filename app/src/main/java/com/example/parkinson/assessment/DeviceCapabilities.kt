@@ -14,7 +14,9 @@ fun interface DeviceCapabilities {
 /** Result of checking every sensor a test needs. */
 data class SensorCheckResult(
     val available: List<SensorRequirement>,
-    val missing: List<SensorRequirement>
+    val missing: List<SensorRequirement>,
+    /** Optional sensors that are missing: the test can still run, with reduced checks. */
+    val missingOptional: List<SensorRequirement> = emptyList()
 ) {
     val canStart: Boolean get() = missing.isEmpty()
 
@@ -24,7 +26,10 @@ data class SensorCheckResult(
                 // A failing probe must not crash the check; treat it as unavailable.
                 runCatching { capabilities.isAvailable(requirement) }.getOrDefault(false)
             }
-            return SensorCheckResult(ok, missing)
+            val (okOptional, missingOptional) = definition.optionalSensors.partition { requirement ->
+                runCatching { capabilities.isAvailable(requirement) }.getOrDefault(false)
+            }
+            return SensorCheckResult(ok + okOptional, missing, missingOptional)
         }
     }
 }

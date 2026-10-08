@@ -37,7 +37,7 @@ class PronationSupinationStorageTest {
     private lateinit var repository: RoomAssessmentRepository
 
     private fun pronation(id: String, time: Long, s: SyntheticRotation = SyntheticRotation().sinusoid(1.5, 90.0)) =
-        PronationSupinationResult.from(PronationSupinationEngine().analyze(s.recording()), id, time, SelectedHand.RIGHT, 10_000L)
+        PronationSupinationResult.from(PronationSupinationEngine().analyze(s.recording()), id, "session-$id", time, SelectedHand.RIGHT, 10_000L)
 
     @Before
     fun setUp() {
@@ -58,7 +58,8 @@ class PronationSupinationStorageTest {
 
         val lowQuality = pronation("b", 2L, SyntheticRotation().sinusoid(1.5, 90.0).gap(5_000, 5_300))
         assertEquals(QualityStatus.LOW_QUALITY, lowQuality.qualityStatus)
-        assertNull(lowQuality.performanceScore)
+        // LOW_QUALITY: stored with a score of limited reliability.
+        assertEquals(com.example.parkinson.pronation.ReliabilityLevel.LIMITED, lowQuality.reliability)
         assertEquals(lowQuality, lowQuality.toEntity().toDomain())
     }
 
@@ -70,7 +71,7 @@ class PronationSupinationStorageTest {
         assertEquals(QualityStatus.INVALID, r.qualityStatus)
         assertEquals(1, r.qualityIssues.size)
         assertEquals(SelectedHand.RIGHT, r.hand)
-        assertNull(r.trend!!.amplitudeDeg.direction)
+        assertNull(r.measureTrends!!.amplitudeDeg.direction)
     }
 
     @Test
@@ -98,7 +99,7 @@ class PronationSupinationStorageTest {
         )
         val ps = history[0] as PronationSupinationResult
         assertEquals(SelectedHand.RIGHT, ps.hand)
-        assertEquals(ps.performanceScore?.total, ps.performanceIndex)
+        assertEquals(ps.performanceScore, ps.performanceIndex)
     }
 
     @get:Rule
@@ -142,5 +143,50 @@ class PronationSupinationStorageTest {
             assertEquals(0L, it.getLong(0))
         }
         v3.close()
+    }
+
+    @Test
+    fun migrationFromVersion3KeepsPronationRowsAndAddsColumns() {
+        val v3 = migrationHelper.createDatabase(3)
+        // A row written by the v3 development algorithm.
+        v3.execSQL(
+            "INSERT INTO pronation_supination_assessments (assessmentId, timestampEpochMs, hand, plannedDurationMs, " +
+                "durationMs, cycleCount, validCycleCount, cycleRateHz, meanCycleDurationMs, medianCycleDurationMs, " +
+                "cycleVariability, angularVelocityMean, angularVelocityPeak, angularVelocityVariability, " +
+                "angularVelocityRms, movementAmplitude, amplitudeVariability, movementConsistency, pauseCount, " +
+                "pauseDurationMs, accelerationRms, dominantFrequencyHz, rotationAxisSharePercent, effectiveSamplingRate, " +
+                "accSamplingRateHz, validSamplePercentage, dropoutCount, completenessPercent, qualityStatus, qualityIssues, " +
+                "qualityScore, scoreTotal, scoreRate, scoreRhythm, scoreAmplitude, scoreVelocity, scoreConsistency, " +
+                "scoreDataQuality, algorithmVersion, scoringVersion) VALUES ('kept-ps', 9, 'LEFT', 10000, 9990, 14, 14, " +
+                "1.4, 667.0, 667.0, 2.0, 270.0, 420.0, 3.0, 300.0, 90.0, 2.0, 100.0, 0, 0, 0.2, 1.5, 99.0, 100.0, 100.0, " +
+                "100.0, 0, 100.0, 'VALID', '', 95, 72, 60, 95, 80, 70, 100, 95, 'ps-algo-1.0.0', 'ps-score-0.1.0-research')"
+        )
+        v3.close()
+
+        // Validates the migrated schema against 4.json.
+        val v4 = migrationHelper.runMigrationsAndValidate(4)
+        v4.prepare("SELECT cycleCount, sessionId, performanceTrend, accelerometerAvailable, reliability FROM pronation_supination_assessments WHERE assessmentId = 'kept-ps'").use {
+            assertEquals(true, it.step())
+            assertEquals(14L, it.getLong(0))
+            assertEquals("", it.getText(1))
+            assertEquals("INSUFFICIENT_DATA", it.getText(2))
+            assertEquals(1L, it.getLong(3))
+            assertEquals("", it.getText(4))
+        }
+        v4.close()
+    }
+
+    @Test
+    fun legacyRowsAreReadSafely() {
+        // v3 columns only (v4 columns at their defaults), as after the migration.
+        val legacy = pronation("x", 1L).toEntity().copy(
+            reliability = "", interpretationBand = null, interpretationNotes = "", velocityTrace = "",
+            cyclesPerMinute = 0.0, scoreTotal = 72, qualityStatus = "VALID", algorithmVersion = "ps-algo-1.0.0"
+        ).toDomain()
+        assertEquals(72, legacy.performanceScore)
+        assertEquals(com.example.parkinson.pronation.MotorPerformanceBand.ACCEPTABLE, legacy.interpretationBand)
+        assertEquals(com.example.parkinson.pronation.ReliabilityLevel.RELIABLE, legacy.reliability)
+        assertEquals(legacy.cyclesPerSecond * 60, legacy.cyclesPerMinute, 1e-9)
+        assertEquals(emptyList<Float>(), legacy.velocityTrace)
     }
 }

@@ -27,6 +27,11 @@ data class MotionSample(
     val unreliable: Boolean = false
 )
 
+/** Allocation-free delivery of one sensor event (called on the sensor thread). */
+fun interface MotionSampleSink {
+    fun onSample(type: MotionSensorType, timestampNs: Long, x: Float, y: Float, z: Float, unreliable: Boolean)
+}
+
 /** Source of accelerometer + gyroscope samples. Implementations deliver on a background thread. */
 interface MotionSensorSource {
     fun isAvailable(type: MotionSensorType): Boolean
@@ -36,6 +41,18 @@ interface MotionSensorSource {
      * be registered. [samplingPeriodUs] is a request only: the real rate must be measured.
      */
     fun start(samplingPeriodUs: Int, listener: (MotionSample) -> Unit): Boolean
+
+    /**
+     * Starts every sensor in [required] (all must register, otherwise returns false and delivers
+     * nothing) plus those in [optional] that exist. Delivers events without allocating objects.
+     * The default implementation (for simple sources) starts both sensors through [start].
+     */
+    fun startRaw(
+        samplingPeriodUs: Int,
+        required: Set<MotionSensorType>,
+        optional: Set<MotionSensorType>,
+        sink: MotionSampleSink
+    ): Boolean = start(samplingPeriodUs) { s -> sink.onSample(s.type, s.timestampNs, s.x, s.y, s.z, s.unreliable) }
 
     /** Stops delivery. Safe to call repeatedly. */
     fun stop()
@@ -58,11 +75,21 @@ class AndroidMotionSensorSource(context: Context) : MotionSensorSource {
 
     override fun isAvailable(type: MotionSensorType): Boolean = sensorFor(type) != null
 
-    override fun start(samplingPeriodUs: Int, listener: (MotionSample) -> Unit): Boolean = synchronized(lock) {
+    override fun start(samplingPeriodUs: Int, listener: (MotionSample) -> Unit): Boolean =
+        startRaw(samplingPeriodUs, MotionSensorType.entries.toSet(), emptySet()) { type, ts, x, y, z, unreliable ->
+            listener(MotionSample(type, ts, x, y, z, unreliable))
+        }
+
+    override fun startRaw(
+        samplingPeriodUs: Int,
+        required: Set<MotionSensorType>,
+        optional: Set<MotionSensorType>,
+        sink: MotionSampleSink
+    ): Boolean = synchronized(lock) {
         stopLocked()
         val manager = sensorManager ?: return false
-        val accel = sensorFor(MotionSensorType.ACCELEROMETER) ?: return false
-        val gyro = sensorFor(MotionSensorType.GYROSCOPE) ?: return false
+        if (required.any { sensorFor(it) == null }) return false
+        val wanted = (required + optional).mapNotNull { type -> sensorFor(type)?.let { type to it } }
 
         val eventListener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
@@ -71,16 +98,8 @@ class AndroidMotionSensorSource(context: Context) : MotionSensorSource {
                     Sensor.TYPE_GYROSCOPE -> MotionSensorType.GYROSCOPE
                     else -> return
                 }
-                listener(
-                    MotionSample(
-                        type = type,
-                        timestampNs = event.timestamp,
-                        x = event.values[0],
-                        y = event.values[1],
-                        z = event.values[2],
-                        unreliable = event.accuracy <= SensorManager.SENSOR_STATUS_UNRELIABLE
-                    )
-                )
+                val v = event.values
+                sink.onSample(type, event.timestamp, v[0], v[1], v[2], event.accuracy <= SensorManager.SENSOR_STATUS_UNRELIABLE)
             }
 
             override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit
@@ -89,16 +108,18 @@ class AndroidMotionSensorSource(context: Context) : MotionSensorSource {
         // Dedicated thread: sensor callbacks never wait for the UI thread.
         val handlerThread = HandlerThread("MotionSensors").also { it.start() }
         val handler = Handler(handlerThread.looper)
-        // maxReportLatencyUs = 0: no batching, events arrive as they are measured.
-        // Requested rate stays <= 200 Hz, so HIGH_SAMPLING_RATE_SENSORS is not needed (Android 12+).
-        val okAccel = manager.registerListener(eventListener, accel, samplingPeriodUs, 0, handler)
-        val okGyro = manager.registerListener(eventListener, gyro, samplingPeriodUs, 0, handler)
         thread = handlerThread
         registered = eventListener
-        if (!okAccel || !okGyro) {
-            Log.w(TAG, "registerListener failed: accel=$okAccel gyro=$okGyro")
-            stopLocked()
-            return false
+        // maxReportLatencyUs = 0: no batching, events arrive as they are measured.
+        // Requested rate stays <= 200 Hz, so HIGH_SAMPLING_RATE_SENSORS is not needed (Android 12+).
+        for ((type, sensor) in wanted) {
+            val ok = manager.registerListener(eventListener, sensor, samplingPeriodUs, 0, handler)
+            if (!ok && type in required) {
+                Log.w(TAG, "registerListener failed for required $type")
+                stopLocked()
+                return false
+            }
+            if (!ok) Log.w(TAG, "registerListener failed for optional $type")
         }
         true
     }

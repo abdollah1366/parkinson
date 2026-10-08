@@ -1,6 +1,7 @@
 package com.example.parkinson.ui.screens.pronation
 
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,11 +29,15 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -53,7 +59,7 @@ import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.handLabel
 import com.example.parkinson.ui.format.PersianFormat
 
-/** Patient-facing explanation (message + reason/tip) for a session that produced no result. */
+/** Patient-facing explanation (message + reason) for a session that produced no result. */
 data class PronationProblem(@param:StringRes val message: Int, @param:StringRes val detail: Int)
 
 fun pronationProblem(state: PronationState): PronationProblem? = when (state) {
@@ -68,15 +74,17 @@ fun pronationProblem(state: PronationState): PronationProblem? = when (state) {
             PronationQualityIssue.EXCESSIVE_GAPS,
             PronationQualityIssue.RECORDING_INCOMPLETE -> R.string.ps_reason_gaps
             PronationQualityIssue.TOO_FEW_SAMPLES,
-            PronationQualityIssue.NO_ACCELEROMETER_DATA,
+            PronationQualityIssue.USABLE_DURATION_TOO_SHORT,
             PronationQualityIssue.NO_GYROSCOPE_DATA -> R.string.ps_reason_insufficient
             else -> R.string.ps_tip_retry
         }
     )
 
     is PronationState.Error -> when (state.error) {
-        PronationError.SENSOR_UNAVAILABLE -> PronationProblem(R.string.sensor_missing_gyroscope, R.string.hs_error_sensor_unavailable)
+        PronationError.SENSOR_UNAVAILABLE -> PronationProblem(R.string.ps_sensor_missing_gyroscope, R.string.hs_error_sensor_unavailable)
         PronationError.SENSOR_STOPPED -> PronationProblem(R.string.hs_error_sensor_stopped, R.string.ps_tip_retry)
+        PronationError.SAMPLING_RATE_TOO_LOW -> PronationProblem(R.string.ps_error_rate, R.string.ps_tip_retry)
+        PronationError.TIMESTAMPS_INVALID -> PronationProblem(R.string.ps_error_timestamps, R.string.ps_tip_retry)
         PronationError.STORAGE_FAILURE -> PronationProblem(R.string.invalid_storage_error, R.string.invalid_tip_storage)
         PronationError.UNEXPECTED -> PronationProblem(R.string.invalid_unexpected_error, R.string.ps_tip_retry)
     }
@@ -89,11 +97,13 @@ fun PronationSupinationTestScreen(
     selectedHand: SelectedHand?,
     session: PronationSupinationSession,
     onCompleted: (assessmentId: String) -> Unit,
-    onHome: () -> Unit,
+    /** Leave the test (back to the test list). */
+    onExit: () -> Unit,
 ) {
     val state by session.state.collectAsState()
     val hand = selectedHand ?: SelectedHand.RIGHT
     val activity = LocalActivity.current
+    var confirmStop by rememberSaveable { mutableStateOf(false) }
 
     // The hand (and phone) rotates during this test: keep the current screen orientation so the
     // UI does not flip around while the patient moves.
@@ -103,8 +113,8 @@ fun PronationSupinationTestScreen(
         onDispose { if (previous != null) activity.requestedOrientation = previous }
     }
 
-    // Back, Home, screen lock or backgrounding ends the test as INTERRUPTED, never as a result.
-    // A configuration change does not: the session and sensors live in the ViewModel.
+    // Home, screen lock or backgrounding ends the test as INTERRUPTED, never as a result. A
+    // configuration change does not: the session and sensors live in the ViewModel.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, session) {
         val observer = LifecycleEventObserver { _, event ->
@@ -115,6 +125,26 @@ fun PronationSupinationTestScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
             if (activity?.isChangingConfigurations != true) session.abort()
         }
+    }
+
+    // Back during the test asks first; the recording continues while the dialog is shown.
+    BackHandler(enabled = state.isActive) { confirmStop = true }
+    if (confirmStop && state.isActive) {
+        AlertDialog(
+            onDismissRequest = { confirmStop = false },
+            title = { Text(stringResource(R.string.ps_stop_title)) },
+            text = { Text(stringResource(R.string.ps_stop_desc)) },
+            confirmButton = {
+                TextButton(onClick = { confirmStop = false }) { Text(stringResource(R.string.ps_stop_continue)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmStop = false
+                    session.abort()
+                    onExit()
+                }) { Text(stringResource(R.string.ps_stop_exit)) }
+            }
+        )
     }
 
     val view = LocalView.current
@@ -144,7 +174,7 @@ fun PronationSupinationTestScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = stringResource(R.string.ps_intro_title),
+                text = stringResource(R.string.test_ps_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -156,7 +186,7 @@ fun PronationSupinationTestScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(12.dp))
-            StatusPanel(state, hand)
+            StatusPanel(state, hand, session.recordingMs / 1000f)
         }
 
         when {
@@ -166,7 +196,7 @@ fun PronationSupinationTestScreen(
             )
 
             state.isActive -> OutlinedButton(
-                onClick = { session.abort() },
+                onClick = { confirmStop = true },
                 enabled = state !is PronationState.Processing,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -177,14 +207,15 @@ fun PronationSupinationTestScreen(
             }
 
             pronationProblem(state) != null -> {
+                // Retry is the prominent action after any failed run.
                 PrimaryButton(text = stringResource(R.string.ps_btn_retry), onClick = { session.start(hand) })
                 TextButton(
-                    onClick = onHome,
+                    onClick = onExit,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
                 ) {
-                    Text(stringResource(R.string.btn_back_home), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.ps_btn_catalog), style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
@@ -192,8 +223,8 @@ fun PronationSupinationTestScreen(
 }
 
 @Composable
-private fun StatusPanel(state: PronationState, hand: SelectedHand) {
-    val announce = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+private fun StatusPanel(state: PronationState, hand: SelectedHand, recordingSeconds: Float) {
+    val polite = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
     when (state) {
         PronationState.Idle -> Text(
             text = stringResource(R.string.ps_test_idle, handLabel(hand)),
@@ -207,18 +238,22 @@ private fun StatusPanel(state: PronationState, hand: SelectedHand) {
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = announce
+                modifier = polite
             )
             Text(stringResource(R.string.ps_test_preparing_hint), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         }
 
         is PronationState.Countdown -> {
+            val description = stringResource(R.string.ps_test_countdown_cd, PersianFormat.integer(state.count))
             Text(
                 text = PersianFormat.integer(state.count),
-                fontSize = 96.sp,
+                fontSize = COUNTDOWN_SIZE,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = announce
+                modifier = Modifier.semantics {
+                    contentDescription = description
+                    liveRegion = LiveRegionMode.Assertive
+                }
             )
             Text(stringResource(R.string.ps_test_countdown_hint), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         }
@@ -227,10 +262,10 @@ private fun StatusPanel(state: PronationState, hand: SelectedHand) {
             if (state.showStartCue) {
                 Text(
                     text = stringResource(R.string.ps_test_start),
-                    fontSize = 64.sp,
+                    fontSize = START_CUE_SIZE,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.secondary,
-                    modifier = announce
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }
                 )
             }
             Text(
@@ -239,10 +274,10 @@ private fun StatusPanel(state: PronationState, hand: SelectedHand) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center,
-                modifier = if (state.showStartCue) Modifier else announce
+                modifier = if (state.showStartCue) Modifier else polite
             )
             LinearProgressIndicator(
-                progress = { 1f - state.secondsLeft / 10f },
+                progress = { 1f - state.secondsLeft / recordingSeconds },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
@@ -252,7 +287,7 @@ private fun StatusPanel(state: PronationState, hand: SelectedHand) {
 
         PronationState.Processing -> {
             CircularProgressIndicator()
-            Text(stringResource(R.string.ps_test_processing), style = MaterialTheme.typography.titleMedium, modifier = announce)
+            Text(stringResource(R.string.ps_test_processing), style = MaterialTheme.typography.titleMedium, modifier = polite)
         }
 
         is PronationState.Done -> CircularProgressIndicator()
@@ -262,21 +297,29 @@ private fun StatusPanel(state: PronationState, hand: SelectedHand) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(announce),
+                    .then(polite),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 shape = MaterialTheme.shapes.large
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        stringResource(R.string.invalid_title),
+                        stringResource(R.string.ps_invalid_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
                     )
                     Text(stringResource(problem.message), style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(problem.detail), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(problem.detail), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.ps_invalid_repeat),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
     }
 }
+
+private val COUNTDOWN_SIZE = 96.sp
+private val START_CUE_SIZE = 56.sp

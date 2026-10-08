@@ -57,7 +57,7 @@ class AssessmentCatalogTest {
         assertEquals(Screen.PronationSupinationIntro.route, ps.startRoute)
         assertEquals(Screen.PronationSupinationTest.route, ps.afterSensorCheckRoute)
         assertEquals(AssessmentStatus.AVAILABLE, ps.status)
-        assertEquals("PronationSupinationTest", ps.englishName)
+        assertTrue(ps.englishName.contains("PRONATION_SUPINATION"))
     }
 
     @Test
@@ -69,8 +69,11 @@ class AssessmentCatalogTest {
         assertEquals(15, hs.durationSeconds)
         assertEquals(setOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), hs.sensors.toSet())
         val ps = AssessmentCatalog[AssessmentType.PRONATION_SUPINATION]
-        assertEquals(10, ps.durationSeconds)
-        assertEquals(setOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), ps.sensors.toSet())
+        // 5 s preparation + 3 s countdown + 10 s recording.
+        assertEquals(18, ps.durationSeconds)
+        // Gyroscope required (primary); accelerometer optional (supporting).
+        assertEquals(listOf(SensorRequirement.GYROSCOPE), ps.sensors)
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER), ps.optionalSensors)
         assertTrue(ps.requiresHandSelection)
         assertTrue(ft.requiresHandSelection && hs.requiresHandSelection)
     }
@@ -113,5 +116,18 @@ class AssessmentCatalogTest {
         val ft = AssessmentCatalog[AssessmentType.FINGER_TAPPING]
         val result = SensorCheckResult.check(ft) { if (it == SensorRequirement.CAMERA) error("probe failed") else true }
         assertEquals(listOf(SensorRequirement.CAMERA), result.missing)
+    }
+
+    @Test
+    fun pronationNeedsTheGyroscopeButNotTheAccelerometer() {
+        val ps = AssessmentCatalog[AssessmentType.PRONATION_SUPINATION]
+        val noAccel = SensorCheckResult.check(ps) { it != SensorRequirement.ACCELEROMETER }
+        assertTrue(noAccel.canStart)
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER), noAccel.missingOptional)
+
+        val noGyro = SensorCheckResult.check(ps) { it != SensorRequirement.GYROSCOPE }
+        assertFalse(noGyro.canStart)
+        assertEquals(listOf(SensorRequirement.GYROSCOPE), noGyro.missing)
+        assertTrue(SensorRequirement.GYROSCOPE in ps.missingSensorMessages)
     }
 }

@@ -3,6 +3,7 @@ package com.example.parkinson.pronation
 import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.sensors.MotionSample
+import com.example.parkinson.sensors.MotionSampleSink
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.sensors.MotionSensorType
 import kotlinx.coroutines.CoroutineDispatcher
@@ -49,8 +50,20 @@ private class FakeRotationSource(
     override fun isAvailable(type: MotionSensorType) =
         if (type == MotionSensorType.ACCELEROMETER) accelAvailable else gyroAvailable
 
-    override fun start(samplingPeriodUs: Int, listener: (MotionSample) -> Unit): Boolean {
+    override fun start(samplingPeriodUs: Int, listener: (MotionSample) -> Unit): Boolean =
+        startRaw(samplingPeriodUs, MotionSensorType.entries.toSet(), emptySet()) { type, ts, x, y, z, u ->
+            listener(MotionSample(type, ts, x, y, z, u))
+        }
+
+    override fun startRaw(
+        samplingPeriodUs: Int,
+        required: Set<MotionSensorType>,
+        optional: Set<MotionSensorType>,
+        sink: MotionSampleSink
+    ): Boolean {
         if (!registerSucceeds) return false
+        if (required.any { !isAvailable(it) }) return false
+        val withAccel = accelAvailable && MotionSensorType.ACCELEROMETER in required + optional
         starts++
         val startedAt = now()
         job = scope.launch {
@@ -62,8 +75,8 @@ private class FakeRotationSource(
                 val w = if (rotationHz > 0 && sinceRotation >= 0 && rotating) {
                     (45.0 * 2 * PI * rotationHz * cos(2 * PI * rotationHz * sinceRotation) * PI / 180).toFloat()
                 } else 0.001f
-                listener(MotionSample(MotionSensorType.ACCELEROMETER, t * 1_000_000, 0.01f, 0f, 9.81f))
-                listener(MotionSample(MotionSensorType.GYROSCOPE, t * 1_000_000, 0.001f, w, -0.001f))
+                if (withAccel) sink.onSample(MotionSensorType.ACCELEROMETER, t * 1_000_000, 0.01f, 0f, 9.81f, false)
+                sink.onSample(MotionSensorType.GYROSCOPE, t * 1_000_000, 0.001f, w, -0.001f, false)
                 delay(periodMs)
             }
         }
@@ -92,7 +105,7 @@ class PronationSupinationSessionTest {
         source = source,
         clock = { testScheduler.currentTime },
         wallClock = { 1_700_000_000_000L },
-        newAssessmentId = { "ps-1" },
+        newId = { "ps-1" },
         processingDispatcher = StandardTestDispatcher(testScheduler),
         onCompleted = onCompleted
     )
@@ -132,7 +145,7 @@ class PronationSupinationSessionTest {
         assertEquals(SelectedHand.LEFT, r.hand)
         assertEquals(QualityStatus.VALID, r.qualityStatus)
         assertTrue("cycles ${r.cycleCount}", r.cycleCount in 13..15)
-        assertEquals(100.0, r.effectiveSamplingRate, 0.5)
+        assertEquals(100.0, r.samplingRate, 0.5)
         assertEquals(listOf(r), saved)
         assertFalse("sensors stopped after the test", src.running)
         assertEquals(PronationSupinationVersions.ALGORITHM_VERSION, r.algorithmVersion)
@@ -288,5 +301,53 @@ class PronationSupinationSessionTest {
         assertFalse(src.running)
         finish()
         assertEquals(PronationState.Idle, session.state.value)
+    }
+
+    @Test
+    fun preflightRejectsATooSlowGyroscopeBeforeRecording() = runTest {
+        // 20 Hz < 25 Hz minimum: stopped after preparation, nothing recorded or stored.
+        val src = source().apply { periodMs = 50 }
+        val session = newSession(src)
+        session.start(SelectedHand.RIGHT)
+        advanceTimeBy(5_100)
+        assertEquals(PronationState.Error(PronationError.SAMPLING_RATE_TOO_LOW), session.state.value)
+        assertFalse(src.running)
+        finish()
+        assertTrue(saved.isEmpty())
+    }
+
+    @Test
+    fun deviceWithoutAccelerometerRunsOnGyroscopeWithLimitedReliability() = runTest {
+        val src = source().apply { accelAvailable = false }
+        val session = newSession(src)
+        session.start(SelectedHand.LEFT)
+        finish()
+        val r = (session.state.value as PronationState.Done).result
+        assertFalse(r.accelerometerAvailable)
+        assertEquals(QualityStatus.LOW_QUALITY, r.qualityStatus)
+        assertTrue(PronationQualityIssue.ACCELEROMETER_UNAVAILABLE in r.qualityIssues)
+        assertEquals(ReliabilityLevel.LIMITED, r.reliability)
+        assertEquals(listOf(r), saved)
+    }
+
+    @Test
+    fun selectedHandAndIdsArePersistedInTheResult() = runTest {
+        var n = 0
+        val session = PronationSupinationSession(
+            scope = backgroundScope,
+            source = source(),
+            clock = { testScheduler.currentTime },
+            newId = { "id-${++n}" },
+            processingDispatcher = StandardTestDispatcher(testScheduler),
+            onCompleted = { saved += it }
+        )
+        session.start(SelectedHand.LEFT)
+        finish()
+        val r = (session.state.value as PronationState.Done).result
+        assertEquals(SelectedHand.LEFT, r.hand)
+        assertEquals("id-1", r.sessionId)
+        assertEquals("id-2", r.assessmentId)
+        assertTrue(r.performanceScore!! in 0..100)
+        assertEquals(MotorPerformanceBand.forScore(r.performanceScore!!), r.interpretationBand)
     }
 }

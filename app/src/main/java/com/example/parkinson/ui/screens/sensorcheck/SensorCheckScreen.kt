@@ -95,6 +95,17 @@ fun SensorCheckScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
+                        // Optional sensors: the test still runs, with fewer checks; say so plainly.
+                        result.missingOptional.forEach { sensor ->
+                            Text(
+                                text = "⚠ " + stringResource(
+                                    R.string.sensor_check_optional_missing,
+                                    stringResource(sensorLabelRes(sensor))
+                                ),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
                     } else {
                         Text(
                             text = stringResource(R.string.sensor_check_failed),
@@ -104,7 +115,7 @@ fun SensorCheckScreen(
                         )
                         result.missing.forEach { sensor ->
                             Text(
-                                text = stringResource(sensorMissingRes(sensor)),
+                                text = stringResource(definition.missingSensorMessages[sensor] ?: sensorMissingRes(sensor)),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )

@@ -4,6 +4,8 @@ import android.os.SystemClock
 import com.example.parkinson.diagnostics.SensorDiagnostics
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.sensors.MotionSample
+import com.example.parkinson.sensors.MotionSampleBuffer
+import com.example.parkinson.sensors.MotionSampleSink
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.sensors.MotionSensorType
 import kotlinx.coroutines.CancellationException
@@ -23,20 +25,20 @@ import kotlin.math.min
 sealed interface PronationState {
     data object Idle : PronationState
 
-    /** Phone held still; the baseline (orientation, gyroscope bias) is estimated. */
+    /** Phone held still; the baseline (orientation, gyroscope bias, noise) is estimated. */
     data class Preparing(val secondsLeft: Int) : PronationState
 
     /** 3, 2, 1. */
     data class Countdown(val count: Int) : PronationState
 
-    /** [showStartCue]: the first second, when the UI shows "شروع". */
+    /** [showStartCue]: the first second, when the UI shows "شروع کنید". */
     data class Recording(val secondsLeft: Int, val showStartCue: Boolean) : PronationState
     data object Processing : PronationState
 
     /** A usable result (quality VALID or LOW_QUALITY), already saved. */
     data class Done(val result: PronationSupinationResult) : PronationState
 
-    /** No result: rejected by quality control. */
+    /** No result: rejected by quality control (INVALID / INSUFFICIENT_DATA). Nothing is stored. */
     data class Invalid(val report: PronationQualityReport) : PronationState
 
     /** No result: Back, Home, screen lock, app in background or cancel before the end. */
@@ -51,40 +53,47 @@ val PronationState.isActive: Boolean
         this is PronationState.Recording || this is PronationState.Processing
 
 enum class PronationError {
-    /** Gyroscope or accelerometer missing, or registration failed. */
+    /** No gyroscope (the primary sensor), or it could not be registered. */
     SENSOR_UNAVAILABLE,
 
-    /** No sensor event for too long (sensors disabled, system throttling). */
+    /** No gyroscope event for too long (sensors disabled, system throttling). */
     SENSOR_STOPPED,
+
+    /** Preflight: the gyroscope delivers too few samples per second. */
+    SAMPLING_RATE_TOO_LOW,
+
+    /** Preflight: gyroscope timestamps are not increasing. */
+    TIMESTAMPS_INVALID,
     STORAGE_FAILURE,
     UNEXPECTED
 }
 
+/** Sensor check measured during preparation (before anything is recorded). */
+data class SensorPreflight(
+    val gyroSamples: Int,
+    val gyroRateHz: Double,
+    val monotonicPercent: Double,
+    val accelerometerAvailable: Boolean
+)
+
 /**
  * One Pronation/Supination test:
- * IDLE -> PREPARING (5 s) -> COUNTDOWN (3 s) -> RECORDING (10 s) -> PROCESSING ->
+ * IDLE -> PREPARING (5 s) -> COUNTDOWN (3-2-1) -> RECORDING (10 s) -> PROCESSING ->
  * DONE / INVALID / INTERRUPTED / ERROR.
  *
- * Sensors start at PREPARING. Samples from PREPARING form the baseline; only samples that arrive
- * during RECORDING are analyzed. Analysis uses the sensor event timestamps; [clock] only paces the
- * countdowns and detects a stalled sensor. A session that does not complete never produces a
- * result, and nothing is processed after it ends (run id guard). [onSample] runs on the sensor
- * thread; everything else on the caller's (main) thread.
+ * Sensors start at PREPARING (gyroscope required, accelerometer used when present). Samples from
+ * PREPARING form the baseline and the preflight check; only RECORDING samples are analyzed.
+ * Sensor events go through an allocation-free sink into pre-sized primitive buffers on the sensor
+ * thread; analysis runs on [processingDispatcher], never on the main thread. A session that does
+ * not complete never produces a result, and nothing is processed after it ends (run-id guard).
  */
 class PronationSupinationSession(
     private val scope: CoroutineScope,
     private val source: MotionSensorSource,
     private val clock: () -> Long = SystemClock::elapsedRealtime,
     private val wallClock: () -> Long = System::currentTimeMillis,
-    private val newAssessmentId: () -> String = { UUID.randomUUID().toString() },
-    private val preparationMs: Long = 5_000L,
-    private val countdownSeconds: Int = 3,
-    private val recordingMs: Long = 10_000L,
-    private val startCueMs: Long = 1_000L,
-    private val tickMs: Long = 100L,
-    private val sensorStarvationMs: Long = 1_500L,
-    /** 100 Hz requested; the real rate is measured. */
-    private val samplingPeriodUs: Int = 10_000,
+    private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val config: PronationSessionConfig = PronationSessionConfig(),
     private val engine: PronationSupinationEngine = PronationSupinationEngine(),
     private val processingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val onCompleted: suspend (PronationSupinationResult) -> Unit = {}
@@ -95,30 +104,39 @@ class PronationSupinationSession(
     private val _state = MutableStateFlow<PronationState>(PronationState.Idle)
     val state: StateFlow<PronationState> = _state.asStateFlow()
 
+    /** Planned recording length, for progress display. */
+    val recordingMs: Long get() = config.recordingMs
+
     private val lock = Any()
 
     // Guarded by lock.
     private var phase = Phase.OFF
-    private val baseline = ArrayList<MotionSample>(2048)
-    private val samples = ArrayList<MotionSample>(4096)
+    private val baseline = MotionSampleBuffer(config.bufferCapacity)
+    private val recording = MotionSampleBuffer(config.bufferCapacity)
     private var runId = 0
-    private var lastSampleArrivalMs = 0L
+    private var lastGyroArrivalMs = 0L
 
     private var job: Job? = null
 
-    /** Called by the sensor source for every event. */
-    fun onSample(sample: MotionSample) {
-        synchronized(lock) {
-            if (phase == Phase.OFF) return
-            lastSampleArrivalMs = clock()
-            SensorDiagnostics.onSample(sample, phase == Phase.RECORD)
+    /** Sensor thread. No allocation; short critical section. */
+    private val sink = MotionSampleSink { type, ts, x, y, z, unreliable ->
+        val recordingNow = synchronized(lock) {
+            if (phase == Phase.OFF) return@MotionSampleSink
+            if (type == MotionSensorType.GYROSCOPE) lastGyroArrivalMs = clock()
             when (phase) {
-                Phase.BASELINE -> baseline += sample
-                Phase.RECORD -> samples += sample
+                Phase.BASELINE -> baseline.add(type, ts, x, y, z, unreliable)
+                Phase.RECORD -> recording.add(type, ts, x, y, z, unreliable)
                 else -> Unit
             }
+            phase == Phase.RECORD
         }
+        // Debug builds only (allocates); release builds take the allocation-free path above.
+        if (SensorDiagnostics.enabled) SensorDiagnostics.onSample(MotionSample(type, ts, x, y, z, unreliable), recordingNow)
     }
+
+    /** Test hook and adapter for sources that deliver [MotionSample] objects. */
+    fun onSample(sample: MotionSample) =
+        sink.onSample(sample.type, sample.timestampNs, sample.x, sample.y, sample.z, sample.unreliable)
 
     fun start(hand: SelectedHand) {
         if (_state.value.isActive) return
@@ -126,21 +144,29 @@ class PronationSupinationSession(
         SensorDiagnostics.reset(SensorDiagnostics.PRONATION_TAG)
         val id = synchronized(lock) {
             clearLocked()
-            lastSampleArrivalMs = clock()
+            lastGyroArrivalMs = clock()
             ++runId
         }
-        val available = MotionSensorType.entries.all { runCatching { source.isAvailable(it) }.getOrDefault(false) }
-        if (!available) {
+        val gyroAvailable = runCatching { source.isAvailable(MotionSensorType.GYROSCOPE) }.getOrDefault(false)
+        if (!gyroAvailable) {
             publish(id, PronationState.Error(PronationError.SENSOR_UNAVAILABLE))
             return
         }
+        val accelAvailable = runCatching { source.isAvailable(MotionSensorType.ACCELEROMETER) }.getOrDefault(false)
         synchronized(lock) { phase = Phase.BASELINE }
-        if (!source.start(samplingPeriodUs, ::onSample)) {
+        val started = source.startRaw(
+            config.samplingPeriodUs,
+            required = setOf(MotionSensorType.GYROSCOPE),
+            optional = if (accelAvailable) setOf(MotionSensorType.ACCELEROMETER) else emptySet(),
+            sink = sink
+        )
+        if (!started) {
             source.stop()
             publish(id, PronationState.Error(PronationError.SENSOR_UNAVAILABLE))
             return
         }
-        job = scope.launch { run(id, hand) }
+        val sessionId = newId()
+        job = scope.launch { run(id, sessionId, hand, accelAvailable) }
     }
 
     /** Stops an active session; it ends as INTERRUPTED, never as a result. */
@@ -166,34 +192,45 @@ class PronationSupinationSession(
     private fun clearLocked() {
         phase = Phase.OFF
         baseline.clear()
-        samples.clear()
+        recording.clear()
     }
 
-    private suspend fun run(id: Int, hand: SelectedHand) {
+    private suspend fun run(id: Int, sessionId: String, hand: SelectedHand, accelAvailable: Boolean) {
         try {
-            if (!runTimed(id, preparationMs) { PronationState.Preparing(seconds(it)) }) return
-            synchronized(lock) {
+            if (!runTimed(id, config.preparationMs) { PronationState.Preparing(seconds(it)) }) return
+            val preflight = synchronized(lock) {
                 if (id != runId) return
                 phase = Phase.IGNORE
+                preflight(accelAvailable)
             }
-            if (!runTimed(id, countdownSeconds * 1_000L) { PronationState.Countdown(seconds(it)) }) return
+            logPreflight(preflight)
+            preflightError(preflight)?.let {
+                publish(id, PronationState.Error(it))
+                return
+            }
+            if (!runTimed(id, config.countdownSeconds * 1_000L) { PronationState.Countdown(seconds(it)) }) return
 
             synchronized(lock) {
                 if (id != runId) return
-                samples.clear()
+                recording.clear()
                 phase = Phase.RECORD
             }
-            if (!runTimed(id, recordingMs) { PronationState.Recording(seconds(it), recordingMs - it < startCueMs) }) return
+            val recordingMs = config.recordingMs
+            if (!runTimed(id, recordingMs) { PronationState.Recording(seconds(it), recordingMs - it < config.startCueMs) }) return
 
-            val recording = synchronized(lock) {
+            synchronized(lock) {
                 if (id != runId) return
                 phase = Phase.OFF
                 setStateLocked(PronationState.Processing)
-                PronationRecording(samples.toList(), baseline.toList(), recordingMs, hand)
             }
             source.stop()
 
-            val analysis = withContext(processingDispatcher) { engine.analyze(recording) }
+            val analysis = withContext(processingDispatcher) {
+                // Copies are made here, off the sensor and main threads; the buffers are not
+                // written any more (phase OFF) until the next start.
+                val (samples, base) = synchronized(lock) { recording.toSamples() to baseline.toSamples() }
+                engine.analyze(PronationRecording(samples, base, recordingMs, hand, accelAvailable))
+            }
             if (id != synchronized(lock) { runId }) return
             logAnalysis(analysis)
 
@@ -201,7 +238,7 @@ class PronationSupinationSession(
                 publish(id, PronationState.Invalid(analysis.quality))
                 return
             }
-            val result = PronationSupinationResult.from(analysis, newAssessmentId(), wallClock(), hand, recordingMs)
+            val result = PronationSupinationResult.from(analysis, newId(), sessionId, wallClock(), hand, recordingMs)
             try {
                 onCompleted(result)
             } catch (e: CancellationException) {
@@ -220,6 +257,25 @@ class PronationSupinationSession(
         }
     }
 
+    /** Gyroscope rate and timestamp validity measured on the preparation samples. Lock held. */
+    private fun preflight(accelAvailable: Boolean): SensorPreflight {
+        val ts = baseline.timestamps(MotionSensorType.GYROSCOPE)
+        val span = if (ts.size >= 2) (ts.last() - ts.first()) / 1e9 else 0.0
+        val increasing = (1 until ts.size).count { ts[it] > ts[it - 1] }
+        return SensorPreflight(
+            gyroSamples = ts.size,
+            gyroRateHz = if (span > 0) (ts.size - 1) / span else 0.0,
+            monotonicPercent = if (ts.size >= 2) increasing * 100.0 / (ts.size - 1) else 0.0,
+            accelerometerAvailable = accelAvailable
+        )
+    }
+
+    private fun preflightError(p: SensorPreflight): PronationError? = when {
+        p.gyroSamples < 2 || p.gyroRateHz < config.preflightMinGyroRateHz -> PronationError.SAMPLING_RATE_TOO_LOW
+        p.monotonicPercent < config.preflightMinMonotonicPercent -> PronationError.TIMESTAMPS_INVALID
+        else -> null
+    }
+
     private fun seconds(leftMs: Long): Int = ((leftMs + 999) / 1000).toInt()
 
     /** Runs one timed phase; [stateFor] receives the milliseconds left. */
@@ -228,13 +284,13 @@ class PronationSupinationSession(
         while (true) {
             val left = end - clock()
             if (left <= 0) return true
-            val stalled = synchronized(lock) { clock() - lastSampleArrivalMs > sensorStarvationMs }
+            val stalled = synchronized(lock) { clock() - lastGyroArrivalMs > config.sensorStarvationMs }
             if (stalled) {
                 publish(id, PronationState.Error(PronationError.SENSOR_STOPPED))
                 return false
             }
             if (!publish(id, stateFor(left))) return false
-            delay(min(tickMs, left))
+            delay(min(config.tickMs, left))
         }
     }
 
@@ -257,27 +313,39 @@ class PronationSupinationSession(
         if (previous.label() != state.label()) SensorDiagnostics.log("STATE ${state.label()} t=${clock()}")
     }
 
+    private fun logPreflight(p: SensorPreflight) {
+        if (!SensorDiagnostics.enabled) return
+        SensorDiagnostics.log(
+            "PREFLIGHT gyroSamples=${p.gyroSamples} gyroRateHz=${SensorDiagnostics.f(p.gyroRateHz, 1)} " +
+                "monotonic=${SensorDiagnostics.f(p.monotonicPercent, 1)}% accelerometer=${p.accelerometerAvailable}"
+        )
+    }
+
     private fun logAnalysis(a: PronationAnalysis) {
         if (!SensorDiagnostics.enabled) return
         val f = SensorDiagnostics::f
-        a.halfCycles.forEachIndexed { i, h ->
+        a.movements.forEachIndexed { i, m ->
             SensorDiagnostics.log(
-                "CYCLE half=$i startS=${f(h.startS, 3)} durationMs=${f(h.durationS * 1000, 0)} " +
-                    "amplitudeDeg=${f(h.amplitudeDeg, 1)} peakDegS=${f(h.peakVelocityDegS, 1)} valid=${h.valid}"
+                "CYCLE movement=$i startS=${f(m.startS, 3)} durationMs=${f(m.durationS * 1000, 0)} " +
+                    "amplitudeDeg=${f(m.amplitudeDeg, 1)} peakDegS=${f(m.peakAngularVelocityDegS, 1)} " +
+                    "meanDegS=${f(m.meanAngularVelocityDegS, 1)} direction=${m.direction} rejection=${m.rejection}"
             )
         }
         val m = a.metrics
+        val s = a.score
         SensorDiagnostics.log(
-            "RESULT accel(n=${a.accel.validSamples}/${a.accel.receivedSamples} rate=${f(a.accel.samplingRateHz, 1)}Hz " +
-                "dropouts=${a.accel.dropoutCount}) gyro(n=${a.gyro.validSamples}/${a.gyro.receivedSamples} " +
-                "rate=${f(a.gyro.samplingRateHz, 1)}Hz medianMs=${f(a.gyro.medianIntervalMs, 2)} " +
-                "dropouts=${a.gyro.dropoutCount} longestGapMs=${f(a.gyro.longestGapMs, 1)}) " +
-                "baseline=${a.baseline.status} windowMs=${f(a.analyzedDurationMs, 0)} hysteresisDeg=${f(a.hysteresisDeg, 1)} " +
-                "cycles=${m?.cycleCount} valid=${m?.validCycleCount} rateHz=${m?.let { f(it.cycleRateHz, 2) }} " +
-                "medianCycleMs=${m?.medianCycleDurationMs?.let { f(it, 0) }} amplitudeDeg=${m?.movementAmplitudeDeg?.let { f(it, 1) }} " +
-                "peakDegS=${m?.angularVelocityPeakDegS?.let { f(it, 1) }} axisShare=${m?.let { f(it.rotationAxisSharePercent, 0) }} " +
-                "pauses=${m?.pauseCount} quality=${a.quality.status} issues=${a.quality.issues} " +
-                "qScore=${a.quality.qualityScore} score=${a.score?.total}"
+            "RESULT gyro(n=${a.gyro.validSamples}/${a.gyro.receivedSamples} rate=${f(a.gyro.samplingRateHz, 1)}Hz " +
+                "medianMs=${f(a.gyro.medianIntervalMs, 2)} dropouts=${a.gyro.dropoutCount} longestGapMs=${f(a.gyro.longestGapMs, 1)}) " +
+                "accel(used=${a.accelerometerAvailable} n=${a.accel.validSamples} rate=${f(a.accel.samplingRateHz, 1)}Hz) " +
+                "baseline=${a.baseline.status} baselineNoise=${a.baseline.noiseDegS?.let { f(it, 2) }} " +
+                "windowMs=${f(a.analyzedDurationMs, 0)} hysteresisDeg=${f(a.hysteresisDeg, 1)} " +
+                "cycles=${m?.cycleCount} valid=${m?.validCycleCount} cps=${m?.let { f(it.cyclesPerSecond, 2) }} " +
+                "medianCycleMs=${m?.medianCycleDurationMs?.let { f(it, 0) }} medianAmplitudeDeg=${m?.medianAmplitudeDeg?.let { f(it, 1) }} " +
+                "peakDegS=${m?.peakAngularVelocityDegS?.let { f(it, 1) }} meanDegS=${m?.let { f(it.meanAngularVelocityDegS, 1) }} " +
+                "pauses=${m?.pauseCount} pauseMs=${m?.let { f(it.totalPauseMs, 0) }} noiseDegS=${m?.let { f(it.noiseLevelDegS, 2) }} " +
+                "axisShare=${m?.let { f(it.rotationAxisSharePercent, 0) }} forearmAxis=${m?.axisAlignedWithForearm} " +
+                "quality=${a.quality.status} qualityPct=${a.quality.qualityPercentage} issues=${a.quality.issues} " +
+                "score=${s?.total} components=${s?.components} trend=${s?.trend} band=${a.interpretation.band}"
         )
     }
 

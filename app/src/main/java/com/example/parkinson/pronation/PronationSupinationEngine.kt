@@ -1,6 +1,5 @@
 package com.example.parkinson.pronation
 
-import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.sensors.MotionSample
 import com.example.parkinson.sensors.MotionSensorType
@@ -18,243 +17,22 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Versions stored with every Pronation/Supination result. Bump [ALGORITHM_VERSION] for any change
- * to preprocessing, detection, metrics or quality rules; bump [SCORING_VERSION] for any change to
- * the performance score. See docs/pronation-supination-algorithm.md.
- */
-object PronationSupinationVersions {
-    const val ALGORITHM_VERSION = "ps-algo-1.0.0"
-
-    /** "research": engineering normalization, NOT clinically validated, non-diagnostic. */
-    const val SCORING_VERSION = "ps-score-0.1.0-research"
-}
-
-/**
- * One recording. [samples]: everything received during RECORDING. [baselineSamples]: samples from
- * the preparation period (phone held still), used to estimate the initial orientation and the
- * gyroscope bias.
- */
-data class PronationRecording(
-    val samples: List<MotionSample>,
-    val baselineSamples: List<MotionSample>,
-    val plannedDurationMs: Long,
-    val hand: SelectedHand
-)
-
-enum class BaselineStatus {
-    /** Phone was still during preparation: gyroscope bias and gravity direction estimated. */
-    CALIBRATED,
-
-    /** Phone moved during preparation: no bias estimate (drift is removed per recording instead). */
-    NOT_STILL,
-
-    /** No preparation samples. */
-    NO_DATA
-}
-
-/** Initial orientation / baseline from the preparation period. Vectors in device coordinates. */
-data class RotationBaseline(
-    val status: BaselineStatus,
-    /** deg/s; zero unless [status] is CALIBRATED. */
-    val gyroBiasDegS: List<Double>,
-    /** m/s^2 mean accelerometer vector (initial gravity / orientation); null without data. */
-    val gravity: List<Double>?
-)
-
-/** One movement between two consecutive turning points (one pronation or one supination). */
-data class HalfCycle(
-    /** Seconds from the start of the analysis window. */
-    val startS: Double,
-    val endS: Double,
-    /** Rotation angle between the two turning points, degrees. */
-    val amplitudeDeg: Double,
-    /** Largest angular velocity about the rotation axis during this movement, deg/s. */
-    val peakVelocityDegS: Double,
-    /** false when a sensor dropout covers too much of it: excluded from timing and amplitude metrics. */
-    val valid: Boolean
-) {
-    val durationS: Double get() = endS - startS
-    val midS: Double get() = (startS + endS) / 2.0
-}
-
-/** One complete cycle = two consecutive half-cycles (pronation + supination). */
-data class RotationCycle(
-    val startS: Double,
-    val durationS: Double,
-    val amplitudeDeg: Double,
-    val peakVelocityDegS: Double
-)
-
-enum class TrendDirection { STABLE, INCREASED, DECREASED }
-
-/** One measure in the early, middle and late third of the recording. */
-data class MetricTrend(
-    val early: Double?,
-    val middle: Double?,
-    val late: Double?,
-    /** (late - early) / early in percent; null when early or late could not be measured. */
-    val changePercent: Double?,
-    val direction: TrendDirection?
-)
-
-/** "روند عملکرد حرکتی": how the movement changed over the 10 seconds. Not disease progression. */
-data class PerformanceTrend(
-    val amplitudeDeg: MetricTrend,
-    val peakVelocityDegS: MetricTrend,
-    val cycleDurationMs: MetricTrend
-)
-
-/**
- * Raw metrics. Angles in degrees, angular velocity in deg/s about the main rotation axis, times
- * in ms, acceleration in m/s^2. Variability values are coefficients of variation in percent and
- * are null with fewer than 3 values.
- */
-data class PronationMetrics(
-    val halfCycleCount: Int,
-    val cycleCount: Int,
-    val validCycleCount: Int,
-    val cycleRateHz: Double,
-    val meanCycleDurationMs: Double?,
-    val medianCycleDurationMs: Double?,
-    val cycleDurationCvPercent: Double?,
-    val angularVelocityMeanDegS: Double,
-    /** Median of the per-movement peak angular velocities. */
-    val angularVelocityPeakDegS: Double?,
-    val angularVelocityCvPercent: Double?,
-    val angularVelocityRmsDegS: Double,
-    /** Median rotation angle per movement (turning point to turning point). */
-    val movementAmplitudeDeg: Double?,
-    val amplitudeCvPercent: Double?,
-    /** Share of movements whose amplitude and duration are within +-30 % of the person's median. */
-    val movementConsistencyPercent: Double?,
-    val pauseCount: Int,
-    val pauseDurationMs: Double,
-    /** RMS of the linear (gravity-removed) acceleration of the phone. */
-    val accelerationRms: Double,
-    /** Reported only when one frequency clearly dominates and >= 3 cycles exist. */
-    val dominantFrequencyHz: Double?,
-    /** Share of rotational variance about the main axis: high = one consistent rotation axis. */
-    val rotationAxisSharePercent: Double,
-    val accMagnitudeMean: Double
-)
-
-enum class PronationQualityIssue(val severity: QualityStatus) {
-    NO_ACCELEROMETER_DATA(QualityStatus.INVALID),
-    NO_GYROSCOPE_DATA(QualityStatus.INVALID),
-    SAMPLING_RATE_TOO_LOW(QualityStatus.INVALID),
-    RECORDING_INCOMPLETE(QualityStatus.INVALID),
-    EXCESSIVE_GAPS(QualityStatus.INVALID),
-    TOO_MANY_INVALID_SAMPLES(QualityStatus.INVALID),
-
-    TOO_FEW_SAMPLES(QualityStatus.INSUFFICIENT_DATA),
-    NO_MOVEMENT_DETECTED(QualityStatus.INSUFFICIENT_DATA),
-    TOO_FEW_VALID_CYCLES(QualityStatus.INSUFFICIENT_DATA),
-
-    LOW_SAMPLING_RATE(QualityStatus.LOW_QUALITY),
-    GAPS_PRESENT(QualityStatus.LOW_QUALITY),
-    INVALID_SAMPLES_PRESENT(QualityStatus.LOW_QUALITY),
-    SENSOR_UNRELIABLE(QualityStatus.LOW_QUALITY),
-    STREAMS_MISALIGNED(QualityStatus.LOW_QUALITY),
-    ROTATION_AXIS_UNSTABLE(QualityStatus.LOW_QUALITY),
-    GRAVITY_IMPLAUSIBLE(QualityStatus.LOW_QUALITY)
-}
-
-/** Engineering limits for a usable recording (technical reliability, not the person). */
-data class PronationQualityThresholds(
-    /** 10 Hz over 10 s. */
-    val minSamplesPerStream: Int = 100,
-    /** Below this, turning-point timing of movements up to 6 Hz is not resolvable. */
-    val minRateHz: Double = 25.0,
-    val goodRateHz: Double = 50.0,
-    val minCompletenessPercent: Double = 90.0,
-    val minValidPercent: Double = 90.0,
-    val goodValidPercent: Double = 99.0,
-    val maxGapShare: Double = 0.20,
-    val maxLongestGapMs: Double = 1_000.0,
-    val goodGapShare: Double = 0.02,
-    val goodLongestGapMs: Double = 250.0,
-    val maxUnreliablePercent: Double = 10.0,
-    val maxStreamOffsetMs: Double = 500.0,
-    val minCycles: Int = 2,
-    val minAxisSharePercent: Double = 60.0,
-    val minGravity: Double = 6.0,
-    val maxGravity: Double = 16.0
-)
-
-/** Signal-processing and detection parameters (engineering values, see the algorithm doc). */
-data class PronationDetectionConfig(
-    val maxGridHz: Double = 100.0,
-    val lowPassHz: Double = 10.0,
-    /** Minimum rotation between turning points that counts as a movement. */
-    val minAmplitudeDeg: Double = 10.0,
-    /** Hysteresis = max(minAmplitudeDeg, relativeHysteresis x the person's median amplitude). */
-    val relativeHysteresis: Double = 0.3,
-    /** Faster reversals are physiologically implausible for forearm rotation and are debounced. */
-    val maxCycleFrequencyHz: Double = 6.0,
-    /** A movement is excluded when a sensor dropout covers more than this share of it. */
-    val maxGapShareOfHalfCycle: Double = 0.25,
-    val pauseVelocityFraction: Double = 0.15,
-    val pauseVelocityFloorDegS: Double = 5.0,
-    val minPauseMs: Double = 400.0,
-    val pauseCycleFraction: Double = 0.3,
-    val consistencyTolerance: Double = 0.30,
-    val trendStableBandPercent: Double = 15.0,
-    val baselineWindowMs: Long = 2_000L,
-    val stillGyroRmsDegS: Double = 10.0,
-    val maxBiasDegS: Double = 5.0,
-    val gravityTimeConstantS: Double = 1.0,
-    val minFrequencyHz: Double = 0.2,
-    val maxFrequencyHz: Double = 6.0,
-    val frequencyStepHz: Double = 0.05,
-    val peakHalfWidthHz: Double = 0.25,
-    val minPeakConcentration: Double = 0.4
-)
-
-data class PronationQualityReport(
-    val status: QualityStatus,
-    /** Most severe first. */
-    val issues: List<PronationQualityIssue>,
-    /** 0..100 technical recording quality. */
-    val qualityScore: Int
-) {
-    val primaryIssue: PronationQualityIssue? get() = issues.firstOrNull()
-    val isUsable: Boolean get() = status == QualityStatus.VALID || status == QualityStatus.LOW_QUALITY
-}
-
-data class PronationAnalysis(
-    val accel: StreamStats,
-    val gyro: StreamStats,
-    val baseline: RotationBaseline,
-    val halfCycles: List<HalfCycle>,
-    val cycles: List<RotationCycle>,
-    /** null when the streams are too short to process. */
-    val metrics: PronationMetrics?,
-    val trend: PerformanceTrend?,
-    val quality: PronationQualityReport,
-    /** Only for VALID recordings. */
-    val score: PronationSupinationPerformanceScore?,
-    /** Overlap of both streams = the synchronized analysis window. */
-    val analyzedDurationMs: Double,
-    /** Hysteresis actually used for turning points, degrees. */
-    val hysteresisDeg: Double
-)
-
-/**
- * Pronation/supination analysis. Pure and deterministic.
+ * Pronation/supination analysis. Pure, deterministic, independent of Android UI.
  *
- * Sensor events -> timestamp synchronization (overlap window, uniform grid on real timestamps)
- * -> preprocessing (cleaning, bias correction from the preparation baseline) -> main rotation
- * axis (PCA of angular velocity: independent of how the phone is held) -> zero-phase low-pass
- * -> rotation angle (integration, linear drift removal) -> turning points with adaptive
- * hysteresis + debounce + dropout handling -> metrics -> trend -> quality -> score.
+ * Raw sensor data -> timestamp validation (cleaning) -> synchronization (overlap window, uniform
+ * grid on real timestamps) -> baseline correction (bias from the still preparation) -> noise
+ * estimation -> filtering (zero-phase low-pass) -> rotational signal (main rotation axis, angle)
+ * -> adaptive cycle detection -> cycle validation -> metrics -> quality -> score ->
+ * interpretation.
  *
  * The gyroscope is the primary signal: it measures rotation only, so translating the phone does
- * not create cycles. The accelerometer gives the initial orientation, the linear acceleration
- * and plausibility checks.
+ * not create cycles. The accelerometer (optional) gives the initial orientation, the linear
+ * acceleration and plausibility checks.
  */
 class PronationSupinationEngine(
-    private val thresholds: PronationQualityThresholds = PronationQualityThresholds(),
-    private val config: PronationDetectionConfig = PronationDetectionConfig()
+    private val config: PronationDetectionConfig = PronationDetectionConfig(),
+    private val qualityEngine: PronationSupinationQualityEngine = PronationSupinationQualityEngine(),
+    private val scoreEngine: PronationSupinationScoreEngine = PronationSupinationScoreEngine()
 ) {
 
     fun analyze(recording: PronationRecording): PronationAnalysis {
@@ -264,48 +42,51 @@ class PronationSupinationEngine(
         val gyro = MotionStreams.clean(gyroRaw, MotionStreams.GYRO_LIMIT_RAD_S)
         val accelStats = MotionStreams.streamStats(MotionSensorType.ACCELEROMETER, accelRaw, accel, recording.plannedDurationMs)
         val gyroStats = MotionStreams.streamStats(MotionSensorType.GYROSCOPE, gyroRaw, gyro, recording.plannedDurationMs)
+        val hasAccel = recording.accelerometerAvailable && accel.size >= MIN_FOR_PROCESSING
         val baseline = baseline(recording.baselineSamples)
 
-        val signal = if (accel.size >= MIN_FOR_PROCESSING && gyro.size >= MIN_FOR_PROCESSING) {
-            buildSignal(accel, gyro, gyroStats, baseline)
+        val signal = if (gyro.size >= MIN_FOR_PROCESSING) {
+            buildSignal(if (hasAccel) accel else emptyList(), gyro, gyroStats, baseline, recording.hand)
         } else null
 
-        var halfCycles = emptyList<HalfCycle>()
+        var movements = emptyList<RotationMovement>()
         var cycles = emptyList<RotationCycle>()
         var metrics: PronationMetrics? = null
-        var trend: PerformanceTrend? = null
         var hysteresis = config.minAmplitudeDeg
         if (signal != null) {
-            val detection = detect(signal)
-            halfCycles = detection.halfCycles
-            hysteresis = detection.hysteresisDeg
-            cycles = pairCycles(halfCycles)
-            metrics = computeMetrics(signal, halfCycles, cycles, accel)
-            trend = trend(halfCycles, signal.durationS)
+            hysteresis = hysteresis(signal, baseline)
+            movements = movements(signal, turningPoints(signal, hysteresis))
+            cycles = pairCycles(movements)
+            metrics = computeMetrics(signal, movements, cycles, if (hasAccel) accel else emptyList())
         }
 
-        val offsetMs = if (accel.isNotEmpty() && gyro.isNotEmpty()) {
+        val offsetMs = if (hasAccel && gyro.isNotEmpty()) {
             max(
                 abs(accel.first().timestampNs - gyro.first().timestampNs),
                 abs(accel.last().timestampNs - gyro.last().timestampNs)
             ) / 1e6
         } else 0.0
-        val quality = assessQuality(accelStats, gyroStats, metrics, offsetMs)
-        val score = if (quality.status == QualityStatus.VALID && metrics != null) {
-            PronationSupinationScorer.score(metrics, quality)
+        val windowMs = (signal?.durationS ?: 0.0) * 1000.0
+        val quality = qualityEngine.assess(accelStats, gyroStats, hasAccel, metrics, windowMs, offsetMs)
+        val score = if (quality.isUsable && metrics != null) {
+            scoreEngine.score(metrics, quality, ReferenceContext(recording.hand))
         } else null
+        val interpretation = PronationSupinationInterpreter.interpret(score, quality, metrics, hasAccel)
+
         return PronationAnalysis(
             accel = accelStats,
             gyro = gyroStats,
+            accelerometerAvailable = hasAccel,
             baseline = baseline,
-            halfCycles = halfCycles,
+            movements = movements,
             cycles = cycles,
             metrics = metrics,
-            trend = trend,
             quality = quality,
             score = score,
-            analyzedDurationMs = (signal?.durationS ?: 0.0) * 1000.0,
-            hysteresisDeg = hysteresis
+            interpretation = interpretation,
+            analyzedDurationMs = windowMs,
+            hysteresisDeg = hysteresis,
+            velocityTrace = signal?.let { trace(it) } ?: emptyList()
         )
     }
 
@@ -326,7 +107,7 @@ class PronationSupinationEngine(
         val gravity = if (a.isNotEmpty()) {
             listOf(a.sumOf { it.x.toDouble() } / a.size, a.sumOf { it.y.toDouble() } / a.size, a.sumOf { it.z.toDouble() } / a.size)
         } else null
-        if (g.size < MIN_FOR_PROCESSING) return RotationBaseline(BaselineStatus.NO_DATA, zero, gravity)
+        if (g.size < MIN_FOR_PROCESSING) return RotationBaseline(BaselineStatus.NO_DATA, zero, null, gravity)
 
         val mean = listOf(
             g.sumOf { it.x.toDouble() } / g.size * RAD_TO_DEG,
@@ -339,29 +120,40 @@ class PronationSupinationEngine(
             val z = s.z * RAD_TO_DEG
             x * x + y * y + z * z
         } / g.size)
+        // Noise = spread around the mean (bias removed).
+        val noise = sqrt(g.sumOf { s ->
+            val x = s.x * RAD_TO_DEG - mean[0]
+            val y = s.y * RAD_TO_DEG - mean[1]
+            val z = s.z * RAD_TO_DEG - mean[2]
+            x * x + y * y + z * z
+        } / g.size)
         val biasNorm = sqrt(mean.sumOf { it * it })
         return if (rms <= config.stillGyroRmsDegS && biasNorm <= config.maxBiasDegS) {
-            RotationBaseline(BaselineStatus.CALIBRATED, mean, gravity)
+            RotationBaseline(BaselineStatus.CALIBRATED, mean, noise, gravity)
         } else {
-            RotationBaseline(BaselineStatus.NOT_STILL, zero, gravity)
+            RotationBaseline(BaselineStatus.NOT_STILL, zero, null, gravity)
         }
     }
 
     // --- Synchronization and preprocessing -----------------------------------------------------
 
-    /** All arrays share one uniform time grid over the overlap of both streams. */
+    /** All arrays share one uniform time grid over the synchronized window. */
     private class Signal(
         val fs: Double,
         val t: DoubleArray,
-        /** Low-pass filtered angular velocity about the main axis, deg/s. */
+        /** Filtered angular velocity about the main axis, deg/s (sign: see [orientAxis]). */
         val omega: DoubleArray,
         /** Rotation angle about the main axis, deg, linear drift removed. */
         val angle: DoubleArray,
         /** Length of the raw gyroscope dropout that contains this grid point, ms (0 = none). */
         val gapMs: DoubleArray,
-        /** Linear acceleration magnitude, m/s^2. */
-        val linearAcc: DoubleArray,
-        val axisSharePercent: Double
+        /** Linear acceleration magnitude, m/s^2; null without accelerometer. */
+        val linearAcc: DoubleArray?,
+        val axisSharePercent: Double,
+        val axisAlignedWithForearm: Boolean,
+        val hand: SelectedHand,
+        /** RMS of (raw - filtered) rotation signal. */
+        val noiseDegS: Double
     ) {
         val n: Int get() = t.size
         val durationS: Double get() = if (t.isEmpty()) 0.0 else t.last() - t.first()
@@ -371,10 +163,12 @@ class PronationSupinationEngine(
         accel: List<MotionSample>,
         gyro: List<MotionSample>,
         gyroStats: StreamStats,
-        baseline: RotationBaseline
+        baseline: RotationBaseline,
+        hand: SelectedHand
     ): Signal? {
-        val t0 = max(accel.first().timestampNs, gyro.first().timestampNs)
-        val t1 = min(accel.last().timestampNs, gyro.last().timestampNs)
+        val hasAccel = accel.isNotEmpty()
+        val t0 = if (hasAccel) max(accel.first().timestampNs, gyro.first().timestampNs) else gyro.first().timestampNs
+        val t1 = if (hasAccel) min(accel.last().timestampNs, gyro.last().timestampNs) else gyro.last().timestampNs
         val spanS = (t1 - t0) / 1e9
         if (spanS < MIN_WINDOW_S || gyroStats.samplingRateHz <= 0.0) return null
         val fs = min(config.maxGridHz, floor(gyroStats.samplingRateHz)).coerceAtLeast(1.0)
@@ -390,20 +184,23 @@ class PronationSupinationEngine(
             g.y[k] -= bias[1]
             g.z[k] -= bias[2]
         }
-        val a = resample(accel, t0, fs, n, 1.0, Double.MAX_VALUE)
 
-        // Main rotation axis: dominant eigenvector of the angular-velocity covariance.
-        val (axis, share) = principalAxis(g.x, g.y, g.z)
+        // Main rotation axis from the movement itself (the still preparation has no rotation to
+        // learn it from); validated by its share of the rotational variance.
+        val (rawAxis, share) = principalAxis(g.x, g.y, g.z)
+        val (axis, aligned) = orientAxis(rawAxis)
         val raw = DoubleArray(n) { g.x[it] * axis[0] + g.y[it] * axis[1] + g.z[it] * axis[2] }
-        val omega = lowPass(raw, min(config.lowPassHz, 0.4 * fs), fs)
+        val omega = lowPass(raw, min(config.lowPassHz, config.maxLowPassFractionOfRate * fs), fs)
+        val noise = sqrt((0 until n).sumOf { (raw[it] - omega[it]) * (raw[it] - omega[it]) } / n)
 
-        // Rotation angle (trapezoid on the grid), then linear drift removal (residual bias).
         val angle = DoubleArray(n)
         for (k in 1 until n) angle[k] = angle[k - 1] + (omega[k] + omega[k - 1]) / 2.0 / fs
         detrend(t, angle)
 
-        val linear = linearAcceleration(a, g, fs, baseline.gravity)
-        return Signal(fs, t, omega, angle, g.gap, linear, share * 100.0)
+        val linear = if (hasAccel) {
+            linearAcceleration(resample(accel, t0, fs, n, 1.0, Double.MAX_VALUE), g, fs, baseline.gravity)
+        } else null
+        return Signal(fs, t, omega, angle, g.gap, linear, share * 100.0, aligned, hand, noise)
     }
 
     private class Grid(val x: DoubleArray, val y: DoubleArray, val z: DoubleArray, val gap: DoubleArray)
@@ -443,25 +240,46 @@ class PronationSupinationEngine(
             for (i in 0..2) for (j in 0..2) c[i][j] += v[i] * v[j]
         }
         val trace = c[0][0] + c[1][1] + c[2][2]
-        if (trace <= 0.0) return doubleArrayOf(1.0, 0.0, 0.0) to 0.0
+        if (trace <= 0.0) return doubleArrayOf(0.0, 1.0, 0.0) to 0.0
         var v = DoubleArray(3).also { it[(0..2).maxBy { i -> c[i][i] }] = 1.0 }
-        repeat(100) {
+        repeat(POWER_ITERATIONS) {
             val w = DoubleArray(3) { i -> c[i][0] * v[0] + c[i][1] * v[1] + c[i][2] * v[2] }
             val norm = sqrt(w.sumOf { it * it })
             if (norm == 0.0) return v to 0.0
             v = DoubleArray(3) { w[it] / norm }
         }
-        // Deterministic sign: largest component positive.
-        if (v[(0..2).maxBy { abs(v[it]) }] < 0) v = DoubleArray(3) { -v[it] }
         val lambda = (0..2).sumOf { i -> v[i] * (c[i][0] * v[0] + c[i][1] * v[1] + c[i][2] * v[2]) }
         return v to (lambda / trace).coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * Deterministic axis sign. Under the standard grip (phone in the palm, top towards the
+     * fingers) the forearm axis is the phone's long (y) axis: the axis then points to +y so the
+     * angle sign has an anatomical meaning (see [directionOf]). Otherwise the largest component is
+     * made positive and directions stay UNKNOWN.
+     */
+    private fun orientAxis(v: DoubleArray): Pair<DoubleArray, Boolean> {
+        val aligned = abs(v[1]) >= config.forearmAxisMinCosine
+        val sign = if (aligned) (if (v[1] < 0) -1.0 else 1.0) else (if (v[(0..2).maxBy { abs(v[it]) }] < 0) -1.0 else 1.0)
+        return DoubleArray(3) { v[it] * sign } to aligned
+    }
+
+    /**
+     * Rotation about +y (phone long axis). For the RIGHT hand (palm up, thumb on +x) pronation
+     * turns the thumb up (+x towards +z) = rotation about -y = angle decreasing. The left hand is
+     * the mirror image. The hand comes from the user's explicit selection.
+     */
+    private fun directionOf(s: Signal, angleIncreasing: Boolean): RotationDirection {
+        if (!s.axisAlignedWithForearm) return RotationDirection.UNKNOWN
+        val pronation = if (s.hand == SelectedHand.RIGHT) !angleIncreasing else angleIncreasing
+        return if (pronation) RotationDirection.PRONATION else RotationDirection.SUPINATION
     }
 
     /** Zero-phase 2nd-order Butterworth low-pass (forward + backward), initialized at steady state. */
     private fun lowPass(v: DoubleArray, fc: Double, fs: Double): DoubleArray {
         if (v.size < 3 || fc <= 0.0 || fc >= fs / 2) return v.copyOf()
         val w0 = 2.0 * PI * fc / fs
-        val alpha = sin(w0) / (2.0 * SQRT_HALF)
+        val alpha = sin(w0) / (2.0 * BUTTERWORTH_Q)
         val cw = cos(w0)
         val a0 = 1.0 + alpha
         val b0 = (1.0 - cw) / 2.0 / a0
@@ -508,7 +326,7 @@ class PronationSupinationEngine(
         val n = a.x.size
         val out = DoubleArray(n)
         val start = initialGravity ?: listOf(a.x[0], a.y[0], a.z[0])
-        val mag = sqrt(start.sumOf { it * it }).takeIf { it > 0.1 } ?: STANDARD_GRAVITY
+        val mag = sqrt(start.sumOf { it * it }).takeIf { it > MIN_GRAVITY_NORM } ?: STANDARD_GRAVITY
         var gx = start[0] / mag
         var gy = start[1] / mag
         var gz = start[2] / mag
@@ -524,7 +342,7 @@ class PronationSupinationEngine(
                 val cz = wx * gy - wy * gx
                 gx -= cx * dt; gy -= cy * dt; gz -= cz * dt
                 val an = sqrt(a.x[i] * a.x[i] + a.y[i] * a.y[i] + a.z[i] * a.z[i])
-                if (an > 0.1) {
+                if (an > MIN_GRAVITY_NORM) {
                     gx = (1 - k) * gx + k * a.x[i] / an
                     gy = (1 - k) * gy + k * a.y[i] / an
                     gz = (1 - k) * gz + k * a.z[i] / an
@@ -540,33 +358,34 @@ class PronationSupinationEngine(
         return out
     }
 
-    // --- Movement detection --------------------------------------------------------------------
-
-    private class Detection(val halfCycles: List<HalfCycle>, val hysteresisDeg: Double)
+    // --- Cycle detection -----------------------------------------------------------------------
 
     private data class Extreme(val index: Int, val isMax: Boolean)
 
     /**
-     * Two passes: the first with the absolute minimum amplitude finds the person's typical
-     * movement size; the second uses a hysteresis normalized to it, so small reversals inside a
-     * large movement are not counted as extra cycles, while small-amplitude movers are still seen.
+     * Adaptive hysteresis (degrees): the largest of
+     *  - the minimum movement amplitude (tiny movements are not movements),
+     *  - a noise term from the still baseline (random shaking must not create reversals),
+     *  - relativeHysteresis x the person's median amplitude from a first pass (small reversals
+     *    inside large movements are not extra cycles, small-amplitude movers are still detected).
      */
-    private fun detect(s: Signal): Detection {
-        val minHalfS = 1.0 / (2.0 * config.maxCycleFrequencyHz)
-        val first = halfCycles(s, turningPoints(s, config.minAmplitudeDeg, minHalfS))
-        val typical = median((first.filter { it.valid }.ifEmpty { first }).map { it.amplitudeDeg })
-        val h = max(config.minAmplitudeDeg, config.relativeHysteresis * (typical ?: 0.0))
-        val second = if (h > config.minAmplitudeDeg) halfCycles(s, turningPoints(s, h, minHalfS)) else first
-        return Detection(second, h)
+    private fun hysteresis(s: Signal, baseline: RotationBaseline): Double {
+        val noiseTerm = config.noiseHysteresisFactor * (baseline.noiseDegS ?: 0.0) * config.noiseIntegrationS
+        val floor = max(config.minAmplitudeDeg, noiseTerm)
+        val first = movements(s, turningPoints(s, floor))
+        val typical = median((first.filter { it.valid }.ifEmpty { first }).map { it.amplitudeDeg }) ?: 0.0
+        return max(floor, config.relativeHysteresis * typical)
     }
 
     /**
      * Turning points of the rotation angle with hysteresis [h]: a maximum is confirmed once the
-     * angle has fallen [h] below it (and vice versa). The movement before the first turning point
-     * and after the last one is incomplete and not used. Reversals faster than [minHalfS] after
-     * the previous turning point are implausible and debounced (merged).
+     * angle has fallen [h] below it (and vice versa) - movement direction must really reverse.
+     * The movement before the first and after the last turning point is incomplete and not used.
+     * A reversal sooner than the minimum peak distance after the previous turning point is
+     * implausible and debounced (the pair is merged), which also prevents duplicate peaks.
      */
-    private fun turningPoints(s: Signal, h: Double, minHalfS: Double): List<Extreme> {
+    private fun turningPoints(s: Signal, h: Double): List<Extreme> {
+        val minDistanceS = 1.0 / (2.0 * config.maxCycleFrequencyHz)
         val theta = s.angle
         val ext = ArrayList<Extreme>()
         var dir = 0
@@ -576,7 +395,7 @@ class PronationSupinationEngine(
 
         fun confirm(c: Int, isMax: Boolean) {
             val prev = ext.lastOrNull()
-            if (prev != null && s.t[c] - s.t[prev.index] < minHalfS) {
+            if (prev != null && s.t[c] - s.t[prev.index] < minDistanceS) {
                 ext.removeAt(ext.size - 1)
                 val before = ext.lastOrNull()
                 if (before == null) {
@@ -617,44 +436,62 @@ class PronationSupinationEngine(
         return ext
     }
 
-    private fun halfCycles(s: Signal, ext: List<Extreme>): List<HalfCycle> {
-        val out = ArrayList<HalfCycle>(max(0, ext.size - 1))
+    /** Movements between consecutive turning points, validated (sensor gaps, implausibly slow). */
+    private fun movements(s: Signal, ext: List<Extreme>): List<RotationMovement> {
+        val out = ArrayList<RotationMovement>(max(0, ext.size - 1))
+        val maxMovementS = config.maxCycleDurationS / 2.0
         for (k in 0 until ext.size - 1) {
             val a = ext[k].index
             val b = ext[k + 1].index
             var peak = 0.0
+            var peakIndex = a
+            var sum = 0.0
             var maxGap = 0.0
             for (i in a..b) {
-                peak = max(peak, abs(s.omega[i]))
+                val w = abs(s.omega[i])
+                if (w > peak) { peak = w; peakIndex = i }
+                sum += w
                 maxGap = max(maxGap, s.gapMs[i])
             }
             val duration = s.t[b] - s.t[a]
-            out += HalfCycle(
+            val rejection = when {
+                maxGap > config.maxGapShareOfMovement * duration * 1000.0 -> MovementRejection.SENSOR_GAP
+                duration > maxMovementS -> MovementRejection.TOO_SLOW
+                else -> null
+            }
+            out += RotationMovement(
                 startS = s.t[a],
+                peakS = s.t[peakIndex],
                 endS = s.t[b],
                 amplitudeDeg = abs(s.angle[b] - s.angle[a]),
-                peakVelocityDegS = peak,
-                valid = maxGap <= config.maxGapShareOfHalfCycle * duration * 1000.0
+                peakAngularVelocityDegS = peak,
+                meanAngularVelocityDegS = sum / (b - a + 1),
+                direction = directionOf(s, angleIncreasing = s.angle[b] > s.angle[a]),
+                rejection = rejection
             )
         }
         return out
     }
 
-    /** Cycle k = half-cycles 2k and 2k+1; only cycles made of two valid movements are kept. */
-    private fun pairCycles(h: List<HalfCycle>): List<RotationCycle> {
+    /** Cycle k = movements 2k and 2k+1 (non-overlapping); valid only when both movements are. */
+    private fun pairCycles(m: List<RotationMovement>): List<RotationCycle> {
         val out = ArrayList<RotationCycle>()
         var k = 0
-        while (k + 1 < h.size) {
-            val a = h[k]
-            val b = h[k + 1]
-            if (a.valid && b.valid) {
-                out += RotationCycle(
-                    startS = a.startS,
-                    durationS = a.durationS + b.durationS,
-                    amplitudeDeg = (a.amplitudeDeg + b.amplitudeDeg) / 2.0,
-                    peakVelocityDegS = max(a.peakVelocityDegS, b.peakVelocityDegS)
-                )
-            }
+        while (k + 1 < m.size) {
+            val a = m[k]
+            val b = m[k + 1]
+            val peakFirst = a.peakAngularVelocityDegS >= b.peakAngularVelocityDegS
+            out += RotationCycle(
+                startS = a.startS,
+                peakS = if (peakFirst) a.peakS else b.peakS,
+                endS = b.endS,
+                amplitudeDeg = (a.amplitudeDeg + b.amplitudeDeg) / 2.0,
+                peakAngularVelocityDegS = max(a.peakAngularVelocityDegS, b.peakAngularVelocityDegS),
+                meanAngularVelocityDegS = (a.meanAngularVelocityDegS * a.durationS + b.meanAngularVelocityDegS * b.durationS) /
+                    (a.durationS + b.durationS),
+                firstDirection = a.direction,
+                valid = a.valid && b.valid
+            )
             k += 2
         }
         return out
@@ -664,79 +501,92 @@ class PronationSupinationEngine(
 
     private fun computeMetrics(
         s: Signal,
-        half: List<HalfCycle>,
+        moves: List<RotationMovement>,
         cycles: List<RotationCycle>,
         accel: List<MotionSample>
     ): PronationMetrics {
-        val valid = half.filter { it.valid }
-        val durationsMs = cycles.map { it.durationS * 1000.0 }
+        val valid = moves.filter { it.valid }
+        val validCycles = cycles.filter { it.valid }
+        val durationsMs = validCycles.map { it.durationS * 1000.0 }
         val amplitudes = valid.map { it.amplitudeDeg }
-        val peaks = valid.map { it.peakVelocityDegS }
+        val peaks = valid.map { it.peakAngularVelocityDegS }
         val medianPeak = median(peaks)
 
-        // Active period: first to last turning point (or the whole window without movement).
-        val from = half.firstOrNull()?.let { index(s, it.startS) } ?: 0
-        val to = half.lastOrNull()?.let { index(s, it.endS) } ?: (s.n - 1)
+        val from = moves.firstOrNull()?.let { index(s, it.startS) } ?: 0
+        val to = moves.lastOrNull()?.let { index(s, it.endS) } ?: (s.n - 1)
         var absSum = 0.0
         var sqSum = 0.0
         var count = 0
-        for (i in from..to) {
-            if (s.gapMs[i] > 0) continue
-            absSum += abs(s.omega[i])
-            sqSum += s.omega[i] * s.omega[i]
-            count++
+        if (moves.isNotEmpty()) {
+            for (i in from..to) {
+                if (s.gapMs[i] > 0) continue
+                absSum += abs(s.omega[i])
+                sqSum += s.omega[i] * s.omega[i]
+                count++
+            }
         }
-
         val medianDuration = median(durationsMs)
-        val (pauses, pauseMs) = pauses(s, from, to, medianPeak, medianDuration)
-
-        val consistency = if (valid.size >= 3) {
-            val medAmp = median(amplitudes)!!
-            val medDur = median(valid.map { it.durationS })!!
-            val tol = config.consistencyTolerance
-            valid.count {
-                abs(it.amplitudeDeg / medAmp - 1.0) <= tol && abs(it.durationS / medDur - 1.0) <= tol
-            } * 100.0 / valid.size
-        } else null
-
-        val linearRms = sqrt(s.linearAcc.sumOf { it * it } / s.n)
+        val pauses = pauses(s, from, to, medianPeak, medianDuration, moves.isNotEmpty())
+        val cyclesPerSecond = if (s.durationS > 0) moves.size / 2.0 / s.durationS else 0.0
         val accMag = accel.map { sqrt(it.x.toDouble() * it.x + it.y.toDouble() * it.y + it.z.toDouble() * it.z) }
 
-        val cycleCount = half.size / 2
         return PronationMetrics(
-            halfCycleCount = half.size,
-            cycleCount = cycleCount,
-            validCycleCount = cycles.size,
-            cycleRateHz = if (s.durationS > 0) half.size / 2.0 / s.durationS else 0.0,
+            movementCount = moves.size,
+            cycleCount = cycles.size,
+            validCycleCount = validCycles.size,
+            cyclesPerSecond = cyclesPerSecond,
+            cyclesPerMinute = cyclesPerSecond * 60.0,
             meanCycleDurationMs = durationsMs.takeIf { it.isNotEmpty() }?.average(),
             medianCycleDurationMs = medianDuration,
             cycleDurationCvPercent = cv(durationsMs),
-            angularVelocityMeanDegS = if (count > 0) absSum / count else 0.0,
-            angularVelocityPeakDegS = medianPeak,
-            angularVelocityCvPercent = cv(peaks),
-            angularVelocityRmsDegS = if (count > 0) sqrt(sqSum / count) else 0.0,
-            movementAmplitudeDeg = median(amplitudes),
+            meanAmplitudeDeg = amplitudes.takeIf { it.isNotEmpty() }?.average(),
+            medianAmplitudeDeg = median(amplitudes),
             amplitudeCvPercent = cv(amplitudes),
-            movementConsistencyPercent = consistency,
-            pauseCount = pauses,
-            pauseDurationMs = pauseMs,
-            accelerationRms = linearRms,
-            dominantFrequencyHz = if (cycles.size >= 3) dominantFrequency(s, from, to) else null,
+            meanAngularVelocityDegS = if (count > 0) absSum / count else 0.0,
+            peakAngularVelocityDegS = medianPeak,
+            maxAngularVelocityDegS = peaks.maxOrNull(),
+            velocityCvPercent = cv(peaks),
+            angularVelocityRmsDegS = if (count > 0) sqrt(sqSum / count) else 0.0,
+            pauseCount = pauses.count,
+            totalPauseMs = pauses.totalMs,
+            longestPauseMs = pauses.longestMs,
+            withinTolerancePercent = withinTolerance(valid),
+            movementCoveragePercent = if (moves.isEmpty() || s.durationS <= 0) 0.0 else (s.t[to] - s.t[from]) / s.durationS * 100.0,
+            noiseLevelDegS = s.noiseDegS,
+            accelerationRms = s.linearAcc?.let { lin -> sqrt(lin.sumOf { it * it } / lin.size) },
+            accMagnitudeMean = accMag.takeIf { it.isNotEmpty() }?.average(),
+            dominantFrequencyHz = if (validCycles.size >= MIN_CYCLES_FOR_FREQUENCY) dominantFrequency(s, from, to) else null,
             rotationAxisSharePercent = s.axisSharePercent,
-            accMagnitudeMean = if (accMag.isEmpty()) 0.0 else accMag.average()
+            axisAlignedWithForearm = s.axisAlignedWithForearm,
+            segments = segments(valid, s.durationS),
+            measureTrends = measureTrends(valid, s.durationS)
         )
     }
 
+    /** Share of movements within the tolerance of the typical amplitude and duration; >= 3 movements. */
+    private fun withinTolerance(valid: List<RotationMovement>): Double? {
+        if (valid.size < MIN_VALUES_FOR_VARIABILITY) return null
+        val medAmp = median(valid.map { it.amplitudeDeg })!!
+        val medDur = median(valid.map { it.durationS })!!
+        val tol = config.consistencyTolerance
+        return valid.count {
+            abs(it.amplitudeDeg / medAmp - 1.0) <= tol && abs(it.durationS / medDur - 1.0) <= tol
+        } * 100.0 / valid.size
+    }
+
+    private class Pauses(val count: Int, val totalMs: Double, val longestMs: Double)
+
     /**
      * Pauses inside the active period: angular velocity below a threshold relative to the person's
-     * own peak speed, for at least max(400 ms, 30 % of a typical cycle). Dropouts break a pause.
+     * own peak speed, for at least max(minPauseMs, fraction of a typical cycle). Dropouts break a pause.
      */
-    private fun pauses(s: Signal, from: Int, to: Int, medianPeak: Double?, medianCycleMs: Double?): Pair<Int, Double> {
-        if (medianPeak == null || to <= from) return 0 to 0.0
+    private fun pauses(s: Signal, from: Int, to: Int, medianPeak: Double?, medianCycleMs: Double?, moving: Boolean): Pauses {
+        if (!moving || medianPeak == null || to <= from) return Pauses(0, 0.0, 0.0)
         val threshold = max(config.pauseVelocityFloorDegS, config.pauseVelocityFraction * medianPeak)
         val minMs = max(config.minPauseMs, config.pauseCycleFraction * (medianCycleMs ?: 0.0))
         var count = 0
         var total = 0.0
+        var longest = 0.0
         var runStart = -1
         fun close(end: Int) {
             if (runStart < 0) return
@@ -744,6 +594,7 @@ class PronationSupinationEngine(
             if (ms >= minMs) {
                 count++
                 total += ms
+                longest = max(longest, ms)
             }
             runStart = -1
         }
@@ -753,13 +604,12 @@ class PronationSupinationEngine(
             if (!still) close(i - 1)
         }
         close(to)
-        return count to total
+        return Pauses(count, total, longest)
     }
 
-    /** Dominant movement frequency of the rotational velocity, if one frequency clearly dominates. */
     private fun dominantFrequency(s: Signal, from: Int, to: Int): Double? {
         val n = to - from + 1
-        if (n < s.fs * 4) return null
+        if (n < s.fs * MIN_SECONDS_FOR_FREQUENCY) return null
         val window = DoubleArray(n) { 0.5 - 0.5 * cos(2.0 * PI * it / (n - 1)) }
         val mean = (from..to).sumOf { s.omega[it] } / n
         val maxHz = min(config.maxFrequencyHz, s.fs / 2.0 - 0.5)
@@ -786,20 +636,39 @@ class PronationSupinationEngine(
         return (freqs[peak] * 100).roundToInt() / 100.0
     }
 
-    // --- Trend ---------------------------------------------------------------------------------
+    // --- Segments and trend --------------------------------------------------------------------
 
-    private fun trend(half: List<HalfCycle>, durationS: Double): PerformanceTrend? {
-        if (durationS <= 0.0) return null
-        val valid = half.filter { it.valid }
+    private fun segmentOf(m: RotationMovement, durationS: Double): TrendSegment {
         val third = durationS / 3.0
-        val segments = (0..2).map { seg ->
-            valid.filter { it.midS >= seg * third && (it.midS < (seg + 1) * third || seg == 2) }
-                .takeIf { it.size >= MIN_HALF_CYCLES_PER_SEGMENT }
+        return when {
+            m.midS < third -> TrendSegment.EARLY
+            m.midS < 2 * third -> TrendSegment.MIDDLE
+            else -> TrendSegment.LATE
         }
-        fun measure(f: (List<HalfCycle>) -> Double?): MetricTrend {
-            val values = segments.map { it?.let(f) }
-            val early = values[0]
-            val late = values[2]
+    }
+
+    private fun segments(valid: List<RotationMovement>, durationS: Double): List<SegmentMetrics> =
+        TrendSegment.entries.map { seg ->
+            val m = if (durationS > 0) valid.filter { segmentOf(it, durationS) == seg } else emptyList()
+            val enough = m.size >= config.minMovementsPerSegment
+            SegmentMetrics(
+                segment = seg,
+                movementCount = m.size,
+                cycleRateHz = if (enough) m.size / 2.0 / (durationS / 3.0) else null,
+                medianAmplitudeDeg = if (enough) median(m.map { it.amplitudeDeg }) else null,
+                amplitudeCvPercent = if (enough) cv(m.map { it.amplitudeDeg }) else null,
+                medianPeakVelocityDegS = if (enough) median(m.map { it.peakAngularVelocityDegS }) else null,
+                velocityCvPercent = if (enough) cv(m.map { it.peakAngularVelocityDegS }) else null,
+                medianCycleDurationMs = if (enough) median(m.map { it.durationS })?.let { it * 2000.0 } else null,
+                durationCvPercent = if (enough) cv(m.map { it.durationS }) else null,
+                withinTolerancePercent = if (enough) withinTolerance(m) else null
+            )
+        }
+
+    private fun measureTrends(valid: List<RotationMovement>, durationS: Double): MeasureTrends {
+        val segs = segments(valid, durationS)
+        fun trend(f: (SegmentMetrics) -> Double?): MetricTrend {
+            val (early, middle, late) = segs.map(f)
             val change = if (early != null && late != null && early > 0) (late - early) / early * 100.0 else null
             val direction = change?.let {
                 when {
@@ -808,97 +677,44 @@ class PronationSupinationEngine(
                     else -> TrendDirection.DECREASED
                 }
             }
-            return MetricTrend(early, values[1], late, change, direction)
+            return MetricTrend(early, middle, late, change, direction)
         }
-        return PerformanceTrend(
-            amplitudeDeg = measure { seg -> median(seg.map { it.amplitudeDeg }) },
-            peakVelocityDegS = measure { seg -> median(seg.map { it.peakVelocityDegS }) },
-            cycleDurationMs = measure { seg -> median(seg.map { it.durationS })?.let { it * 2000.0 } }
+        return MeasureTrends(
+            amplitudeDeg = trend { it.medianAmplitudeDeg },
+            peakVelocityDegS = trend { it.medianPeakVelocityDegS },
+            cycleDurationMs = trend { it.medianCycleDurationMs }
         )
     }
 
-    // --- Quality -------------------------------------------------------------------------------
-
-    private fun assessQuality(
-        accel: StreamStats,
-        gyro: StreamStats,
-        metrics: PronationMetrics?,
-        offsetMs: Double
-    ): PronationQualityReport {
-        val th = thresholds
-        val issues = linkedSetOf<PronationQualityIssue>()
-        if (accel.validSamples == 0) issues += PronationQualityIssue.NO_ACCELEROMETER_DATA
-        if (gyro.validSamples == 0) issues += PronationQualityIssue.NO_GYROSCOPE_DATA
-
-        val streams = listOf(accel, gyro).filter { it.validSamples > 0 }
-        for (s in streams) {
-            if (s.samplingRateHz < th.minRateHz) issues += PronationQualityIssue.SAMPLING_RATE_TOO_LOW
-            else if (s.samplingRateHz < th.goodRateHz) issues += PronationQualityIssue.LOW_SAMPLING_RATE
-
-            if (s.completenessPercent < th.minCompletenessPercent) issues += PronationQualityIssue.RECORDING_INCOMPLETE
-
-            if (s.dropoutShare > th.maxGapShare || s.longestGapMs > th.maxLongestGapMs) {
-                issues += PronationQualityIssue.EXCESSIVE_GAPS
-            } else if (s.dropoutShare > th.goodGapShare || s.longestGapMs > th.goodLongestGapMs) {
-                issues += PronationQualityIssue.GAPS_PRESENT
-            }
-
-            if (s.validPercent < th.minValidPercent) issues += PronationQualityIssue.TOO_MANY_INVALID_SAMPLES
-            else if (s.validPercent < th.goodValidPercent) issues += PronationQualityIssue.INVALID_SAMPLES_PRESENT
-
-            if (s.validSamples < th.minSamplesPerStream) issues += PronationQualityIssue.TOO_FEW_SAMPLES
-            if (s.unreliablePercent > th.maxUnreliablePercent) issues += PronationQualityIssue.SENSOR_UNRELIABLE
+    /** Filtered angular velocity resampled to the chart rate (block means). */
+    private fun trace(s: Signal): List<Float> {
+        val step = max(1, (s.fs / config.traceHz).roundToInt())
+        return (0 until s.n step step).map { start ->
+            val end = min(s.n, start + step)
+            // One decimal: enough for the chart, and stored values round-trip exactly.
+            (((start until end).sumOf { s.omega[it] } / (end - start)) * 10.0).roundToInt().div(10.0).toFloat()
         }
-        if (streams.size == 2 && offsetMs > th.maxStreamOffsetMs) issues += PronationQualityIssue.STREAMS_MISALIGNED
-
-        if (metrics == null) {
-            if (streams.size == 2) issues += PronationQualityIssue.TOO_FEW_SAMPLES
-        } else {
-            if (metrics.cycleCount < th.minCycles) {
-                issues += PronationQualityIssue.NO_MOVEMENT_DETECTED
-            } else {
-                if (metrics.validCycleCount < th.minCycles) issues += PronationQualityIssue.TOO_FEW_VALID_CYCLES
-                if (metrics.rotationAxisSharePercent < th.minAxisSharePercent) issues += PronationQualityIssue.ROTATION_AXIS_UNSTABLE
-            }
-            if (metrics.accMagnitudeMean !in th.minGravity..th.maxGravity) issues += PronationQualityIssue.GRAVITY_IMPLAUSIBLE
-        }
-
-        val sorted = issues.sortedWith(compareByDescending<PronationQualityIssue> { it.severity.ordinal }.thenBy { it.ordinal })
-        val status = sorted.maxOfOrNull { it.severity.ordinal }?.let { QualityStatus.entries[it] } ?: QualityStatus.VALID
-        return PronationQualityReport(status, sorted, qualityScore(accel, gyro))
     }
-
-    /** 0..100 from the weakest stream: rate 30 %, completeness 30 %, validity 20 %, gaps 20 %. */
-    private fun qualityScore(accel: StreamStats, gyro: StreamStats): Int {
-        val th = thresholds
-        fun one(s: StreamStats): Double {
-            if (s.validSamples < 2) return 0.0
-            val rate = (s.samplingRateHz / th.goodRateHz).coerceIn(0.0, 1.0)
-            val complete = (s.completenessPercent / 100.0).coerceIn(0.0, 1.0)
-            val valid = (s.validPercent / 100.0).coerceIn(0.0, 1.0)
-            val gaps = 1.0 - (s.dropoutShare / th.maxGapShare).coerceIn(0.0, 1.0)
-            return 30 * rate + 30 * complete + 20 * valid + 20 * gaps
-        }
-        return min(one(accel), one(gyro)).roundToInt().coerceIn(0, 100)
-    }
-
-    // --- helpers -------------------------------------------------------------------------------
 
     private fun index(s: Signal, timeS: Double): Int = (timeS * s.fs).roundToInt().coerceIn(0, s.n - 1)
 
     companion object {
         const val MIN_FOR_PROCESSING = 3
         const val MIN_WINDOW_S = 1.0
-        const val MIN_HALF_CYCLES_PER_SEGMENT = 2
+        const val MIN_VALUES_FOR_VARIABILITY = 3
+        const val MIN_CYCLES_FOR_FREQUENCY = 3
+        const val MIN_SECONDS_FOR_FREQUENCY = 4
+        const val POWER_ITERATIONS = 100
         const val STANDARD_GRAVITY = 9.80665
-        private val SQRT_HALF = sqrt(0.5)
+        const val MIN_GRAVITY_NORM = 0.1
+        private val BUTTERWORTH_Q = sqrt(0.5)
 
         fun median(values: List<Double>): Double? =
             if (values.isEmpty()) null else MotionStreams.percentile(values.sorted(), 0.5)
 
         /** Coefficient of variation (sample SD / mean) in percent; null with fewer than 3 values. */
         fun cv(values: List<Double>): Double? {
-            if (values.size < 3) return null
+            if (values.size < MIN_VALUES_FOR_VARIABILITY) return null
             val mean = values.average()
             if (mean <= 0.0) return null
             val sd = sqrt(values.sumOf { (it - mean) * (it - mean) } / (values.size - 1))

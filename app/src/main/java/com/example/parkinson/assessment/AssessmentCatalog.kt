@@ -24,8 +24,15 @@ data class AssessmentDefinition(
     /** First screen of the test flow; null for tests that cannot be started. */
     val startRoute: String?,
     /** Route that follows the sensor check; null when there is no flow. */
-    val afterSensorCheckRoute: String?
+    val afterSensorCheckRoute: String?,
+    /** Used when present; the test can run without them (the result says so). */
+    val optionalSensors: List<SensorRequirement> = emptyList(),
+    /** Test-specific wording for a missing sensor (overrides the generic message). */
+    val missingSensorMessages: Map<SensorRequirement, Int> = emptyMap()
 ) {
+    /** Required and optional sensors, for display. */
+    val allSensors: List<SensorRequirement> get() = sensors + optionalSensors
+
     val id: String get() = type.id
     val isAvailable: Boolean get() = status.canStart && startRoute != null
 }
@@ -69,12 +76,16 @@ object AssessmentCatalog {
         AssessmentDefinition(
             type = AssessmentType.PRONATION_SUPINATION,
             title = R.string.test_ps_title,
-            englishName = "PronationSupinationTest",
+            englishName = "Pronation / Supination Test (PRONATION_SUPINATION)",
             description = R.string.test_ps_desc,
             purpose = R.string.test_ps_purpose,
-            sensors = listOf(SensorRequirement.GYROSCOPE, SensorRequirement.ACCELEROMETER),
+            // The gyroscope is the primary sensor; the accelerometer only supports the analysis.
+            sensors = listOf(SensorRequirement.GYROSCOPE),
+            optionalSensors = listOf(SensorRequirement.ACCELEROMETER),
+            missingSensorMessages = mapOf(SensorRequirement.GYROSCOPE to R.string.ps_sensor_missing_gyroscope),
             status = AssessmentStatus.AVAILABLE,
-            durationSeconds = 10,
+            // 5 s preparation + 3 s countdown + 10 s recording.
+            durationSeconds = 18,
             requiresHandSelection = true,
             icon = "🔄",
             startRoute = Screen.PronationSupinationIntro.route,
