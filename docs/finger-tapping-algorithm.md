@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Algorithm version | `ft-algo-1.0.0` (`FingerTappingVersions.ALGORITHM_VERSION`) |
+| Algorithm version | `ft-algo-1.0.1` (`FingerTappingVersions.ALGORITHM_VERSION`) |
 | Scoring version | `ft-score-0.1.0-preliminary` (`FingerTappingVersions.SCORING_VERSION`) |
 | Clinical validation | **None.** All thresholds are engineering values chosen for technical robustness. They have not been calibrated against patient or normative data. |
 
@@ -37,6 +37,30 @@ lock in the session.
 
 All analysis layers are pure functions of their inputs. The same recording always produces the
 same events, metrics, quality report and score.
+
+## 1a. Handedness (which physical hand is in the frame)
+
+`HandednessMapper` (mediapipe/) is the only place where the MediaPipe label becomes a hand side.
+
+| Step | Effect on left/right |
+|---|---|
+| CameraX ImageAnalysis frame (front or back lens) | not mirrored; lens is irrelevant |
+| `ImageProxy.toBitmap()` + `ImageProcessingOptions.rotationDegrees` | rotation only; chirality unchanged |
+| MediaPipe Tasks handedness label | describes the hand as it appears in the unmirrored frame = the physical hand |
+| Mirrored front-camera `PreviewView` | display only; `HandLandmarkMapper.mapToView(mirror = true)` moves overlay points, never the label |
+| Hand-selection UI → `SelectedHand.toHandSide()` | identity (LEFT → LEFT, RIGHT → RIGHT) |
+| `HandTrackingResult.handSide`, `TapFrame.handSide`, wrong-hand checks | use the physical side unchanged |
+
+`ft-algo-1.0.0` applied the legacy MediaPipe Hands rule ("labels assume a selfie-mirrored input")
+and inverted every label. The frames sent here are not mirrored, so the inversion was wrong:
+on the first physical-device test the real left hand was reported as right and vice versa, and a
+patient who selected the correct hand got "wrong hand" frames. `ft-algo-1.0.1` takes the label
+as-is for unmirrored frames and inverts it only when a frame is actually mirrored
+(`FrameMirroring.HORIZONTAL`). Landmark coordinates and tap detection are unchanged.
+
+Assessments stored with `ft-algo-1.0.0` keep the hand the patient selected. Because that version
+rejected the correct hand, a 1.0.0 result can only exist if the patient held up the opposite hand
+from the one selected. Compare such records with care.
 
 ## 2. Session
 
@@ -257,7 +281,8 @@ Room table `finger_tapping_assessments`, schema version 1. The schema is exporte
   * reproducibility of results and scores.
 * **Not yet verified:** behavior on real devices with real hands. In particular:
   * the thresholds in sections 4, 5 and 7;
-  * MediaPipe handedness mapping;
+  * MediaPipe handedness mapping: the reversed labels seen on the first device test were fixed in
+    `ft-algo-1.0.1` (see section 1a); this still needs re-checking with both hands on device;
   * real frame rates;
   * how close the live count is to the final count.
 

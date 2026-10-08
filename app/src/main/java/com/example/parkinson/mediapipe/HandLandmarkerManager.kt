@@ -56,9 +56,11 @@ class HandLandmarkerManager(
     @Volatile
     var expectedHand: HandSide? = null
 
-    /** See HandLandmarkMapper.toHandSide. Toggle if left/right are inverted on the device. */
-    @Volatile
-    var flipHandedness: Boolean = true
+    /**
+     * Mirroring of the frames sent to MediaPipe. CameraX analysis frames are unmirrored for both
+     * lenses; see HandednessMapper for why this, not the camera lens, decides the mapping.
+     */
+    private val frameMirroring: FrameMirroring = HandednessMapper.CAMERAX_ANALYSIS
 
     private var handLandmarker: HandLandmarker? = null
 
@@ -190,22 +192,23 @@ class HandLandmarkerManager(
     private fun buildSingleHandResult(handResult: HandLandmarkerResult, ts: Long): HandTrackingResult {
         val category = handResult.handedness().firstOrNull()?.firstOrNull()
         val confidence = category?.score() ?: 0f
-        val side = HandLandmarkMapper.toHandSide(category?.categoryName(), flipHandedness)
+        val label = category?.categoryName()
+        val expected = expectedHand
+        val decision = HandednessMapper.decide(label, confidence, frameMirroring, expected, minHandednessScore)
         if (TapDiagnostics.enabled) {
             // Checked first so release builds do not build this string for every frame.
             TapDiagnostics.log(
-                "HAND ts=$ts label=${category?.categoryName()} score=${TapDiagnostics.f(confidence, 3)} " +
-                    "flip=$flipHandedness mapped=$side expected=$expectedHand"
+                "HAND ts=$ts label=$label score=${TapDiagnostics.f(confidence, 3)} mirroring=$frameMirroring " +
+                    "physical=${HandednessMapper.toPhysicalHand(label, frameMirroring)} expected=$expected " +
+                    "decision=${decision::class.simpleName}"
             )
         }
 
-        if (side == null || confidence < minHandednessScore) {
-            return HandTrackingResult.LowConfidence(ts, confidence)
-        }
-
-        val expected = expectedHand
-        if (expected != null && side != expected) {
-            return HandTrackingResult.WrongHandDetected(ts, expected = expected, detected = side)
+        val side = when (decision) {
+            HandednessMapper.Decision.LowConfidence -> return HandTrackingResult.LowConfidence(ts, confidence)
+            is HandednessMapper.Decision.WrongHand ->
+                return HandTrackingResult.WrongHandDetected(ts, expected = decision.expected, detected = decision.detected)
+            is HandednessMapper.Decision.Accepted -> decision.side
         }
 
         hadHand = true

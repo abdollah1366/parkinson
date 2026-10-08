@@ -66,7 +66,7 @@ import com.example.parkinson.camera.CameraLens
 import com.example.parkinson.camera.CameraPreview
 import com.example.parkinson.camera.CameraState
 import com.example.parkinson.mediapipe.HandLandmarkerManager
-import com.example.parkinson.mediapipe.HandSide
+import com.example.parkinson.mediapipe.toHandSide
 import com.example.parkinson.mediapipe.HandTrackingResult
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.FingerTappingSession
@@ -148,10 +148,7 @@ fun FingerTappingCameraScreen(
     }
 
     LaunchedEffect(selectedHand) {
-        handLandmarkerManager.expectedHand = when (selectedHand) {
-            SelectedHand.LEFT -> HandSide.LEFT
-            else -> HandSide.RIGHT
-        }
+        handLandmarkerManager.expectedHand = (selectedHand ?: SelectedHand.RIGHT).toHandSide()
     }
 
     LaunchedEffect(isPermissionGranted) {

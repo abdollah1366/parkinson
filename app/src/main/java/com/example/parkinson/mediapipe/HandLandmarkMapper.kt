@@ -11,19 +11,8 @@ object HandLandmarkMapper {
         source.mapIndexed { index, landmark ->
             HandLandmark(index = index, x = landmark.x(), y = landmark.y(), z = landmark.z())
         }
-    /**
-     * MediaPipe assumes a mirrored (selfie) image when it labels "Left"/"Right".
-     * CameraX ImageAnalysis frames are NOT mirrored, so the label must be flipped.
-     * If left/right look inverted on your phone, set flip = false.
-     */
-    fun toHandSide(label: String?, flip: Boolean): HandSide? {
-        val raw = when (label?.lowercase()) {
-            "left" -> HandSide.LEFT
-            "right" -> HandSide.RIGHT
-            else -> return null
-        }
-        return if (flip) raw.opposite() else raw
-    }
+    // Handedness (left/right) is mapped by HandednessMapper, not here: display mirroring below
+    // only moves overlay points and must never change which hand is reported.
 
     /**
      * Converts a normalized landmark to a pixel position inside the overlay view.
