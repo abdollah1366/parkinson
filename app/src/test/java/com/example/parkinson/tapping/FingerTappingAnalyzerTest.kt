@@ -2,7 +2,7 @@ package com.example.parkinson.tapping
 
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.quality.QualityIssue
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.tapping.raw.FrameStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -39,6 +39,11 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        // Exported Room schemas are read by MigrationTestHelper in the JVM (Robolectric) migration
+        // tests, which only see the merged variant assets. Debug builds only; release is unaffected.
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -63,6 +68,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))

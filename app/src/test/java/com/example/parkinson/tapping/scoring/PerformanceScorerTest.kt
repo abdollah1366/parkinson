@@ -2,7 +2,7 @@ package com.example.parkinson.tapping.scoring
 
 import com.example.parkinson.tapping.FingerTappingAnalyzer
 import com.example.parkinson.tapping.SyntheticTapping
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

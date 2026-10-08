@@ -11,8 +11,6 @@
     <!-- Home Screen -->
     <string name="home_greeting">سلام 👋</string>
     <string name="home_subtitle">امروز وضعیت حرکتی خود را بررسی کنید.</string>
-    <string name="card_assessment_title">ارزیابی حرکتی</string>
-    <string name="card_assessment_description">این ارزیابی چند دقیقه زمان می‌برد.</string>
     <string name="btn_start_assessment">شروع ارزیابی</string>
     <string name="section_last_assessment">آخرین ارزیابی</string>
     <string name="empty_assessment_history">هنوز ارزیابی‌ای انجام نشده است.</string>
@@ -166,7 +164,6 @@
     <string name="history_title">تاریخچه ارزیابی‌ها</string>
     <string name="history_empty">هنوز ارزیابی‌ای ذخیره نشده است.</string>
     <string name="history_item_taps">%1$s ضربه • %2$s ضربه در ثانیه</string>
-    <string name="history_item_score">امتیاز: %1$s</string>
     <string name="history_item_no_score">بدون امتیاز</string>
     <string name="btn_view_history">مشاهده تاریخچه</string>
     <string name="btn_view_result">مشاهده نتیجه</string>
@@ -181,4 +178,129 @@
     <string name="cd_medical_icon">آیکون پزشکی</string>
     <string name="cd_hand_icon">آیکون دست</string>
     <string name="cd_camera_preview">پیش‌نمایش زنده دوربین</string>
+
+    <!-- Assessment catalog (single source: assessment/AssessmentCatalog.kt) -->
+    <string name="catalog_title">ارزیابی‌های حرکتی</string>
+    <string name="catalog_subtitle">مجموعه کامل آزمون‌های حرکتی. آزمون‌هایی که «در حال توسعه» هستند هنوز قابل انجام نیستند و هیچ نتیجه‌ای برای آن‌ها ثبت نمی‌شود.</string>
+    <string name="catalog_duration">%1$s ثانیه</string>
+    <string name="catalog_duration_unknown">مدت: پس از تعیین پروتکل</string>
+    <string name="catalog_sensors">حسگر: %1$s</string>
+    <string name="catalog_purpose">هدف: %1$s</string>
+    <string name="catalog_summary">%1$s آزمون آماده انجام • %2$s آزمون در حال توسعه</string>
+
+    <string name="status_available">آماده انجام</string>
+    <string name="status_in_development">در حال توسعه</string>
+    <string name="status_research">پژوهشی – در حال توسعه</string>
+
+    <string name="sensor_camera">دوربین</string>
+    <string name="sensor_hand_model">مدل تشخیص دست</string>
+    <string name="sensor_accelerometer">شتاب‌سنج</string>
+    <string name="sensor_gyroscope">ژیروسکوپ</string>
+    <string name="sensor_microphone">میکروفون</string>
+    <string name="sensor_separator">، </string>
+
+    <string name="test_ft_title">ضربه زدن با انگشتان</string>
+    <string name="test_ft_desc">باز و بسته کردن سریع نوک انگشت شست و اشاره مقابل دوربین.</string>
+    <string name="test_ft_purpose">اندازه‌گیری تعداد، سرعت، ریتم و دامنه ضربه‌ها و تغییر آن‌ها در طول آزمون.</string>
+
+    <string name="test_hs_title">نگه‌داشتن دست ثابت</string>
+    <string name="test_hs_desc">گوشی را در دست بگیرید و دست را ۱۵ ثانیه تا حد امکان ثابت نگه دارید.</string>
+    <string name="test_hs_purpose">اندازه‌گیری میزان حرکت و نوسان دست هنگام نگه‌داشتن گوشی (شاخص ثبات دست).</string>
+
+    <string name="test_ps_title">چرخش دست</string>
+    <string name="test_ps_desc">کف دست را به‌آرامی به بالا و پایین بچرخانید.</string>
+    <string name="test_ps_purpose">بررسی زاویه، سرعت، تناوب، نظم و توقف‌های حرکت چرخشی ساعد و مقایسه دو دست.</string>
+
+    <string name="test_oc_title">باز و بسته کردن دست</string>
+    <string name="test_oc_desc">دست خود را مقابل دوربین باز و بسته کنید.</string>
+    <string name="test_oc_purpose">بررسی دامنه باز و بسته شدن، سرعت، تعداد تکرار، ریتم و روند دامنه.</string>
+
+    <string name="test_ram_title">حرکات متناوب سریع دست</string>
+    <string name="test_ram_desc">حرکات تکراری و متناوب دست را با بیشترین سرعت ممکن انجام دهید.</string>
+    <string name="test_ram_purpose">بررسی تناوب، دامنه، نظم، تغییرپذیری و کند شدن حرکت در طول زمان.</string>
+
+    <string name="test_rt_title">لرزش دست در حالت استراحت</string>
+    <string name="test_rt_desc">دست به‌صورت آرام و تکیه‌داده قرار می‌گیرد و حرکت آن ثبت می‌شود.</string>
+    <string name="test_rt_purpose">ثبت ویژگی‌های فنی حرکت دست در حالت استراحت؛ پروتکل هنوز اعتبارسنجی نشده و تشخیص بالینی ارائه نمی‌کند.</string>
+
+    <string name="test_gait_title">راه رفتن</string>
+    <string name="test_gait_desc">گوشی را طبق دستور در محل مناسب قرار دهید و مسیر مشخص‌شده را طی کنید.</string>
+    <string name="test_gait_purpose">بررسی تعداد گام، آهنگ گام، زمان‌بندی و تغییرپذیری گام‌ها. تا تعریف یک پروتکل ایمن فعال نمی‌شود.</string>
+
+    <string name="test_sts_title">بلند شدن از صندلی</string>
+    <string name="test_sts_desc">بلند شدن از صندلی و نشستن دوباره با گوشی همراه.</string>
+    <string name="test_sts_purpose">بررسی مدت حرکت، الگوی شتاب، تعداد تکرار و زمان انتقال. تا تعریف یک پروتکل ایمن و معتبر فعال نمی‌شود.</string>
+
+    <string name="test_speech_title">ارزیابی گفتار</string>
+    <string name="test_speech_desc">خواندن یک جمله یا کشیدن یک صدای ثابت.</string>
+    <string name="test_speech_purpose">بررسی مدت گفتار، انرژی صدا و ویژگی‌های زمانی پایه. ضبط صدا تا آماده شدن سازوکار حریم خصوصی فعال نمی‌شود.</string>
+
+    <string name="test_dual_title">آزمون حرکتی-شناختی</string>
+    <string name="test_dual_desc">انجام هم‌زمان یک حرکت و یک تکلیف ذهنی ساده.</string>
+    <string name="test_dual_purpose">بررسی اثر یک تکلیف ذهنی هم‌زمان بر عملکرد حرکتی.</string>
+
+    <!-- Sensor check -->
+    <string name="sensor_check_title">بررسی حسگرها</string>
+    <string name="sensor_check_desc">پیش از شروع، در دسترس بودن حسگرهای لازم برای «%1$s» بررسی می‌شود.</string>
+    <string name="sensor_check_ok">%1$s: در دسترس است</string>
+    <string name="sensor_check_all_ok">همه حسگرهای لازم در دسترس هستند.</string>
+    <string name="sensor_check_failed">این آزمون در این دستگاه قابل انجام نیست.</string>
+    <string name="sensor_missing_camera">دوربین در این دستگاه در دسترس نیست.</string>
+    <string name="sensor_missing_hand_model">مدل تشخیص دست در برنامه پیدا نشد.</string>
+    <string name="sensor_missing_accelerometer">حسگر شتاب‌سنج در این دستگاه در دسترس نیست.</string>
+    <string name="sensor_missing_gyroscope">حسگر ژیروسکوپ در این دستگاه در دسترس نیست.</string>
+    <string name="sensor_missing_microphone">میکروفون در این دستگاه در دسترس نیست.</string>
+
+    <!-- Home additions -->
+    <string name="home_catalog_title">ارزیابی‌های حرکتی</string>
+    <string name="btn_next_test">آزمون بعدی</string>
+    <string name="history_item_index">شاخص عملکرد: %1$s از ۱۰۰</string>
+    <string name="history_item_stability">نوسان چرخشی: %1$s درجه بر ثانیه • شتاب حرکتی: %2$s</string>
+
+    <!-- Hand stability: intro / instructions -->
+    <string name="hs_intro_instruction">گوشی را در دست خود بگیرید و دست را به مدت ۱۵ ثانیه تا حد امکان ثابت نگه دارید.</string>
+    <string name="hs_intro_steps_title">روش انجام</string>
+    <string name="hs_step_1">بنشینید و آرنج را آزاد نگه دارید (به جایی تکیه ندهید).</string>
+    <string name="hs_step_2">گوشی را با دست انتخاب‌شده، با صفحه رو به بالا، جلوی بدن نگه دارید.</string>
+    <string name="hs_step_3">پس از شروع، ۵ ثانیه برای آماده شدن فرصت دارید.</string>
+    <string name="hs_step_4">به مدت ۱۵ ثانیه دست را تا حد امکان ثابت نگه دارید و گوشی را نچرخانید.</string>
+    <string name="hs_measures_title">چه چیزی اندازه‌گیری می‌شود؟</string>
+    <string name="hs_measure_1">میزان حرکت گوشی (شتاب‌سنج)</string>
+    <string name="hs_measure_2">نوسان چرخشی دست (ژیروسکوپ)</string>
+    <string name="hs_measure_3">کیفیت ثبت اطلاعات حسگرها</string>
+    <string name="hs_duration_value">۵ ثانیه آمادگی + ۱۵ ثانیه ثبت</string>
+
+    <!-- Hand stability: test screen -->
+    <string name="hs_test_idle">وقتی آماده بودید، گوشی را در %1$s بگیرید و دکمه شروع را بزنید.</string>
+    <string name="hs_test_preparation">آماده شوید… %1$s</string>
+    <string name="hs_test_preparation_hint">گوشی را در دست بگیرید و دست را جلوی بدن نگه دارید.</string>
+    <string name="hs_test_recording">دست را ثابت نگه دارید… %1$s ثانیه</string>
+    <string name="hs_test_recording_hint">گوشی را نچرخانید و از صفحه خارج نشوید.</string>
+    <string name="hs_test_processing">در حال پردازش و بررسی کیفیت…</string>
+    <string name="hs_btn_cancel">لغو آزمون</string>
+    <string name="hs_invalid_interrupted">آزمون پیش از پایان قطع شد (خروج از صفحه یا برنامه، یا قفل شدن گوشی). نتیجه ناقص ذخیره نمی‌شود.</string>
+    <string name="hs_invalid_quality">کیفیت ثبت اطلاعات حسگرها برای محاسبه نتیجه کافی نبود.</string>
+    <string name="hs_invalid_insufficient">تعداد نمونه‌های ثبت‌شده حسگر برای محاسبه نتیجه کافی نبود.</string>
+    <string name="hs_invalid_low_rate">سرعت نمونه‌برداری حسگرهای این گوشی برای اندازه‌گیری کافی نبود.</string>
+    <string name="hs_invalid_gaps">ارسال اطلاعات حسگرها در طول آزمون چند بار قطع شد.</string>
+    <string name="hs_error_sensor_unavailable">حسگرهای لازم در دسترس نیستند یا راه‌اندازی نشدند.</string>
+    <string name="hs_error_sensor_stopped">حسگرها در طول آزمون اطلاعاتی ارسال نکردند. اگر گزینه «خاموش کردن حسگرها» در تنظیمات فعال است، آن را غیرفعال کنید.</string>
+    <string name="hs_tip_retry">لطفاً تا پایان ۱۵ ثانیه در همین صفحه بمانید و دوباره تلاش کنید.</string>
+
+    <!-- Hand stability: result -->
+    <string name="hs_result_title">شاخص ثبات دست</string>
+    <string name="hs_result_overall">ثبات کلی</string>
+    <string name="hs_result_overall_value">%1$s از ۱۰۰</string>
+    <string name="hs_result_overall_desc">شاخص عملکرد مهندسی اولیه. هرچه بیشتر، گوشی در طول ثبت ثابت‌تر بوده است. از نظر بالینی اعتبارسنجی نشده است.</string>
+    <string name="hs_result_overall_unavailable">به دلیل کیفیت ناکافی ثبت، شاخص محاسبه نشد.</string>
+    <string name="hs_result_movement">میزان حرکت</string>
+    <string name="hs_result_movement_value">شتاب حرکتی: %1$s متر بر مجذور ثانیه</string>
+    <string name="hs_result_movement_desc">میانگین مؤثر (RMS) شتاب ناشی از حرکت دست، پس از حذف اثر جاذبه. بیشترین دامنه چرخش در طول ثبت: %1$s درجه.</string>
+    <string name="hs_result_oscillation">نوسان حرکتی</string>
+    <string name="hs_result_oscillation_value">سرعت زاویه‌ای: %1$s درجه بر ثانیه</string>
+    <string name="hs_result_oscillation_freq">بسامد غالب نوسان: %1$s هرتز. این یک ویژگی فنی حرکت است و به‌تنهایی معنای بالینی ندارد.</string>
+    <string name="hs_result_oscillation_no_freq">الگوی نوسانی منظمی که بتوان بسامد آن را با اطمینان گزارش کرد دیده نشد.</string>
+    <string name="hs_result_quality">کیفیت ثبت اطلاعات</string>
+    <string name="hs_result_quality_value">%1$s (%2$s از ۱۰۰) • %3$s نمونه در ثانیه</string>
+    <string name="hs_result_disclaimer">این شاخص صرفاً ویژگی‌های حرکتی ثبت‌شده توسط حسگرهای گوشی را نشان می‌دهد و به‌تنهایی تشخیص پزشکی محسوب نمی‌شود.</string>
 </resources>

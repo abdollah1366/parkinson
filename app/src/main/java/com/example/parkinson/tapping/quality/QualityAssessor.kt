@@ -1,10 +1,8 @@
 package com.example.parkinson.tapping.quality
 
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.tapping.metrics.MotorMetrics
 import com.example.parkinson.tapping.signal.ProcessedSignal
-
-/** Ordered from best to worst. */
-enum class QualityStatus { VALID, LOW_QUALITY, INSUFFICIENT_DATA, INVALID }
 
 enum class QualityIssue(val severity: QualityStatus) {
     NO_FRAMES(QualityStatus.INVALID),

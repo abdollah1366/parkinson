@@ -29,16 +29,19 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
-import com.example.parkinson.tapping.result.FingerTappingAssessment
+import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.ui.components.QualityChip
+import com.example.parkinson.ui.components.assessmentTitle
 import com.example.parkinson.ui.components.handLabel
+import com.example.parkinson.ui.components.indexLine
+import com.example.parkinson.ui.components.keyMetricsLine
 import com.example.parkinson.ui.format.PersianFormat
 import com.example.parkinson.viewmodel.Loadable
 
 @Composable
 fun AssessmentHistoryScreen(
-    history: Loadable<List<FingerTappingAssessment>>,
-    onOpen: (assessmentId: String) -> Unit,
+    history: Loadable<List<AssessmentResult>>,
+    onOpen: (AssessmentResult) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -72,7 +75,7 @@ fun AssessmentHistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(history.value, key = { it.assessmentId }) { item ->
-                        HistoryItem(item, onClick = { onOpen(item.assessmentId) })
+                        HistoryItem(item, onClick = { onOpen(item) })
                     }
                 }
             }
@@ -81,7 +84,7 @@ fun AssessmentHistoryScreen(
 }
 
 @Composable
-private fun HistoryItem(a: FingerTappingAssessment, onClick: () -> Unit) {
+private fun HistoryItem(a: AssessmentResult, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -91,6 +94,13 @@ private fun HistoryItem(a: FingerTappingAssessment, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = assessmentTitle(a.type),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,22 +109,15 @@ private fun HistoryItem(a: FingerTappingAssessment, onClick: () -> Unit) {
                 Text(
                     text = PersianFormat.dateTime(a.timestampEpochMs),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = handLabel(a.hand),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                a.hand?.let {
+                    Text(text = handLabel(it), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                }
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = stringResource(
-                    R.string.history_item_taps,
-                    PersianFormat.integer(a.tapCount),
-                    PersianFormat.decimal(a.tapRateHz)
-                ),
+                text = keyMetricsLine(a),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -124,11 +127,9 @@ private fun HistoryItem(a: FingerTappingAssessment, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                QualityChip(a.qualityStatus)
+                QualityChip(a.quality.status)
                 Text(
-                    text = a.performanceScore?.let {
-                        stringResource(R.string.history_item_score, PersianFormat.integer(it.total))
-                    } ?: stringResource(R.string.history_item_no_score),
+                    text = indexLine(a),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold

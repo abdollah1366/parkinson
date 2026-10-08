@@ -5,7 +5,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.quality.QualityIssue
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import com.example.parkinson.tapping.scoring.PerformanceScore
 

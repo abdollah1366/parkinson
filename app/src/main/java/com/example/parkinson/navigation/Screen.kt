@@ -22,8 +22,25 @@ sealed class Screen(val route: String) {
 
     object History : Screen("history")
 
+    /** Test selection: every test in AssessmentCatalog, available or not. */
+    object AssessmentCatalog : Screen("assessment_catalog")
+
+    /** Checks the sensors a test needs, then continues to the test's next step. */
+    object SensorCheck : Screen("sensor_check/{$ARG_ASSESSMENT_TYPE}") {
+        fun createRoute(typeId: String) = "sensor_check/${Uri.encode(typeId)}"
+    }
+
+    object HandStabilityIntro : Screen("hand_stability_intro")
+    object HandStabilityHandSelection : Screen("hand_stability_hand_selection")
+    object HandStabilityTest : Screen("hand_stability_test")
+
+    object HandStabilityResult : Screen("hand_stability_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "hand_stability_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
+        const val ARG_ASSESSMENT_TYPE = "type"
     }
 }

@@ -1,13 +1,18 @@
 package com.example.parkinson.ui
 
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import com.example.parkinson.MainActivity
@@ -19,10 +24,14 @@ import com.example.parkinson.tapping.isActive
 import com.example.parkinson.viewmodel.FingerTappingViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowSensor
 
 /**
  * Walks the real app (MainActivity, nav graph, ViewModels, Room) from the splash screen to the
@@ -38,6 +47,23 @@ class AppNavigationTest {
 
     private fun waitFor(text: String) {
         rule.waitUntil(timeoutMillis = 10_000) { rule.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Before
+    fun deviceHasACamera() {
+        // Robolectric reports no camera by default; the sensor check would (correctly) block.
+        shadowOf(RuntimeEnvironment.getApplication().packageManager)
+            .setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, true)
+    }
+
+    /** Home -> test selection -> the card titled [title]. */
+    private fun openFromCatalog(title: String) {
+        clickWhenShown("شروع ارزیابی")
+        rule.waitUntil(timeoutMillis = 10_000) {
+            rule.onAllNodes(hasText("مجموعه کامل آزمون‌های حرکتی", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
+        rule.onNodeWithText(title).performClick()
     }
 
     private fun clickWhenShown(text: String) {
@@ -56,7 +82,7 @@ class AppNavigationTest {
 
         // Home with no stored assessment
         waitFor("هنوز ارزیابی‌ای انجام نشده است.")
-        clickWhenShown("شروع ارزیابی")
+        openFromCatalog("ضربه زدن با انگشتان")
 
         // Intro -> Hand selection
         waitFor("آزمون ضربه زدن انگشت‌ها")
@@ -66,6 +92,10 @@ class AppNavigationTest {
         rule.onNodeWithText("دست چپ").performClick()
         rule.onNodeWithText("ادامه").assertIsEnabled().performClick()
 
+        // Sensor check: camera and hand model are available.
+        waitFor("بررسی حسگرها")
+        rule.onNodeWithText("همه حسگرهای لازم در دسترس هستند.").assertIsDisplayed()
+        clickWhenShown("ادامه")
         // Preparation -> Ready
         waitFor("آماده‌سازی آزمون")
         clickWhenShown("ادامه")
@@ -86,10 +116,12 @@ class AppNavigationTest {
     private fun openCameraScreen() {
         waitFor("به پایش حرکتی خوش آمدید")
         clickWhenShown("شروع")
-        clickWhenShown("شروع ارزیابی")
+        openFromCatalog("ضربه زدن با انگشتان")
         clickWhenShown("ادامه")
         waitFor("انتخاب دست")
         rule.onNodeWithText("دست راست").performClick()
+        clickWhenShown("ادامه")
+        waitFor("بررسی حسگرها")
         clickWhenShown("ادامه")
         waitFor("آماده‌سازی آزمون")
         clickWhenShown("ادامه")
@@ -155,5 +187,50 @@ class AppNavigationTest {
         rule.activityRule.scenario.recreate()
         waitFor("هنوز ارزیابی‌ای انجام نشده است.")
         rule.onNodeWithText("شروع ارزیابی").assertIsDisplayed()
+    }
+
+    private fun openHandStabilitySensorCheck() {
+        waitFor("به پایش حرکتی خوش آمدید")
+        clickWhenShown("شروع")
+        openFromCatalog("نگه‌داشتن دست ثابت")
+        waitFor("روش انجام")
+        clickWhenShown("ادامه")
+        waitFor("انتخاب دست")
+        rule.onNodeWithText("دست چپ").performClick()
+        clickWhenShown("ادامه")
+        waitFor("بررسی حسگرها")
+    }
+
+    @Test
+    fun handStabilityIsBlockedWithoutMotionSensors() {
+        // Robolectric devices have no accelerometer or gyroscope by default.
+        openHandStabilitySensorCheck()
+        rule.onNodeWithText("حسگر ژیروسکوپ در این دستگاه در دسترس نیست.").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("حسگر شتاب‌سنج در این دستگاه در دسترس نیست.").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("ادامه").assertIsNotEnabled()
+    }
+
+    @Test
+    fun handStabilityReachesTheTestWhenSensorsExist() {
+        val sensors = shadowOf(RuntimeEnvironment.getApplication().getSystemService(SensorManager::class.java))
+        sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_ACCELEROMETER))
+        sensors.addSensor(ShadowSensor.newInstance(Sensor.TYPE_GYROSCOPE))
+        openHandStabilitySensorCheck()
+        rule.onNodeWithText("همه حسگرهای لازم در دسترس هستند.").assertIsDisplayed()
+        clickWhenShown("ادامه")
+        waitFor("وقتی آماده بودید، گوشی را در دست چپ بگیرید و دکمه شروع را بزنید.")
+        rule.onNodeWithText("شروع آزمون").assertIsEnabled()
+    }
+
+    @Test
+    fun unimplementedTestCannotStart() {
+        waitFor("به پایش حرکتی خوش آمدید")
+        clickWhenShown("شروع")
+        openFromCatalog("چرخش دست")
+        rule.waitForIdle()
+        // Still on the test selection screen; the card is disabled and nothing was started.
+        rule.onNodeWithText("چرخش دست").assertIsDisplayed().assertIsNotEnabled()
+        rule.onNodeWithText("روش انجام").assertDoesNotExist()
+        rule.onNodeWithText("شروع آزمون").assertDoesNotExist()
     }
 }

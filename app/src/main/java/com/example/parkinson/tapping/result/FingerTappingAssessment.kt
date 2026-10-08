@@ -1,8 +1,11 @@
 package com.example.parkinson.tapping.result
 
+import com.example.parkinson.assessment.AssessmentQuality
+import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.assessment.AssessmentType
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.quality.QualityIssue
-import com.example.parkinson.tapping.quality.QualityStatus
 import com.example.parkinson.tapping.scoring.PerformanceScore
 
 /**
@@ -11,9 +14,9 @@ import com.example.parkinson.tapping.scoring.PerformanceScore
  * Amplitudes are in palm sizes (thumb-index distance / palm size). Null = not measurable.
  */
 data class FingerTappingAssessment(
-    val assessmentId: String,
-    val timestampEpochMs: Long,
-    val hand: SelectedHand,
+    override val assessmentId: String,
+    override val timestampEpochMs: Long,
+    override val hand: SelectedHand,
     val plannedDurationMs: Long,
     val recordingDurationMs: Long,
 
@@ -59,6 +62,10 @@ data class FingerTappingAssessment(
     /** null when the quality was not VALID: no score is given for an unreliable recording. */
     val performanceScore: PerformanceScore?,
 
-    val algorithmVersion: String,
-    val scoringVersion: String
-)
+    override val algorithmVersion: String,
+    override val scoringVersion: String
+) : AssessmentResult {
+    override val type: AssessmentType get() = AssessmentType.FINGER_TAPPING
+    override val quality: AssessmentQuality get() = AssessmentQuality(qualityStatus, qualityScore)
+    override val performanceIndex: Int? get() = performanceScore?.total
+}

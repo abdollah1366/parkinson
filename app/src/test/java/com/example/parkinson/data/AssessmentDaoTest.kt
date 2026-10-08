@@ -30,7 +30,7 @@ class AssessmentDaoTest {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AssessmentDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomAssessmentRepository(db.assessmentDao())
+        repository = RoomAssessmentRepository.from(db)
     }
 
     @After

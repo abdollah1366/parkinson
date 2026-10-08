@@ -37,7 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
 import com.example.parkinson.model.SelectedHand
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.QualityChip
@@ -51,6 +51,7 @@ fun FingerTappingResultScreen(
     onRepeat: (SelectedHand) -> Unit,
     onNewAssessment: () -> Unit,
     onHome: () -> Unit,
+    onNextTest: () -> Unit = {},
 ) {
     when (assessment) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -74,7 +75,7 @@ fun FingerTappingResultScreen(
                     PrimaryButton(text = stringResource(R.string.btn_back_home), onClick = onHome)
                 }
             } else {
-                ResultContent(value, onRepeat, onNewAssessment, onHome)
+                ResultContent(value, onRepeat, onNewAssessment, onHome, onNextTest)
             }
         }
     }
@@ -86,6 +87,7 @@ private fun ResultContent(
     onRepeat: (SelectedHand) -> Unit,
     onNewAssessment: () -> Unit,
     onHome: () -> Unit,
+    onNextTest: () -> Unit,
 ) {
     var showDetails by rememberSaveable { mutableStateOf(false) }
     val notMeasurable = stringResource(R.string.result_not_measurable)
@@ -211,6 +213,19 @@ private fun ResultContent(
                 fontWeight = FontWeight.Bold
             )
         }
+        OutlinedButton(
+            onClick = onNextTest,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Text(
+                text = stringResource(R.string.btn_next_test),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
         TextButton(
             onClick = onHome,
             modifier = Modifier
@@ -224,7 +239,7 @@ private fun ResultContent(
 }
 
 @Composable
-private fun MetricCard(
+internal fun MetricCard(
     title: String,
     value: String,
     description: String? = null,
@@ -297,6 +312,12 @@ private fun TechnicalDetails(a: FingerTappingAssessment) {
         "نسخه الگوریتم" to a.algorithmVersion,
         "نسخه امتیازدهی" to a.scoringVersion
     )
+    DetailsTable(rows)
+}
+
+/** Label/value table for technical details (for a clinician). */
+@Composable
+internal fun DetailsTable(rows: List<Pair<String, String>>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

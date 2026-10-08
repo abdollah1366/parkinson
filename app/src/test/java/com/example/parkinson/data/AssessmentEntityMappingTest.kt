@@ -3,7 +3,7 @@ package com.example.parkinson.data
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.FingerTappingAnalyzer
 import com.example.parkinson.tapping.SyntheticTapping
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.tapping.raw.FrameStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

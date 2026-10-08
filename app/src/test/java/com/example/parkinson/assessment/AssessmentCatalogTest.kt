@@ -1,0 +1,107 @@
+package com.example.parkinson.assessment
+
+import com.example.parkinson.navigation.Screen
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AssessmentCatalogTest {
+
+    private val all = AssessmentCatalog.all
+
+    @Test
+    fun everyPlannedTestIsListedExactlyOnce() {
+        assertEquals(AssessmentType.entries.toSet(), all.map { it.type }.toSet())
+        assertEquals(AssessmentType.entries.size, all.size)
+        assertEquals(all.size, all.map { it.id }.toSet().size)
+        assertEquals(10, all.size)
+    }
+
+    @Test
+    fun idsAreStableAndRoundTrip() {
+        AssessmentType.entries.forEach { assertEquals(it, AssessmentType.fromId(it.id)) }
+        assertNull(AssessmentType.fromId("unknown"))
+        assertNull(AssessmentCatalog.byId(null))
+        assertEquals("finger_tapping", AssessmentType.FINGER_TAPPING.id)
+        assertEquals("hand_stability", AssessmentType.HAND_STABILITY.id)
+    }
+
+    @Test
+    fun onlyFingerTappingAndHandStabilityCanStart() {
+        assertEquals(
+            listOf(AssessmentType.FINGER_TAPPING, AssessmentType.HAND_STABILITY),
+            AssessmentCatalog.available.map { it.type }
+        )
+    }
+
+    @Test
+    fun unavailableTestsHaveNoRouteAndCannotStart() {
+        all.filterNot { it.isAvailable }.forEach {
+            assertNull(it.id, it.startRoute)
+            assertNull(it.id, it.afterSensorCheckRoute)
+            assertNotEquals(it.id, AssessmentStatus.AVAILABLE, it.status)
+            assertFalse(it.status.canStart)
+        }
+    }
+
+    @Test
+    fun availableTestsHaveAFullFlow() {
+        assertEquals(Screen.FingerTappingIntro.route, AssessmentCatalog[AssessmentType.FINGER_TAPPING].startRoute)
+        assertEquals(Screen.FingerTappingPreparation.route, AssessmentCatalog[AssessmentType.FINGER_TAPPING].afterSensorCheckRoute)
+        assertEquals(Screen.HandStabilityIntro.route, AssessmentCatalog[AssessmentType.HAND_STABILITY].startRoute)
+        assertEquals(Screen.HandStabilityTest.route, AssessmentCatalog[AssessmentType.HAND_STABILITY].afterSensorCheckRoute)
+    }
+
+    @Test
+    fun specifiedDurationsAndSensors() {
+        val ft = AssessmentCatalog[AssessmentType.FINGER_TAPPING]
+        assertEquals(10, ft.durationSeconds)
+        assertEquals(listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL), ft.sensors)
+        val hs = AssessmentCatalog[AssessmentType.HAND_STABILITY]
+        assertEquals(15, hs.durationSeconds)
+        assertEquals(setOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), hs.sensors.toSet())
+        assertTrue(ft.requiresHandSelection && hs.requiresHandSelection)
+    }
+
+    @Test
+    fun restingTremorIsMarkedResearch() {
+        assertEquals(AssessmentStatus.RESEARCH, AssessmentCatalog[AssessmentType.RESTING_TREMOR].status)
+    }
+
+    @Test
+    fun everyTestHasTextsSensorsAndIcon() {
+        all.forEach {
+            assertTrue(it.id, it.title != 0 && it.description != 0 && it.purpose != 0)
+            assertTrue(it.id, it.sensors.isNotEmpty())
+            assertTrue(it.id, it.icon.isNotBlank() && it.englishName.isNotBlank())
+        }
+    }
+
+    @Test
+    fun nextAvailableTestCycles() {
+        assertEquals(AssessmentType.HAND_STABILITY, AssessmentCatalog.nextAvailableAfter(AssessmentType.FINGER_TAPPING)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
+    }
+
+    @Test
+    fun sensorCheckReportsMissingSensors() {
+        val hs = AssessmentCatalog[AssessmentType.HAND_STABILITY]
+        val noGyro = SensorCheckResult.check(hs) { it != SensorRequirement.GYROSCOPE }
+        assertFalse(noGyro.canStart)
+        assertEquals(listOf(SensorRequirement.GYROSCOPE), noGyro.missing)
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER), noGyro.available)
+
+        assertTrue(SensorCheckResult.check(hs) { true }.canStart)
+    }
+
+    @Test
+    fun failingSensorProbeCountsAsMissing() {
+        val ft = AssessmentCatalog[AssessmentType.FINGER_TAPPING]
+        val result = SensorCheckResult.check(ft) { if (it == SensorRequirement.CAMERA) error("probe failed") else true }
+        assertEquals(listOf(SensorRequirement.CAMERA), result.missing)
+    }
+}

@@ -1,15 +1,25 @@
 package com.example.parkinson.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.parkinson.ParkinsonApplication
+import com.example.parkinson.assessment.AndroidDeviceCapabilities
+import com.example.parkinson.assessment.AssessmentCatalog
+import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.assessment.AssessmentType
+import com.example.parkinson.assessment.DeviceCapabilities
+import com.example.parkinson.assessment.SensorCheckResult
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.ui.screens.camera.FingerTappingCameraScreen
+import com.example.parkinson.ui.screens.catalog.AssessmentCatalogScreen
 import com.example.parkinson.ui.screens.history.AssessmentHistoryScreen
 import com.example.parkinson.ui.screens.home.HomeScreen
 import com.example.parkinson.ui.screens.intro.FingerTappingIntroScreen
@@ -18,23 +28,56 @@ import com.example.parkinson.ui.screens.invalid.InvalidResultScreen
 import com.example.parkinson.ui.screens.preparation.FingerTappingPreparationScreen
 import com.example.parkinson.ui.screens.ready.FingerTappingReadyScreen
 import com.example.parkinson.ui.screens.result.FingerTappingResultScreen
+import com.example.parkinson.ui.screens.result.HandStabilityResultScreen
 import com.example.parkinson.ui.screens.selection.FingerTappingHandSelectionScreen
+import com.example.parkinson.ui.screens.sensorcheck.SensorCheckScreen
 import com.example.parkinson.ui.screens.splash.SplashScreen
+import com.example.parkinson.ui.screens.stability.HandStabilityIntroScreen
+import com.example.parkinson.ui.screens.stability.HandStabilityTestScreen
 import com.example.parkinson.ui.screens.welcome.WelcomeScreen
 import com.example.parkinson.viewmodel.AssessmentHistoryViewModel
 import com.example.parkinson.viewmodel.FingerTappingViewModel
+import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 
+/** Result screen route of a stored result of any type. */
+fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
+    AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
+    else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
+}
+
+/**
+ * Flow: Home -> Test selection (catalog) -> Instructions -> Hand selection -> Sensor check ->
+ * [FT: Preparation -> Ready] -> Countdown/Recording/Processing/Quality -> Result -> History.
+ * Results offer Retry, Next test and Home.
+ */
 @Composable
 fun ParkinsonNavGraph(
     navController: NavHostController,
     fingerTappingViewModel: FingerTappingViewModel = viewModel(factory = FingerTappingViewModel.Factory),
+    handStabilityViewModel: HandStabilityViewModel = viewModel(factory = HandStabilityViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
+    val context = LocalContext.current
+    val capabilities: DeviceCapabilities = remember {
+        (context.applicationContext as? ParkinsonApplication)?.deviceCapabilities ?: AndroidDeviceCapabilities(context)
+    }
+
     /** Back to Home, keeping Home itself (creates it if it is not on the back stack). */
     fun goHome() {
         if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
             navController.navigate(Screen.Home.route) { launchSingleTop = true }
+        }
+    }
+
+    /** Starts the next available test of the catalog (falls back to the test selection screen). */
+    fun goToNextTest(current: AssessmentType) {
+        fingerTappingViewModel.resetFlow()
+        handStabilityViewModel.resetFlow()
+        val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
+        navController.navigate(route) {
+            popUpTo(Screen.Home.route)
+            launchSingleTop = true
         }
     }
 
@@ -62,11 +105,38 @@ fun ParkinsonNavGraph(
             val latest by historyViewModel.latest.collectAsState()
             HomeScreen(
                 latestAssessment = latest,
-                onOpenAssessment = { id -> navController.navigate(Screen.FingerTappingResult.createRoute(id)) },
+                onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
                 onOpenHistory = { navController.navigate(Screen.History.route) },
-                onStartAssessmentClicked = { navController.navigate(Screen.FingerTappingIntro.route) }
+                onStartAssessmentClicked = { navController.navigate(Screen.AssessmentCatalog.route) }
             )
         }
+
+        composable(Screen.AssessmentCatalog.route) {
+            AssessmentCatalogScreen(
+                onTestSelected = { test ->
+                    // Defensive: unavailable tests have no route and their cards are not clickable.
+                    val route = test.startRoute
+                    if (test.isAvailable && route != null) navController.navigate(route)
+                }
+            )
+        }
+
+        composable(Screen.SensorCheck.route) { entry ->
+            val definition = AssessmentCatalog.byId(entry.arguments?.getString(Screen.ARG_ASSESSMENT_TYPE))
+            if (definition == null) {
+                LaunchedEffect(Unit) { goHome() }
+                return@composable
+            }
+            val result = remember(definition) { SensorCheckResult.check(definition, capabilities) }
+            SensorCheckScreen(
+                definition = definition,
+                result = result,
+                onContinue = { definition.afterSensorCheckRoute?.let { navController.navigate(it) } },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // --- Finger Tapping ---------------------------------------------------------------
 
         composable(Screen.FingerTappingIntro.route) {
             FingerTappingIntroScreen {
@@ -81,7 +151,7 @@ fun ParkinsonNavGraph(
                 selectedHand = selectedHand,
                 onHandSelected = { hand -> fingerTappingViewModel.selectHand(hand) },
                 onContinueClicked = {
-                    navController.navigate(Screen.FingerTappingPreparation.route)
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.FINGER_TAPPING.id))
                 }
             )
         }
@@ -163,6 +233,67 @@ fun ParkinsonNavGraph(
                 onHome = {
                     fingerTappingViewModel.resetFlow()
                     goHome()
+                },
+                onNextTest = { goToNextTest(AssessmentType.FINGER_TAPPING) }
+            )
+        }
+
+        // --- Hand Stability ---------------------------------------------------------------
+
+        composable(Screen.HandStabilityIntro.route) {
+            HandStabilityIntroScreen {
+                // A new run never shows a previous outcome.
+                handStabilityViewModel.resetFlow()
+                navController.navigate(Screen.HandStabilityHandSelection.route)
+            }
+        }
+
+        composable(Screen.HandStabilityHandSelection.route) {
+            val selectedHand by handStabilityViewModel.selectedHand.collectAsState()
+            FingerTappingHandSelectionScreen(
+                selectedHand = selectedHand,
+                onHandSelected = { hand -> handStabilityViewModel.selectHand(hand) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.HAND_STABILITY.id))
+                }
+            )
+        }
+
+        composable(Screen.HandStabilityTest.route) {
+            val selectedHand by handStabilityViewModel.selectedHand.collectAsState()
+            HandStabilityTestScreen(
+                selectedHand = selectedHand,
+                session = handStabilityViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.HandStabilityResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onHome = {
+                    handStabilityViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.HandStabilityResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.handStability(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            HandStabilityResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    handStabilityViewModel.session.reset()
+                    handStabilityViewModel.selectHand(hand)
+                    navController.navigate(Screen.HandStabilityTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.HAND_STABILITY) },
+                onHome = {
+                    handStabilityViewModel.resetFlow()
+                    goHome()
                 }
             )
         }
@@ -171,7 +302,7 @@ fun ParkinsonNavGraph(
             val history by historyViewModel.all.collectAsState()
             AssessmentHistoryScreen(
                 history = history,
-                onOpen = { id -> navController.navigate(Screen.FingerTappingResult.createRoute(id)) }
+                onOpen = { result -> navController.navigate(resultRouteFor(result)) }
             )
         }
     }

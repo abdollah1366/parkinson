@@ -5,7 +5,7 @@ import com.example.parkinson.tapping.SessionInvalidReason
 import com.example.parkinson.tapping.SessionState
 import com.example.parkinson.tapping.quality.QualityIssue
 import com.example.parkinson.tapping.quality.QualityReport
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -150,7 +150,7 @@ class ScreensUiTest {
     @Test
     fun historyShowsItemsAndOpensOne() {
         var opened: String? = null
-        setContent { AssessmentHistoryScreen(Loadable.Loaded(listOf(valid, lowQuality)), onOpen = { opened = it }) }
+        setContent { AssessmentHistoryScreen(Loadable.Loaded(listOf(valid, lowQuality)), onOpen = { opened = it.assessmentId }) }
         rule.onNodeWithText("تاریخچه ارزیابی‌ها").assertIsDisplayed()
         rule.onNodeWithText("بدون امتیاز").assertIsDisplayed()
         rule.onNodeWithText("دست چپ").performClick()
@@ -170,7 +170,7 @@ class ScreensUiTest {
         setContent {
             HomeScreen(
                 latestAssessment = Loadable.Loaded(valid),
-                onOpenAssessment = { opened = it },
+                onOpenAssessment = { opened = it.assessmentId },
                 onOpenHistory = { history++ },
                 onStartAssessmentClicked = {}
             )
@@ -187,7 +187,7 @@ class ScreensUiTest {
     fun homeWithoutAssessments() {
         setContent { HomeScreen(latestAssessment = Loadable.Loaded(null), onStartAssessmentClicked = {}) }
         rule.onNodeWithText("هنوز ارزیابی‌ای انجام نشده است.").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("شروع ارزیابی").assertIsDisplayed()
+        rule.onNodeWithText("شروع ارزیابی").performScrollTo().assertIsDisplayed()
     }
 
     @Test

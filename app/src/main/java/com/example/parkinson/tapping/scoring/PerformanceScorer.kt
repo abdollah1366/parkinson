@@ -3,7 +3,7 @@ package com.example.parkinson.tapping.scoring
 import com.example.parkinson.tapping.FingerTappingVersions
 import com.example.parkinson.tapping.metrics.MotorMetrics
 import com.example.parkinson.tapping.quality.QualityReport
-import com.example.parkinson.tapping.quality.QualityStatus
+import com.example.parkinson.assessment.QualityStatus
 
 /**
  * PRELIMINARY ENGINEERING reference values. They are NOT clinical cutoffs and have NOT been
