@@ -8,7 +8,6 @@ enum class AssessmentType(val id: String) {
     HAND_STABILITY("hand_stability"),
     PRONATION_SUPINATION("pronation_supination"),
     HAND_OPEN_CLOSE("hand_open_close"),
-    RAPID_ALTERNATING("rapid_alternating_movements"),
     RESTING_TREMOR("resting_hand_tremor"),
     GAIT("gait"),
     SIT_TO_STAND("sit_to_stand"),
@@ -37,6 +36,7 @@ enum class AssessmentStatus {
 enum class SensorRequirement {
     CAMERA,
     HAND_LANDMARK_MODEL,
+    POSE_LANDMARK_MODEL,
     ACCELEROMETER,
     GYROSCOPE,
     MICROPHONE

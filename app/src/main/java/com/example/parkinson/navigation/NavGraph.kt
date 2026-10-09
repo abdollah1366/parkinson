@@ -35,7 +35,29 @@ import com.example.parkinson.ui.screens.pronation.PronationSupinationIntroScreen
 import com.example.parkinson.ui.screens.pronation.PronationSupinationTestScreen
 import com.example.parkinson.ui.screens.result.HandStabilityResultScreen
 import com.example.parkinson.ui.screens.result.PronationSupinationResultScreen
+import com.example.parkinson.ui.screens.result.GaitResultScreen
+import com.example.parkinson.gait.GaitResult
+import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.imu.ImuSitToStandResult
+import com.example.parkinson.sts.SitToStandResult
+import com.example.parkinson.ui.screens.result.RestingTremorResultScreen
+import com.example.parkinson.ui.screens.gait.GaitIntroScreen
+import com.example.parkinson.ui.screens.imu.ImuGaitScreen
+import com.example.parkinson.ui.screens.imu.ImuSitToStandScreen
+import com.example.parkinson.ui.screens.result.ImuGaitResultScreen
+import com.example.parkinson.ui.screens.result.ImuSitToStandResultScreen
+import com.example.parkinson.viewmodel.GaitViewModel
+import com.example.parkinson.viewmodel.SitToStandViewModel
+import com.example.parkinson.viewmodel.SpeechViewModel
+import com.example.parkinson.ui.screens.speech.SpeechIntroScreen
+import com.example.parkinson.ui.screens.speech.SpeechTaskSelectionScreen
+import com.example.parkinson.ui.screens.speech.SpeechTestScreen
+import com.example.parkinson.ui.screens.result.SpeechResultScreen
+import com.example.parkinson.ui.screens.sts.SitToStandIntroScreen
+import com.example.parkinson.ui.screens.result.SitToStandResultScreen
 import com.example.parkinson.ui.screens.selection.FingerTappingHandSelectionScreen
+import com.example.parkinson.ui.screens.tremor.RestingTremorCameraScreen
+import com.example.parkinson.ui.screens.tremor.RestingTremorIntroScreen
 import com.example.parkinson.ui.screens.sensorcheck.SensorCheckScreen
 import com.example.parkinson.ui.screens.splash.SplashScreen
 import com.example.parkinson.ui.screens.stability.HandStabilityIntroScreen
@@ -47,12 +69,23 @@ import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.PronationSupinationViewModel
+import com.example.parkinson.viewmodel.RestingTremorViewModel
 
 /** Result screen route of a stored result of any type. */
-fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
+fun resultRouteFor(result: AssessmentResult): String = when {
+    result is ImuSitToStandResult -> Screen.SitToStandResult.createRoute(result.assessmentId)
+    result is ImuGaitResult -> Screen.GaitResult.createRoute(result.assessmentId)
+    result is SitToStandResult -> Screen.SitToStandLegacyResult.createRoute(result.assessmentId)
+    result is GaitResult -> Screen.GaitLegacyResult.createRoute(result.assessmentId)
+    else -> resultRouteByType(result)
+}
+
+private fun resultRouteByType(result: AssessmentResult): String = when (result.type) {
     AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
     AssessmentType.PRONATION_SUPINATION -> Screen.PronationSupinationResult.createRoute(result.assessmentId)
     AssessmentType.HAND_OPEN_CLOSE -> Screen.HandOpenCloseResult.createRoute(result.assessmentId)
+    AssessmentType.RESTING_TREMOR -> Screen.RestingTremorResult.createRoute(result.assessmentId)
+    AssessmentType.SPEECH -> Screen.SpeechResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
 
@@ -68,6 +101,10 @@ fun ParkinsonNavGraph(
     handStabilityViewModel: HandStabilityViewModel = viewModel(factory = HandStabilityViewModel.Factory),
     pronationViewModel: PronationSupinationViewModel = viewModel(factory = PronationSupinationViewModel.Factory),
     handOpenCloseViewModel: HandOpenCloseViewModel = viewModel(factory = HandOpenCloseViewModel.Factory),
+    restingTremorViewModel: RestingTremorViewModel = viewModel(factory = RestingTremorViewModel.Factory),
+    gaitViewModel: GaitViewModel = viewModel(factory = GaitViewModel.Factory),
+    sitToStandViewModel: SitToStandViewModel = viewModel(factory = SitToStandViewModel.Factory),
+    speechViewModel: SpeechViewModel = viewModel(factory = SpeechViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -98,6 +135,10 @@ fun ParkinsonNavGraph(
         handStabilityViewModel.resetFlow()
         pronationViewModel.resetFlow()
         handOpenCloseViewModel.resetFlow()
+        restingTremorViewModel.resetFlow()
+        gaitViewModel.resetFlow()
+        sitToStandViewModel.resetFlow()
+        speechViewModel.resetFlow()
         val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
         navController.navigate(route) {
             popUpTo(Screen.Home.route)
@@ -453,6 +494,341 @@ fun ParkinsonNavGraph(
                 onNextTest = { goToNextTest(AssessmentType.HAND_OPEN_CLOSE) },
                 onHome = {
                     handOpenCloseViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Resting Hand Tremor ----------------------------------------------------------
+
+        composable(Screen.RestingTremorIntro.route) {
+            RestingTremorIntroScreen {
+                // A new run never shows a previous outcome.
+                restingTremorViewModel.resetFlow()
+                navController.navigate(Screen.RestingTremorHandSelection.route)
+            }
+        }
+
+        composable(Screen.RestingTremorHandSelection.route) {
+            val selectedHand by restingTremorViewModel.selectedHand.collectAsState()
+            FingerTappingHandSelectionScreen(
+                selectedHand = selectedHand,
+                onHandSelected = { hand -> restingTremorViewModel.selectHand(hand) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.RESTING_TREMOR.id))
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorTest.route) {
+            val selectedHand by restingTremorViewModel.selectedHand.collectAsState()
+            RestingTremorCameraScreen(
+                selectedHand = selectedHand,
+                session = restingTremorViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.RestingTremorResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.RestingTremorInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // The camera screen is right below on the back stack and starts fresh (IDLE).
+                onRetry = {
+                    if (!navController.popBackStack(Screen.RestingTremorTest.route, inclusive = false)) {
+                        navController.navigate(Screen.RestingTremorTest.route)
+                    }
+                },
+                onHome = {
+                    restingTremorViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.restingTremor(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            RestingTremorResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    restingTremorViewModel.session.reset()
+                    restingTremorViewModel.selectHand(hand)
+                    navController.navigate(Screen.RestingTremorTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.RESTING_TREMOR) },
+                onHome = {
+                    restingTremorViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Walking (phone sensors: accelerometer and gyroscope) --------------------------
+
+        composable(Screen.GaitIntro.route) {
+            GaitIntroScreen {
+                // A new run never shows a previous outcome.
+                gaitViewModel.resetFlow()
+                navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.GAIT.id))
+            }
+        }
+
+        composable(Screen.GaitTest.route) {
+            ImuGaitScreen(
+                session = gaitViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.GaitResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.GaitInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.GaitInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // The walking screen is right below on the back stack and starts fresh (IDLE).
+                onRetry = {
+                    gaitViewModel.resetFlow()
+                    if (!navController.popBackStack(Screen.GaitTest.route, inclusive = false)) {
+                        navController.navigate(Screen.GaitTest.route)
+                    }
+                },
+                onHome = {
+                    gaitViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.GaitResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.imuGait(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            ImuGaitResultScreen(
+                result = result,
+                onRepeat = {
+                    gaitViewModel.resetFlow()
+                    navController.navigate(Screen.GaitIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onNextTest = { goToNextTest(AssessmentType.GAIT) },
+                onHome = {
+                    gaitViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // Results stored by the earlier camera-based walking test: read-only, kept so no record is lost.
+        composable(Screen.GaitLegacyResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.gait(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            GaitResultScreen(
+                result = result,
+                onRepeat = {
+                    navController.navigate(Screen.GaitIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onNextTest = { goToNextTest(AssessmentType.GAIT) },
+                onHome = { goHome() },
+            )
+        }
+
+        // --- Five Times Sit-to-Stand (phone sensors: accelerometer and gyroscope) ----------
+
+        composable(Screen.SitToStandIntro.route) {
+            SitToStandIntroScreen {
+                // A new run never shows a previous calibration or outcome.
+                sitToStandViewModel.resetFlow()
+                navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.SIT_TO_STAND.id))
+            }
+        }
+
+        composable(Screen.SitToStandTest.route) {
+            ImuSitToStandScreen(
+                session = sitToStandViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.SitToStandResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.SitToStandInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.SitToStandInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // Retry returns to the sensor screen with the calibration cleared: the person sits still and calibrates again.
+                onRetry = {
+                    sitToStandViewModel.resetFlow()
+                    if (!navController.popBackStack(Screen.SitToStandTest.route, inclusive = false)) {
+                        navController.navigate(Screen.SitToStandTest.route)
+                    }
+                },
+                onHome = {
+                    sitToStandViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.SitToStandResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.imuSitToStand(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            ImuSitToStandResultScreen(
+                result = result,
+                onRepeat = {
+                    sitToStandViewModel.resetFlow()
+                    navController.navigate(Screen.SitToStandIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onHome = {
+                    sitToStandViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // Results stored by the earlier camera-based sit-to-stand test: read-only.
+        composable(Screen.SitToStandLegacyResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.sitToStand(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            SitToStandResultScreen(
+                result = result,
+                onRepeat = {
+                    navController.navigate(Screen.SitToStandIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onNextTest = { goToNextTest(AssessmentType.SIT_TO_STAND) },
+                onHome = { goHome() },
+            )
+        }
+
+        // --- Speech (acoustic, on-device) ------------------------------------------------
+
+        composable(Screen.SpeechIntro.route) {
+            // Each visit starts without consent or a selected task; consent is given again for every visit.
+            LaunchedEffect(Unit) { speechViewModel.resetFlow() }
+            val consent by speechViewModel.consent.collectAsState()
+            SpeechIntroScreen(
+                consent = consent,
+                onConsentChanged = { speechViewModel.setConsent(it) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.SPEECH.id))
+                }
+            )
+        }
+
+        composable(Screen.SpeechTaskSelection.route) {
+            val consent by speechViewModel.consent.collectAsState()
+            LaunchedEffect(consent) {
+                // Without consent no task can be started: return to the privacy notice.
+                if (!consent && !navController.popBackStack(Screen.SpeechIntro.route, inclusive = false)) {
+                    navController.navigate(Screen.SpeechIntro.route) { launchSingleTop = true }
+                }
+            }
+            SpeechTaskSelectionScreen(onTaskSelected = { task ->
+                speechViewModel.selectTask(task)
+                navController.navigate(Screen.SpeechTest.route)
+            })
+        }
+
+        composable(Screen.SpeechTest.route) {
+            val task by speechViewModel.task.collectAsState()
+            val consent by speechViewModel.consent.collectAsState()
+            val input by speechViewModel.input.collectAsState()
+            val checking by speechViewModel.inputChecking.collectAsState()
+            val inputError by speechViewModel.inputError.collectAsState()
+            val selected = task
+            LaunchedEffect(selected) {
+                if (selected == null) navController.navigate(Screen.SpeechTaskSelection.route) { launchSingleTop = true }
+            }
+            if (selected != null) {
+                SpeechTestScreen(
+                    task = selected,
+                    consent = consent,
+                    session = speechViewModel.session,
+                    input = input,
+                    inputChecking = checking,
+                    inputError = inputError,
+                    onCheckInput = { speechViewModel.checkInput() },
+                    onCompleted = { id ->
+                        navController.navigate(Screen.SpeechResult.createRoute(id)) {
+                            popUpTo(Screen.Home.route)
+                            launchSingleTop = true
+                        }
+                    },
+                    onInvalid = { kind ->
+                        navController.navigate(Screen.SpeechInvalid.createRoute(kind.name)) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+        }
+
+        composable(Screen.SpeechInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // Retry returns to the task screen; the recording starts again only after a new press of Start.
+                onRetry = {
+                    speechViewModel.session.reset()
+                    if (!navController.popBackStack(Screen.SpeechTest.route, inclusive = false)) {
+                        navController.navigate(Screen.SpeechTest.route)
+                    }
+                },
+                onHome = {
+                    speechViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.SpeechResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.speech(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            SpeechResultScreen(
+                result = result,
+                onRepeat = {
+                    // Same task, same visit: the consent given for this visit still applies.
+                    speechViewModel.session.reset()
+                    navController.navigate(Screen.SpeechTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.SPEECH) },
+                onHome = {
+                    speechViewModel.resetFlow()
                     goHome()
                 }
             )

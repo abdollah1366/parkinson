@@ -72,6 +72,7 @@ fun statusLabel(status: AssessmentStatus): String = stringResource(
 fun sensorLabelRes(requirement: SensorRequirement): Int = when (requirement) {
     SensorRequirement.CAMERA -> R.string.sensor_camera
     SensorRequirement.HAND_LANDMARK_MODEL -> R.string.sensor_hand_model
+    SensorRequirement.POSE_LANDMARK_MODEL -> R.string.sensor_pose_model
     SensorRequirement.ACCELEROMETER -> R.string.sensor_accelerometer
     SensorRequirement.GYROSCOPE -> R.string.sensor_gyroscope
     SensorRequirement.MICROPHONE -> R.string.sensor_microphone
@@ -82,6 +83,7 @@ fun sensorLabelRes(requirement: SensorRequirement): Int = when (requirement) {
 fun sensorMissingRes(requirement: SensorRequirement): Int = when (requirement) {
     SensorRequirement.CAMERA -> R.string.sensor_missing_camera
     SensorRequirement.HAND_LANDMARK_MODEL -> R.string.sensor_missing_hand_model
+    SensorRequirement.POSE_LANDMARK_MODEL -> R.string.sensor_missing_pose_model
     SensorRequirement.ACCELEROMETER -> R.string.sensor_missing_accelerometer
     SensorRequirement.GYROSCOPE -> R.string.sensor_missing_gyroscope
     SensorRequirement.MICROPHONE -> R.string.sensor_missing_microphone

@@ -105,36 +105,68 @@ object AssessmentCatalog {
             startRoute = Screen.HandOpenCloseIntro.route,
             afterSensorCheckRoute = Screen.HandOpenCloseTest.route
         ),
-        planned(
-            AssessmentType.RAPID_ALTERNATING, R.string.test_ram_title, "Rapid Alternating Movements",
-            R.string.test_ram_desc, R.string.test_ram_purpose,
-            listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL, SensorRequirement.GYROSCOPE),
-            durationSeconds = 10, hand = true, icon = "👋"
+        AssessmentDefinition(
+            type = AssessmentType.RESTING_TREMOR,
+            title = R.string.test_rt_title,
+            englishName = "Resting Hand Tremor",
+            description = R.string.test_rt_desc,
+            purpose = R.string.test_rt_purpose,
+            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL),
+            status = AssessmentStatus.AVAILABLE,
+            // Recording length; a 3 s preparation countdown precedes it.
+            durationSeconds = 15,
+            requiresHandSelection = true,
+            icon = "🤲",
+            startRoute = Screen.RestingTremorIntro.route,
+            afterSensorCheckRoute = Screen.RestingTremorTest.route
         ),
-        planned(
-            AssessmentType.RESTING_TREMOR, R.string.test_rt_title, "Resting Hand Tremor",
-            R.string.test_rt_desc, R.string.test_rt_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = true, icon = "🤲",
-            status = AssessmentStatus.RESEARCH
+        AssessmentDefinition(
+            type = AssessmentType.GAIT,
+            title = R.string.test_gait_title,
+            englishName = "Gait / Walking (phone accelerometer and gyroscope)",
+            description = R.string.test_gait_desc,
+            purpose = R.string.test_gait_purpose,
+            // Phone sensors only (in the trouser pocket): accelerometer and gyroscope. No camera.
+            sensors = listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
+            status = AssessmentStatus.AVAILABLE,
+            // Walking time (30 s); a 3 s stillness check and a 3 s countdown precede it.
+            durationSeconds = 30,
+            requiresHandSelection = false,
+            icon = "🚶",
+            startRoute = Screen.GaitIntro.route,
+            afterSensorCheckRoute = Screen.GaitTest.route
         ),
-        planned(
-            AssessmentType.GAIT, R.string.test_gait_title, "Gait / Walking",
-            R.string.test_gait_desc, R.string.test_gait_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = false, icon = "🚶"
+        AssessmentDefinition(
+            type = AssessmentType.SIT_TO_STAND,
+            title = R.string.test_sts_title,
+            englishName = "Five Times Sit-to-Stand (phone accelerometer and gyroscope)",
+            description = R.string.test_sts_desc,
+            purpose = R.string.test_sts_purpose,
+            // Phone sensors only (in the trouser pocket): accelerometer and gyroscope. No camera.
+            sensors = listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
+            status = AssessmentStatus.AVAILABLE,
+            // Time limit of one attempt; the measured total time is shown in the result.
+            durationSeconds = 60,
+            requiresHandSelection = false,
+            icon = "🪑",
+            startRoute = Screen.SitToStandIntro.route,
+            afterSensorCheckRoute = Screen.SitToStandTest.route
         ),
-        planned(
-            AssessmentType.SIT_TO_STAND, R.string.test_sts_title, "Sit-to-Stand",
-            R.string.test_sts_desc, R.string.test_sts_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = false, icon = "🪑"
-        ),
-        planned(
-            AssessmentType.SPEECH, R.string.test_speech_title, "Speech / Voice",
-            R.string.test_speech_desc, R.string.test_speech_purpose,
-            listOf(SensorRequirement.MICROPHONE),
-            durationSeconds = null, hand = false, icon = "🗣"
+        AssessmentDefinition(
+            type = AssessmentType.SPEECH,
+            title = R.string.test_speech_title,
+            englishName = "Speech / Voice (acoustic, on-device)",
+            description = R.string.test_speech_desc,
+            purpose = R.string.test_speech_purpose,
+            // Microphone only; the recording stays in memory and is never stored or uploaded.
+            sensors = listOf(SensorRequirement.MICROPHONE),
+            status = AssessmentStatus.AVAILABLE,
+            // Longest single task (spontaneous speech), not a planned fixed length.
+            durationSeconds = 30,
+            requiresHandSelection = false,
+            icon = "🗣",
+            startRoute = Screen.SpeechIntro.route,
+            afterSensorCheckRoute = Screen.SpeechTaskSelection.route
         ),
         planned(
             AssessmentType.DUAL_TASK, R.string.test_dual_title, "Dual-Task / Cognitive-Motor",
