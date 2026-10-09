@@ -7,12 +7,21 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.data.AssessmentRepository
-import com.example.parkinson.sts.SitToStandSession
+import com.example.parkinson.imu.ImuSitToStandSession
+import com.example.parkinson.sensors.MotionSensorRepository
+import com.example.parkinson.sensors.MotionSensorSource
 
-class SitToStandViewModel(repository: AssessmentRepository) : ViewModel() {
+/** Holds the sit-to-stand session (sensor-based) so a running attempt survives rotation. */
+class SitToStandViewModel(
+    repository: AssessmentRepository,
+    source: MotionSensorSource,
+) : ViewModel() {
 
-    /** Lives in the ViewModel so calibration and an interrupted attempt survive rotation. */
-    val session = SitToStandSession(viewModelScope, onCompleted = repository::saveSitToStand)
+    val session = ImuSitToStandSession(
+        scope = viewModelScope,
+        repository = MotionSensorRepository(source),
+        onCompleted = repository::saveImuSitToStand,
+    )
 
     fun resetFlow() {
         session.reset()
@@ -26,7 +35,7 @@ class SitToStandViewModel(repository: AssessmentRepository) : ViewModel() {
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as ParkinsonApplication
-                SitToStandViewModel(app.assessmentRepository)
+                SitToStandViewModel(app.assessmentRepository, app.motionSensorSource)
             }
         }
     }

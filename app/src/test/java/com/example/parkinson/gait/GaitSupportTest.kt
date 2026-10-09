@@ -2,7 +2,6 @@ package com.example.parkinson.gait
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -35,23 +34,6 @@ class GaitSupportTest {
         p[PoseLandmarkIndex.RIGHT_ANKLE] = PosePoint(0.40, 0.90, 0.95)
         val f = requireNotNull(CameraPoseFeatureExtractor().extract(0L, p, 480, 640).features)
         assertTrue(f.ankleSeparationTorso < 0)
-    }
-
-    @Test
-    fun liveStatusIsNullBeforeAnyFrameAndTracksTheShareOfValidFrames() {
-        val live = LivePoseStatus(window = 4)
-        assertNull(live.validPercent.value)
-        val valid = PoseFrame(0L, PoseFrameStatus.VALID, null)
-        val none = PoseFrame(0L, PoseFrameStatus.NO_POSE, null)
-        live.add(valid)
-        assertEquals(100.0, live.validPercent.value!!, 1e-9)
-        live.add(none)
-        live.add(none)
-        assertEquals(33.33, live.validPercent.value!!, 0.01)
-        live.add(none)
-        live.add(none)
-        // Window of 4: the first valid frame has left the window.
-        assertEquals(0.0, live.validPercent.value!!, 1e-9)
     }
 
     @Test

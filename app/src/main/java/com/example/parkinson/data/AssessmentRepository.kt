@@ -4,6 +4,8 @@ import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
+import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.imu.ImuSitToStandResult
 import com.example.parkinson.speech.SpeechResult
 import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.stability.HandStabilityResult
@@ -46,6 +48,16 @@ interface AssessmentRepository {
     /** Every stored speech result, newest first (for comparison with earlier sessions of the same task). */
     fun observeAllSpeech(): Flow<List<SpeechResult>>
 
+    fun observeAllImuSitToStand(): Flow<List<ImuSitToStandResult>>
+
+    suspend fun saveImuSitToStand(result: ImuSitToStandResult)
+    fun observeImuSitToStand(assessmentId: String): Flow<ImuSitToStandResult?>
+
+    fun observeAllImuGait(): Flow<List<ImuGaitResult>>
+
+    suspend fun saveImuGait(result: ImuGaitResult)
+    fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -59,6 +71,8 @@ class RoomAssessmentRepository(
     private val gaitDao: GaitDao,
     private val sitToStandDao: SitToStandDao,
     private val speechDao: SpeechDao,
+    private val imuSitToStandDao: ImuSitToStandDao,
+    private val imuGaitDao: ImuGaitDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -112,6 +126,22 @@ class RoomAssessmentRepository(
     override fun observeAllSpeech(): Flow<List<SpeechResult>> =
         speechDao.observeAll().map { list -> list.map { it.toDomain() } }
 
+    override fun observeAllImuSitToStand(): Flow<List<ImuSitToStandResult>> =
+        imuSitToStandDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveImuSitToStand(result: ImuSitToStandResult) = imuSitToStandDao.insert(result.toEntity())
+
+    override fun observeImuSitToStand(assessmentId: String): Flow<ImuSitToStandResult?> =
+        imuSitToStandDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllImuGait(): Flow<List<ImuGaitResult>> =
+        imuGaitDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveImuGait(result: ImuGaitResult) = imuGaitDao.insert(result.toEntity())
+
+    override fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?> =
+        imuGaitDao.observeById(assessmentId).map { it?.toDomain() }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
         combine(
             combine(
@@ -129,7 +159,13 @@ class RoomAssessmentRepository(
             combine(withGait, sitToStandDao.observeAll(), speechDao.observeAll()) {
                     others: List<AssessmentResult>, sts: List<SitToStandEntity>, speech: List<SpeechEntity>,
                 ->
-                (others + sts.map { it.toDomain() } + speech.map { it.toDomain() })
+                others + sts.map { it.toDomain() } + speech.map { it.toDomain() }
+            }
+        }.let { withSpeech ->
+            combine(withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll()) {
+                    others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
+                ->
+                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() })
                     .sortedByDescending { it.timestampEpochMs }
             }
         }
@@ -137,7 +173,7 @@ class RoomAssessmentRepository(
     companion object {
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
-            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao()
+            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao()
         )
     }
 }

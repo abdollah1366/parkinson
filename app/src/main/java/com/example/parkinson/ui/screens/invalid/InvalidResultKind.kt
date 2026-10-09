@@ -12,20 +12,14 @@ import com.example.parkinson.tapping.SessionError
 import com.example.parkinson.tapping.SessionInvalidReason
 import com.example.parkinson.tapping.SessionState
 import com.example.parkinson.tapping.quality.QualityIssue
-import com.example.parkinson.gait.GaitError
-import com.example.parkinson.gait.GaitInvalidReason
-import com.example.parkinson.gait.GaitQualityIssue
-import com.example.parkinson.gait.GaitQualityReport
-import com.example.parkinson.gait.GaitState
+import com.example.parkinson.imu.ImuError
+import com.example.parkinson.imu.ImuFailure
+import com.example.parkinson.imu.ImuGaitFailure
 import com.example.parkinson.speech.SpeechError
 import com.example.parkinson.speech.SpeechFailure
 import com.example.parkinson.speech.SpeechQualityIssue
 import com.example.parkinson.speech.SpeechQualityReport
 import com.example.parkinson.speech.SpeechState
-import com.example.parkinson.sts.SitToStandError
-import com.example.parkinson.sts.SitToStandFailure
-import com.example.parkinson.sts.SitToStandInvalidReason
-import com.example.parkinson.sts.SitToStandState
 import com.example.parkinson.tapping.quality.QualityReport
 import com.example.parkinson.tremor.RestingTremorError
 import com.example.parkinson.tremor.RestingTremorInvalidReason
@@ -78,7 +72,15 @@ enum class InvalidResultKind(
     SPEECH_INCOMPLETE(R.string.invalid_speech_incomplete, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
     SPEECH_PERMISSION(R.string.invalid_speech_permission, R.string.invalid_tip_speech_permission, null),
     SPEECH_MIC_UNAVAILABLE(R.string.invalid_speech_mic_unavailable, R.string.invalid_tip_mic, null),
-    SPEECH_CONSENT(R.string.invalid_speech_consent, R.string.invalid_tip_consent, null);
+    SPEECH_CONSENT(R.string.invalid_speech_consent, R.string.invalid_tip_consent, null),
+    IMU_NO_TRANSFER(R.string.invalid_imu_no_transfer, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_INCOMPLETE(R.string.invalid_imu_incomplete, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_TIME_LIMIT(R.string.invalid_imu_time_limit, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_GAP(R.string.invalid_imu_gap, R.string.invalid_tip_imu, R.string.invalid_headline_unreliable),
+    IMU_INVALID_DATA(R.string.invalid_imu_data, R.string.invalid_tip_imu_sensor, R.string.invalid_headline_unreliable),
+    IMU_TOO_FEW_STEPS(R.string.invalid_imu_steps, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_SENSOR_UNAVAILABLE(R.string.invalid_imu_sensor_missing, R.string.invalid_tip_imu_sensor, null),
+    IMU_SENSOR_LOST(R.string.invalid_imu_sensor_lost, R.string.invalid_tip_imu_sensor, null);
 
     companion object {
         fun from(state: SessionState): InvalidResultKind? = when (state) {
@@ -131,44 +133,28 @@ enum class InvalidResultKind(
             else -> null
         }
 
-        /** Walking (camera pose): the same categories, plus the body-visibility and step-count kinds. */
-        fun fromGait(state: GaitState): InvalidResultKind? = when (state) {
-            is GaitState.Invalid -> when (val reason = state.reason) {
-                GaitInvalidReason.Interrupted -> INTERRUPTED
-                is GaitInvalidReason.QualityRejected -> fromGaitQuality(reason.report)
-            }
-
-            is GaitState.Error -> when (state.error) {
-                GaitError.CAMERA_FAILURE, GaitError.FRAME_STARVATION -> CAMERA_ERROR
-                GaitError.MODEL_FAILURE -> TRACKING_ERROR
-                GaitError.STORAGE_FAILURE -> STORAGE_ERROR
-                GaitError.UNEXPECTED -> UNEXPECTED_ERROR
-            }
-
-            else -> null
+        /** Sensor-based sit-to-stand: the sensor failures and the attempt rules. */
+        fun fromImuSitToStand(reason: ImuFailure): InvalidResultKind = when (reason) {
+            ImuFailure.Interrupted -> INTERRUPTED
+            is ImuFailure.NoPostureChange -> IMU_NO_TRANSFER
+            is ImuFailure.TimeLimit -> IMU_TIME_LIMIT
+            is ImuFailure.Incomplete -> IMU_INCOMPLETE
+            ImuFailure.GapInsideTimedSpan -> IMU_GAP
+            is ImuFailure.InvalidData -> IMU_INVALID_DATA
         }
 
-        /** Sit-to-Stand: attempt-level failures (interruption, tracking, time limit, valid-frame share). */
-        fun fromSitToStand(state: SitToStandState): InvalidResultKind? = when (state) {
-            is SitToStandState.Invalid -> when (val reason = state.reason) {
-                is SitToStandFailure.Engine -> when (reason.reason) {
-                    SitToStandInvalidReason.INTERRUPTED -> INTERRUPTED
-                    SitToStandInvalidReason.TRACKING_LOST -> STS_TRACKING_LOST
-                    SitToStandInvalidReason.TIMEOUT_INCOMPLETE -> STS_INCOMPLETE
-                    SitToStandInvalidReason.NON_MONOTONIC_TIMESTAMPS -> UNSTABLE_TRACKING
-                }
+        /** Sensor-based walking. */
+        fun fromImuGait(reason: ImuGaitFailure): InvalidResultKind = when (reason) {
+            ImuGaitFailure.Interrupted -> INTERRUPTED
+            is ImuGaitFailure.TooFewSteps -> IMU_TOO_FEW_STEPS
+            is ImuGaitFailure.InvalidData -> IMU_INVALID_DATA
+        }
 
-                is SitToStandFailure.TooFewValidFrames -> STS_LOW_VALID
-            }
-
-            is SitToStandState.Error -> when (state.error) {
-                SitToStandError.CAMERA_FAILURE, SitToStandError.FRAME_STARVATION -> CAMERA_ERROR
-                SitToStandError.MODEL_FAILURE -> TRACKING_ERROR
-                SitToStandError.STORAGE_FAILURE -> STORAGE_ERROR
-                SitToStandError.UNEXPECTED -> UNEXPECTED_ERROR
-            }
-
-            else -> null
+        fun fromImuError(error: ImuError): InvalidResultKind = when (error) {
+            ImuError.SENSOR_UNAVAILABLE, ImuError.SENSOR_START_FAILED -> IMU_SENSOR_UNAVAILABLE
+            ImuError.SENSOR_STARVED -> IMU_SENSOR_LOST
+            ImuError.STORAGE_FAILURE -> STORAGE_ERROR
+            ImuError.UNEXPECTED -> UNEXPECTED_ERROR
         }
 
         /** Speech: quality findings and microphone errors. Only failures produce this screen; warnings do not. */
@@ -195,16 +181,6 @@ enum class InvalidResultKind(
             SpeechQualityIssue.SILENCE in report.issues -> SPEECH_TOO_QUIET
             SpeechQualityIssue.UNUSABLE_SNR in report.issues -> SPEECH_NOISY
             else -> SPEECH_INCOMPLETE
-        }
-
-        fun fromGaitQuality(report: GaitQualityReport): InvalidResultKind = when (report.primaryIssue) {
-            GaitQualityIssue.TOO_FEW_FRAMES, GaitQualityIssue.LOW_VALID_FRAMES -> GAIT_BODY_NOT_VISIBLE
-            GaitQualityIssue.TOO_FEW_STEPS -> GAIT_TOO_FEW_STEPS
-            GaitQualityIssue.RECORDING_TOO_SHORT -> RECORDING_TOO_SHORT
-            GaitQualityIssue.LONG_GAP, GaitQualityIssue.FREQUENT_GAPS -> EXCESSIVE_DROPOUT
-            GaitQualityIssue.LOW_FRAME_RATE -> INSUFFICIENT_FPS
-            GaitQualityIssue.NON_MONOTONIC_TIMESTAMPS,
-            GaitQualityIssue.REDUCED_VALID_FRAMES, null -> UNSTABLE_TRACKING
         }
 
         fun fromRestingTremorQuality(report: RestingTremorQualityReport): InvalidResultKind = when (report.primaryIssue) {

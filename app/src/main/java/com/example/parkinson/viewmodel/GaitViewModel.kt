@@ -7,12 +7,21 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.data.AssessmentRepository
-import com.example.parkinson.gait.GaitSession
+import com.example.parkinson.imu.ImuGaitSession
+import com.example.parkinson.sensors.MotionSensorRepository
+import com.example.parkinson.sensors.MotionSensorSource
 
-class GaitViewModel(repository: AssessmentRepository) : ViewModel() {
+/** Holds the walking session (sensor-based) so a running trial survives rotation. */
+class GaitViewModel(
+    repository: AssessmentRepository,
+    source: MotionSensorSource,
+) : ViewModel() {
 
-    /** Lives in the ViewModel so an interrupted walk is still reported after rotation. */
-    val session = GaitSession(viewModelScope, onCompleted = repository::saveGait)
+    val session = ImuGaitSession(
+        scope = viewModelScope,
+        repository = MotionSensorRepository(source),
+        onCompleted = repository::saveImuGait,
+    )
 
     fun resetFlow() {
         session.reset()
@@ -26,7 +35,7 @@ class GaitViewModel(repository: AssessmentRepository) : ViewModel() {
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as ParkinsonApplication
-                GaitViewModel(app.assessmentRepository)
+                GaitViewModel(app.assessmentRepository, app.motionSensorSource)
             }
         }
     }

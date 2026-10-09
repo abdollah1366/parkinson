@@ -9,6 +9,11 @@ import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
 import com.example.parkinson.gait.GaitResult
+import com.example.parkinson.imu.ImuComparison
+import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.imu.ImuSitToStandResult
+import com.example.parkinson.imu.previousImuGait
+import com.example.parkinson.imu.previousImuSitToStand
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.speech.SpeechComparison
 import com.example.parkinson.speech.previousSpeech
@@ -64,6 +69,16 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
     fun speech(id: String): Flow<Loadable<SpeechComparison?>> =
         combine(repository.observeSpeech(id), repository.observeAllSpeech()) { current, all ->
             current?.let { SpeechComparison(it, previousSpeech(it, all)) }
+        }.map { Loadable.Loaded(it) }
+
+    fun imuSitToStand(id: String): Flow<Loadable<ImuComparison<ImuSitToStandResult>?>> =
+        combine(repository.observeImuSitToStand(id), repository.observeAllImuSitToStand()) { current, all ->
+            current?.let { ImuComparison(it, previousImuSitToStand(it, all)) }
+        }.map { Loadable.Loaded(it) }
+
+    fun imuGait(id: String): Flow<Loadable<ImuComparison<ImuGaitResult>?>> =
+        combine(repository.observeImuGait(id), repository.observeAllImuGait()) { current, all ->
+            current?.let { ImuComparison(it, previousImuGait(it, all)) }
         }.map { Loadable.Loaded(it) }
 
     /** A Sit-to-Stand result with the most recent earlier attempt, for the comparison section. */

@@ -80,6 +80,11 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "gait_result/${Uri.encode(assessmentId)}"
     }
 
+    /** Read-only result of the earlier camera-based walking test. */
+    object GaitLegacyResult : Screen("gait_legacy_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "gait_legacy_result/${Uri.encode(assessmentId)}"
+    }
+
     object SitToStandIntro : Screen("sit_to_stand_intro")
     object SitToStandTest : Screen("sit_to_stand_test")
 
@@ -89,6 +94,11 @@ sealed class Screen(val route: String) {
 
     object SitToStandResult : Screen("sit_to_stand_result/{$ARG_ASSESSMENT_ID}") {
         fun createRoute(assessmentId: String) = "sit_to_stand_result/${Uri.encode(assessmentId)}"
+    }
+
+    /** Read-only result of the earlier camera-based sit-to-stand test. */
+    object SitToStandLegacyResult : Screen("sit_to_stand_legacy_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "sit_to_stand_legacy_result/${Uri.encode(assessmentId)}"
     }
 
     object SpeechIntro : Screen("speech_intro")

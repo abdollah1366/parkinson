@@ -119,27 +119,27 @@ class AssessmentCatalogTest {
     }
 
     @Test
-    fun sitToStandIsAvailableWithAFiveRepetitionFlowAndCameraPoseOnly() {
+    fun sitToStandIsAvailableWithAFiveRepetitionFlowAndPhoneSensorsOnly() {
         val sts = AssessmentCatalog[AssessmentType.SIT_TO_STAND]
         assertEquals(AssessmentStatus.AVAILABLE, sts.status)
         assertEquals(Screen.SitToStandIntro.route, sts.startRoute)
         assertEquals(Screen.SitToStandTest.route, sts.afterSensorCheckRoute)
         assertFalse(sts.requiresHandSelection)
-        // Camera pose only: the chair and the body are observed from the side; no phone sensor is used.
-        assertEquals(listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL), sts.sensors)
+        // Phone sensors only, phone in the trouser pocket; no camera or pose model.
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), sts.sensors)
         assertTrue(sts.optionalSensors.isEmpty())
     }
 
     @Test
-    fun gaitIsAvailableWithAWalkingFlowAndCameraPoseOnly() {
+    fun gaitIsAvailableWithAWalkingFlowAndPhoneSensorsOnly() {
         val gait = AssessmentCatalog[AssessmentType.GAIT]
         assertEquals(AssessmentStatus.AVAILABLE, gait.status)
         assertEquals(Screen.GaitIntro.route, gait.startRoute)
         assertEquals(Screen.GaitTest.route, gait.afterSensorCheckRoute)
-        assertEquals(20, gait.durationSeconds)
+        assertEquals(30, gait.durationSeconds)
         assertFalse(gait.requiresHandSelection)
-        // Camera pose only: no phone sensor is required or used by this protocol.
-        assertEquals(listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL), gait.sensors)
+        // Phone sensors only, phone in the trouser pocket; no camera or pose model.
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), gait.sensors)
         assertTrue(gait.optionalSensors.isEmpty())
     }
 

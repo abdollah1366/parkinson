@@ -36,9 +36,16 @@ import com.example.parkinson.ui.screens.pronation.PronationSupinationTestScreen
 import com.example.parkinson.ui.screens.result.HandStabilityResultScreen
 import com.example.parkinson.ui.screens.result.PronationSupinationResultScreen
 import com.example.parkinson.ui.screens.result.GaitResultScreen
+import com.example.parkinson.gait.GaitResult
+import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.imu.ImuSitToStandResult
+import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.ui.screens.result.RestingTremorResultScreen
 import com.example.parkinson.ui.screens.gait.GaitIntroScreen
-import com.example.parkinson.ui.screens.gait.GaitTestScreen
+import com.example.parkinson.ui.screens.imu.ImuGaitScreen
+import com.example.parkinson.ui.screens.imu.ImuSitToStandScreen
+import com.example.parkinson.ui.screens.result.ImuGaitResultScreen
+import com.example.parkinson.ui.screens.result.ImuSitToStandResultScreen
 import com.example.parkinson.viewmodel.GaitViewModel
 import com.example.parkinson.viewmodel.SitToStandViewModel
 import com.example.parkinson.viewmodel.SpeechViewModel
@@ -46,7 +53,6 @@ import com.example.parkinson.ui.screens.speech.SpeechIntroScreen
 import com.example.parkinson.ui.screens.speech.SpeechTaskSelectionScreen
 import com.example.parkinson.ui.screens.speech.SpeechTestScreen
 import com.example.parkinson.ui.screens.result.SpeechResultScreen
-import com.example.parkinson.ui.screens.sts.SitToStandCameraScreen
 import com.example.parkinson.ui.screens.sts.SitToStandIntroScreen
 import com.example.parkinson.ui.screens.result.SitToStandResultScreen
 import com.example.parkinson.ui.screens.selection.FingerTappingHandSelectionScreen
@@ -66,13 +72,19 @@ import com.example.parkinson.viewmodel.PronationSupinationViewModel
 import com.example.parkinson.viewmodel.RestingTremorViewModel
 
 /** Result screen route of a stored result of any type. */
-fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
+fun resultRouteFor(result: AssessmentResult): String = when {
+    result is ImuSitToStandResult -> Screen.SitToStandResult.createRoute(result.assessmentId)
+    result is ImuGaitResult -> Screen.GaitResult.createRoute(result.assessmentId)
+    result is SitToStandResult -> Screen.SitToStandLegacyResult.createRoute(result.assessmentId)
+    result is GaitResult -> Screen.GaitLegacyResult.createRoute(result.assessmentId)
+    else -> resultRouteByType(result)
+}
+
+private fun resultRouteByType(result: AssessmentResult): String = when (result.type) {
     AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
     AssessmentType.PRONATION_SUPINATION -> Screen.PronationSupinationResult.createRoute(result.assessmentId)
     AssessmentType.HAND_OPEN_CLOSE -> Screen.HandOpenCloseResult.createRoute(result.assessmentId)
     AssessmentType.RESTING_TREMOR -> Screen.RestingTremorResult.createRoute(result.assessmentId)
-    AssessmentType.GAIT -> Screen.GaitResult.createRoute(result.assessmentId)
-    AssessmentType.SIT_TO_STAND -> Screen.SitToStandResult.createRoute(result.assessmentId)
     AssessmentType.SPEECH -> Screen.SpeechResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
@@ -565,7 +577,7 @@ fun ParkinsonNavGraph(
             )
         }
 
-        // --- Walking (camera pose) ---------------------------------------------------------
+        // --- Walking (phone sensors: accelerometer and gyroscope) --------------------------
 
         composable(Screen.GaitIntro.route) {
             GaitIntroScreen {
@@ -576,7 +588,7 @@ fun ParkinsonNavGraph(
         }
 
         composable(Screen.GaitTest.route) {
-            GaitTestScreen(
+            ImuGaitScreen(
                 session = gaitViewModel.session,
                 onCompleted = { id ->
                     navController.navigate(Screen.GaitResult.createRoute(id)) {
@@ -598,6 +610,7 @@ fun ParkinsonNavGraph(
                 kind = kind,
                 // The walking screen is right below on the back stack and starts fresh (IDLE).
                 onRetry = {
+                    gaitViewModel.resetFlow()
                     if (!navController.popBackStack(Screen.GaitTest.route, inclusive = false)) {
                         navController.navigate(Screen.GaitTest.route)
                     }
@@ -611,15 +624,13 @@ fun ParkinsonNavGraph(
 
         composable(Screen.GaitResult.route) { entry ->
             val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
-            val resultFlow = remember(id) { historyViewModel.gait(id) }
+            val resultFlow = remember(id) { historyViewModel.imuGait(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
-            GaitResultScreen(
+            ImuGaitResultScreen(
                 result = result,
                 onRepeat = {
                     gaitViewModel.resetFlow()
-                    navController.navigate(Screen.GaitTest.route) {
-                        popUpTo(Screen.Home.route)
-                    }
+                    navController.navigate(Screen.GaitIntro.route) { popUpTo(Screen.Home.route) }
                 },
                 onNextTest = { goToNextTest(AssessmentType.GAIT) },
                 onHome = {
@@ -629,7 +640,22 @@ fun ParkinsonNavGraph(
             )
         }
 
-        // --- Five Times Sit-to-Stand (camera pose) -----------------------------------------
+        // Results stored by the earlier camera-based walking test: read-only, kept so no record is lost.
+        composable(Screen.GaitLegacyResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.gait(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            GaitResultScreen(
+                result = result,
+                onRepeat = {
+                    navController.navigate(Screen.GaitIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onNextTest = { goToNextTest(AssessmentType.GAIT) },
+                onHome = { goHome() },
+            )
+        }
+
+        // --- Five Times Sit-to-Stand (phone sensors: accelerometer and gyroscope) ----------
 
         composable(Screen.SitToStandIntro.route) {
             SitToStandIntroScreen {
@@ -640,7 +666,7 @@ fun ParkinsonNavGraph(
         }
 
         composable(Screen.SitToStandTest.route) {
-            SitToStandCameraScreen(
+            ImuSitToStandScreen(
                 session = sitToStandViewModel.session,
                 onCompleted = { id ->
                     navController.navigate(Screen.SitToStandResult.createRoute(id)) {
@@ -660,7 +686,7 @@ fun ParkinsonNavGraph(
             val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
             InvalidResultScreen(
                 kind = kind,
-                // Retry returns to the camera screen with the calibration cleared: the person sits and calibrates again.
+                // Retry returns to the sensor screen with the calibration cleared: the person sits still and calibrates again.
                 onRetry = {
                     sitToStandViewModel.resetFlow()
                     if (!navController.popBackStack(Screen.SitToStandTest.route, inclusive = false)) {
@@ -676,21 +702,33 @@ fun ParkinsonNavGraph(
 
         composable(Screen.SitToStandResult.route) { entry ->
             val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.imuSitToStand(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            ImuSitToStandResultScreen(
+                result = result,
+                onRepeat = {
+                    sitToStandViewModel.resetFlow()
+                    navController.navigate(Screen.SitToStandIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onHome = {
+                    sitToStandViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // Results stored by the earlier camera-based sit-to-stand test: read-only.
+        composable(Screen.SitToStandLegacyResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
             val resultFlow = remember(id) { historyViewModel.sitToStand(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             SitToStandResultScreen(
                 result = result,
                 onRepeat = {
-                    sitToStandViewModel.resetFlow()
-                    navController.navigate(Screen.SitToStandIntro.route) {
-                        popUpTo(Screen.Home.route)
-                    }
+                    navController.navigate(Screen.SitToStandIntro.route) { popUpTo(Screen.Home.route) }
                 },
                 onNextTest = { goToNextTest(AssessmentType.SIT_TO_STAND) },
-                onHome = {
-                    sitToStandViewModel.resetFlow()
-                    goHome()
-                }
+                onHome = { goHome() },
             )
         }
 

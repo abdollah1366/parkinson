@@ -48,6 +48,14 @@ class MotionSampleBuffer(initialCapacity: Int = 4096) {
         return out
     }
 
+    /** Largest timestamp in the buffer (ns), or null when empty. */
+    fun lastTimestampNs(): Long? {
+        if (size == 0) return null
+        var last = timestamps[0]
+        for (i in 1 until size) if (timestamps[i] > last) last = timestamps[i]
+        return last
+    }
+
     /** Copies everything into immutable samples (done once, off the sensor thread). */
     fun toSamples(): List<MotionSample> = List(size) { i ->
         MotionSample(MotionSensorType.entries[types[i].toInt()], timestamps[i], xs[i], ys[i], zs[i], unreliable[i])

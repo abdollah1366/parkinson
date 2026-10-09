@@ -123,14 +123,14 @@ object AssessmentCatalog {
         AssessmentDefinition(
             type = AssessmentType.GAIT,
             title = R.string.test_gait_title,
-            englishName = "Gait / Walking (camera pose)",
+            englishName = "Gait / Walking (phone accelerometer and gyroscope)",
             description = R.string.test_gait_desc,
             purpose = R.string.test_gait_purpose,
-            // Camera pose only: no phone sensor is used by this protocol, and plantar pressure is not measured.
-            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL),
+            // Phone sensors only (in the trouser pocket): accelerometer and gyroscope. No camera.
+            sensors = listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
             status = AssessmentStatus.AVAILABLE,
-            // Walking time; a 3 s preparation countdown precedes it.
-            durationSeconds = 20,
+            // Walking time (30 s); a 3 s stillness check and a 3 s countdown precede it.
+            durationSeconds = 30,
             requiresHandSelection = false,
             icon = "🚶",
             startRoute = Screen.GaitIntro.route,
@@ -139,11 +139,11 @@ object AssessmentCatalog {
         AssessmentDefinition(
             type = AssessmentType.SIT_TO_STAND,
             title = R.string.test_sts_title,
-            englishName = "Five Times Sit-to-Stand (camera pose)",
+            englishName = "Five Times Sit-to-Stand (phone accelerometer and gyroscope)",
             description = R.string.test_sts_desc,
             purpose = R.string.test_sts_purpose,
-            // Camera pose only: the phone is not worn; the chair and the body are observed from the side.
-            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL),
+            // Phone sensors only (in the trouser pocket): accelerometer and gyroscope. No camera.
+            sensors = listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
             status = AssessmentStatus.AVAILABLE,
             // Time limit of one attempt; the measured total time is shown in the result.
             durationSeconds = 60,
