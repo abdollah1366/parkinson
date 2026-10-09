@@ -102,6 +102,10 @@ class RestingTremorSession(
     private var lastResultArrivalMs = 0L
     private var consecutiveErrors = 0
 
+    // Arrival counts of the current recording window (diagnostics only).
+    private var resultsInWindow = 0
+    private var resultsOutsideWindow = 0
+
     private var job: Job? = null
 
     fun onTrackingResult(result: HandTrackingResult) {
@@ -109,7 +113,11 @@ class RestingTremorSession(
             lastResultArrivalMs = clock()
             consecutiveErrors = if (result is HandTrackingResult.Error) consecutiveErrors + 1 else 0
             val ts = result.timestampMs
-            if (ts !in acceptFromMs..acceptUntilMs) return
+            if (ts !in acceptFromMs..acceptUntilMs) {
+                resultsOutsideWindow++
+                return
+            }
+            resultsInWindow++
             frames += RestingTremorFrameExtractor.extract(frames.size, result)
         }
     }
@@ -176,16 +184,20 @@ class RestingTremorSession(
             }
             delay(config.lateFrameGraceMs)
 
-            val (recorded, endWall) = synchronized(lock) {
+            val capture = synchronized(lock) {
                 if (id != runId) return
                 acceptFromMs = Long.MAX_VALUE
                 acceptUntilMs = Long.MIN_VALUE
-                Pair(frames.toList(), wallClock())
+                Capture(frames.toList(), wallClock(), resultsInWindow, resultsOutsideWindow)
             }
+            val recorded = capture.frames
+            val endWall = capture.endWallMs
 
+            val recording = RestingTremorRecording(recorded, config.recordingMs)
             val analysis = withContext(processingDispatcher) {
-                engine.analyze(RestingTremorRecording(recorded, config.recordingMs))
+                engine.analyze(recording)
             }
+            RestingTremorDiagnostics.report(capture.resultsInWindow, capture.resultsOutside, recording, analysis)
             val metrics = analysis.metrics
             if (!analysis.quality.isUsable || metrics == null) {
                 publish(id, RestingTremorState.Invalid(RestingTremorInvalidReason.QualityRejected(analysis.quality)))
@@ -275,8 +287,18 @@ class RestingTremorSession(
         acceptFromMs = Long.MAX_VALUE
         acceptUntilMs = Long.MIN_VALUE
         frames.clear()
+        resultsInWindow = 0
+        resultsOutsideWindow = 0
         _liveStats.value = RestingTremorLiveStats()
     }
 
     private fun ceilSeconds(ms: Long): Int = ((ms + 999) / 1000).toInt()
+
+    /** What is taken from the session when a recording window closes. */
+    private class Capture(
+        val frames: List<RestingTremorFrame>,
+        val endWallMs: Long,
+        val resultsInWindow: Int,
+        val resultsOutside: Int,
+    )
 }

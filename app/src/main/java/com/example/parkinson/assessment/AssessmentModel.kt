@@ -36,6 +36,7 @@ enum class AssessmentStatus {
 enum class SensorRequirement {
     CAMERA,
     HAND_LANDMARK_MODEL,
+    POSE_LANDMARK_MODEL,
     ACCELEROMETER,
     GYROSCOPE,
     MICROPHONE

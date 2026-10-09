@@ -11,6 +11,8 @@ import com.example.parkinson.diagnostics.SensorDiagnostics
 import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.sensors.AndroidMotionSensorSource
 import com.example.parkinson.sensors.MotionSensorSource
+import com.example.parkinson.gait.GaitDiagnostics
+import com.example.parkinson.tremor.RestingTremorDiagnostics
 
 /** Holds the app-wide singletons (a minimal manual dependency container). */
 class ParkinsonApplication : Application() {
@@ -29,5 +31,7 @@ class ParkinsonApplication : Application() {
         val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         TapDiagnostics.enabled = debuggable
         SensorDiagnostics.enabled = debuggable
+        RestingTremorDiagnostics.enabled = debuggable
+        GaitDiagnostics.enabled = debuggable
     }
 }

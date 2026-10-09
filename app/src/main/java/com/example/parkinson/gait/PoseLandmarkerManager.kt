@@ -13,6 +13,18 @@ import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 
 /**
+ * One pose result as upright landmarks ([points] is null when no person was found or on error), with the
+ * upright image size the normalized coordinates refer to.
+ */
+data class PoseSample(
+    val timestampMs: Long,
+    val points: List<PosePoint?>?,
+    val imageWidth: Int,
+    val imageHeight: Int,
+    val status: PoseFrameStatus,
+)
+
+/**
  * MediaPipe Pose Landmarker (LIVE_STREAM, one person) for the gait assessment. Every result is turned
  * into a [PoseFrame] by [CameraPoseFeatureExtractor] and passed to [resultListener] on the MediaPipe
  * thread, so no frame is dropped.
@@ -34,13 +46,22 @@ class PoseLandmarkerManager(
     @Volatile
     var resultListener: ((PoseFrame) -> Unit)? = null
 
+    /**
+     * Every result as upright landmarks, for tests that need more joints than [PoseFrame] keeps. Called on
+     * the MediaPipe thread. Errors arrive with null points and status ERROR.
+     */
+    @Volatile
+    var sampleListener: ((PoseSample) -> Unit)? = null
+
     @Volatile private var closed = false
     private var poseLandmarker: PoseLandmarker? = null
-    private var lastTimestampMs = 0L
+
+    /** Timestamp of the last frame submitted to MediaPipe (monotonic, written on the analysis thread). */
+    @Volatile private var lastTimestampMs = 0L
 
     // Upright image size of each submitted frame, keyed by its timestamp until the result arrives.
     private val sizeLock = Any()
-    private val pendingSizes = LinkedHashMap<Long, Pair<Int, Int>>()
+    private val pendingSizes = LinkedHashMap<Long, PendingGeometry>()
 
     init {
         try {
@@ -78,13 +99,19 @@ class PoseLandmarkerManager(
             val swapped = rotation == 90 || rotation == 270
             val ts = nextTimestamp()
             synchronized(sizeLock) {
-                pendingSizes[ts] = (if (swapped) bitmap.height else bitmap.width) to (if (swapped) bitmap.width else bitmap.height)
+                pendingSizes[ts] = PendingGeometry(
+                    width = if (swapped) bitmap.height else bitmap.width,
+                    height = if (swapped) bitmap.width else bitmap.height,
+                    rotation = rotation,
+                )
                 while (pendingSizes.size > MAX_PENDING) pendingSizes.remove(pendingSizes.keys.first())
             }
             landmarker.detectAsync(mpImage, processing, ts)
         } catch (e: Exception) {
             Log.e(TAG, "pose detect failed", e)
-            resultListener?.invoke(PoseFrame(SystemClock.uptimeMillis(), PoseFrameStatus.ERROR, null))
+            // Never earlier than the frames already submitted: the timeline must stay non-decreasing.
+            resultListener?.invoke(PoseFrame(lastTimestampMs, PoseFrameStatus.ERROR, null))
+            sampleListener?.invoke(PoseSample(lastTimestampMs, null, 0, 0, PoseFrameStatus.ERROR))
         }
     }
 
@@ -99,16 +126,25 @@ class PoseLandmarkerManager(
     private fun onResult(result: PoseLandmarkerResult) {
         if (closed) return
         val ts = result.timestampMs()
-        val frame = if (result.landmarks().isEmpty()) {
-            PoseFrame(ts, PoseFrameStatus.NO_POSE, null)
+        val geometry = synchronized(sizeLock) { pendingSizes.remove(ts) }
+        val w = geometry?.width ?: 0
+        val h = geometry?.height ?: 0
+        val upright: List<PosePoint?>? = if (result.landmarks().isEmpty()) {
+            null
         } else {
-            val points = result.landmarks()[0].map { lm ->
+            // MediaPipe reports landmarks in the frame it received; rotate them to the upright image.
+            val raw = result.landmarks()[0].map { lm ->
                 PosePoint(lm.x().toDouble(), lm.y().toDouble(), lm.visibility().orElse(0f).toDouble())
             }
-            val (w, h) = synchronized(sizeLock) { pendingSizes.remove(ts) } ?: (0 to 0)
-            extractor.extract(ts, points, w, h)
+            PoseOrientation.toUpright(raw, geometry?.rotation ?: 0)
+        }
+        val frame = if (upright == null) {
+            PoseFrame(ts, PoseFrameStatus.NO_POSE, null)
+        } else {
+            extractor.extract(ts, upright, w, h)
         }
         resultListener?.invoke(frame)
+        sampleListener?.invoke(PoseSample(ts, upright, w, h, frame.status))
     }
 
     fun close() {
@@ -116,6 +152,8 @@ class PoseLandmarkerManager(
         poseLandmarker?.close()
         poseLandmarker = null
     }
+
+    private class PendingGeometry(val width: Int, val height: Int, val rotation: Int)
 
     companion object {
         private const val TAG = "PoseLandmarkerManager"

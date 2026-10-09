@@ -1,8 +1,10 @@
 package com.example.parkinson.data
 
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
+import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import com.example.parkinson.tremor.RestingTremorResult
@@ -28,6 +30,15 @@ interface AssessmentRepository {
     suspend fun saveRestingTremor(result: RestingTremorResult)
     fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?>
 
+    suspend fun saveGait(result: GaitResult)
+    fun observeGait(assessmentId: String): Flow<GaitResult?>
+
+    suspend fun saveSitToStand(result: SitToStandResult)
+    fun observeSitToStand(assessmentId: String): Flow<SitToStandResult?>
+
+    /** Every stored Sit-to-Stand result, newest first (for comparison with earlier sessions). */
+    fun observeAllSitToStand(): Flow<List<SitToStandResult>>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -37,7 +48,9 @@ class RoomAssessmentRepository(
     private val stabilityDao: HandStabilityDao,
     private val pronationDao: PronationSupinationDao,
     private val openCloseDao: HandOpenCloseDao,
-    private val restingTremorDao: RestingTremorDao
+    private val restingTremorDao: RestingTremorDao,
+    private val gaitDao: GaitDao,
+    private val sitToStandDao: SitToStandDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -70,20 +83,42 @@ class RoomAssessmentRepository(
     override fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?> =
         restingTremorDao.observeById(assessmentId).map { it?.toDomain() }
 
+    override suspend fun saveGait(result: GaitResult) = gaitDao.insert(result.toEntity())
+
+    override fun observeGait(assessmentId: String): Flow<GaitResult?> =
+        gaitDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override suspend fun saveSitToStand(result: SitToStandResult) = sitToStandDao.insert(result.toEntity())
+
+    override fun observeSitToStand(assessmentId: String): Flow<SitToStandResult?> =
+        sitToStandDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllSitToStand(): Flow<List<SitToStandResult>> =
+        sitToStandDao.observeAll().map { list -> list.map { it.toDomain() } }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
         combine(
-            dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll(),
-            openCloseDao.observeAll(), restingTremorDao.observeAll()
-        ) { tapping, stability, pronation, openClose, tremor ->
-            (tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
-                pronation.map { it.toDomain() } + openClose.map { it.toDomain() } + tremor.map { it.toDomain() })
-                .sortedByDescending { it.timestampEpochMs }
+            combine(
+                dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll(),
+                openCloseDao.observeAll(), restingTremorDao.observeAll()
+            ) { tapping, stability, pronation, openClose, tremor ->
+                val all: List<AssessmentResult> = tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
+                    pronation.map { it.toDomain() } + openClose.map { it.toDomain() } + tremor.map { it.toDomain() }
+                all
+            },
+            gaitDao.observeAll()
+        ) { others: List<AssessmentResult>, gait: List<GaitEntity> ->
+            others + gait.map { it.toDomain() }
+        }.let { withGait ->
+            combine(withGait, sitToStandDao.observeAll()) { others: List<AssessmentResult>, sts: List<SitToStandEntity> ->
+                (others + sts.map { it.toDomain() }).sortedByDescending { it.timestampEpochMs }
+            }
         }
 
     companion object {
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
-            db.restingTremorDao()
+            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao()
         )
     }
 }

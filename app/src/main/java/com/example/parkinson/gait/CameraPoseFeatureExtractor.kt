@@ -65,6 +65,8 @@ data class PoseFeatures(
     val rightAnkleHeight: Double,
     /** Shoulder-line tilt from horizontal, degrees (image-plane). Positive = right shoulder lower in the image. */
     val shoulderTiltDeg: Double,
+    /** Right ankle x minus left ankle x, in torso lengths (signed). Its peaks in absolute value mark the steps. */
+    val ankleSeparationTorso: Double,
 )
 
 data class PoseFrame(
@@ -132,8 +134,8 @@ class CameraPoseFeatureExtractor(
 
         val leftWrist = wristOffset(points, PoseLandmarkIndex.LEFT_WRIST, shoulderX, torso, w, h)
         val rightWrist = wristOffset(points, PoseLandmarkIndex.RIGHT_WRIST, shoulderX, torso, w, h)
-        val leftAnkleY = px(PoseLandmarkIndex.LEFT_ANKLE).second
-        val rightAnkleY = px(PoseLandmarkIndex.RIGHT_ANKLE).second
+        val (leftAnkleX, leftAnkleY) = px(PoseLandmarkIndex.LEFT_ANKLE)
+        val (rightAnkleX, rightAnkleY) = px(PoseLandmarkIndex.RIGHT_ANKLE)
 
         val features = PoseFeatures(
             torsoLengthPx = torso,
@@ -143,6 +145,7 @@ class CameraPoseFeatureExtractor(
             leftAnkleHeight = (leftAnkleY - hipY) / torso,
             rightAnkleHeight = (rightAnkleY - hipY) / torso,
             shoulderTiltDeg = shoulderTiltDeg,
+            ankleSeparationTorso = (rightAnkleX - leftAnkleX) / torso,
         )
         return PoseFrame(timestampMs, PoseFrameStatus.VALID, features)
     }

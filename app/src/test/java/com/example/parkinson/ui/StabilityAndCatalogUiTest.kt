@@ -70,7 +70,7 @@ class StabilityAndCatalogUiTest {
     @Test
     fun catalogShowsEveryTestWithItsStatus() {
         setContent { AssessmentCatalogScreen(onTestSelected = {}) }
-        rule.onNodeWithText("۵ آزمون آماده انجام • ۴ آزمون در حال توسعه").assertIsDisplayed()
+        rule.onNodeWithText("۷ آزمون آماده انجام • ۲ آزمون در حال توسعه").assertIsDisplayed()
         titles.forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsDisplayed()
@@ -90,7 +90,7 @@ class StabilityAndCatalogUiTest {
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("آزمون باز و بسته کردن دست"))
         rule.onNodeWithText("آزمون باز و بسته کردن دست").assertIsEnabled().performClick()
 
-        listOf("راه رفتن", "ارزیابی گفتار").forEach { title ->
+        listOf("ارزیابی گفتار").forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsNotEnabled().performClick()
         }
@@ -107,7 +107,7 @@ class StabilityAndCatalogUiTest {
 
     @Test
     fun unavailableCardsShowDevelopmentStatusNotMeasurements() {
-        setContent { AssessmentCatalogScreen(tests = listOf(AssessmentCatalog[AssessmentType.GAIT]), onTestSelected = {}) }
+        setContent { AssessmentCatalogScreen(tests = listOf(AssessmentCatalog[AssessmentType.SPEECH]), onTestSelected = {}) }
         rule.onNodeWithText("◌ در حال توسعه").assertIsDisplayed()
         rule.onNodeWithText("مدت: پس از تعیین پروتکل").assertIsDisplayed()
         rule.onNodeWithText("● آماده انجام").assertDoesNotExist()

@@ -8,13 +8,17 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
+import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
+import com.example.parkinson.sts.SitToStandComparison
+import com.example.parkinson.sts.previousSitToStand
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import com.example.parkinson.tremor.RestingTremorResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -50,6 +54,15 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     fun restingTremor(id: String): Flow<Loadable<RestingTremorResult?>> =
         repository.observeRestingTremor(id).map { Loadable.Loaded(it) }
+
+    fun gait(id: String): Flow<Loadable<GaitResult?>> =
+        repository.observeGait(id).map { Loadable.Loaded(it) }
+
+    /** A Sit-to-Stand result with the most recent earlier attempt, for the comparison section. */
+    fun sitToStand(id: String): Flow<Loadable<SitToStandComparison?>> =
+        combine(repository.observeSitToStand(id), repository.observeAllSitToStand()) { current, all ->
+            current?.let { SitToStandComparison(it, previousSitToStand(it, all)) }
+        }.map { Loadable.Loaded(it) }
 
     companion object {
         val Factory = viewModelFactory {

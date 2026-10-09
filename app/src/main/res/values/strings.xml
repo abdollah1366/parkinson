@@ -203,12 +203,10 @@
     <string name="test_rt_purpose">ثبت ویژگی‌های فنی حرکت دست در حالت استراحت؛ پروتکل هنوز اعتبارسنجی نشده و تشخیص بالینی ارائه نمی‌کند.</string>
 
     <string name="test_gait_title">راه رفتن</string>
-    <string name="test_gait_desc">گوشی را طبق دستور در محل مناسب قرار دهید و مسیر مشخص‌شده را طی کنید.</string>
-    <string name="test_gait_purpose">بررسی تعداد گام، آهنگ گام، زمان‌بندی و تغییرپذیری گام‌ها. تا تعریف یک پروتکل ایمن فعال نمی‌شود.</string>
+    <string name="test_gait_desc">کل بدن را در تصویر دوربین قرار دهید و در مسیر مشخص‌شده راه بروید.</string>
+    <string name="test_gait_purpose">بررسی تعداد گام، آهنگ گام و تغییرپذیری زمان گام‌ها از تصویر دوربین. فشار کف پا اندازه‌گیری نمی‌شود.</string>
 
     <string name="test_sts_title">بلند شدن از صندلی</string>
-    <string name="test_sts_desc">بلند شدن از صندلی و نشستن دوباره با گوشی همراه.</string>
-    <string name="test_sts_purpose">بررسی مدت حرکت، الگوی شتاب، تعداد تکرار و زمان انتقال. تا تعریف یک پروتکل ایمن و معتبر فعال نمی‌شود.</string>
 
     <string name="test_speech_title">ارزیابی گفتار</string>
     <string name="test_speech_desc">خواندن یک جمله یا کشیدن یک صدای ثابت.</string>
@@ -574,4 +572,161 @@
 
     <string name="history_item_tremor">بسامد غالب: %1$s هرتز  •  دامنه نسبی: %2$s٪ طول دست</string>
     <string name="history_item_open_close">%1$s حرکت کامل  •  %2$s حرکت در ثانیه</string>
+    <string name="history_item_gait">%1$s گام  •  آهنگ: %2$s گام در دقیقه</string>
+
+    <string name="sensor_pose_model">مدل تشخیص بدن</string>
+    <string name="sensor_missing_pose_model">مدل تشخیص بدن در برنامه پیدا نشد.</string>
+    <string name="invalid_gait_body">بدن کامل در تصویر دیده نشد، بنابراین داده‌ی راه رفتن کافی نیست. آزمون را با دیده شدن کل بدن تکرار کنید.</string>
+    <string name="invalid_gait_steps">تعداد گام‌های کافی شناسایی نشد. مسیر را کامل طی کنید و در کادر دوربین راه بروید.</string>
+    <string name="invalid_tip_gait">دوربین را در فاصله ۲ تا ۳ متری قرار دهید، کل بدن را در کادر نگه دارید و در مسیر مستقیم راه بروید.</string>
+
+    <string name="gait_intro_instruction">این آزمون با دوربین و تشخیص بدن، تعداد گام‌ها و آهنگ راه رفتن را در حدود ۲۰ ثانیه اندازه می‌گیرد.</string>
+    <string name="gait_duration_value">حدود ۲۰ ثانیه راه رفتن (پس از ۳ ثانیه آمادگی)</string>
+    <string name="gait_safety_title">ایمنی</string>
+    <string name="gait_safety_text">در فضای خالی و بدون مانع راه بروید. یک نفر در نزدیکی شما باشد. اگر احساس سرگیجه یا ناپایداری کردید، فوراً بایستید و آزمون را متوقف کنید.</string>
+    <string name="gait_intro_steps_title">مراحل آزمون</string>
+    <string name="gait_step_1">گوشی را روی یک پایه ثابت یا سطح پایدار قرار دهید؛ دوربین رو به مسیر باشد.</string>
+    <string name="gait_step_2">فاصله‌ای حدود ۲ تا ۳ متر از دوربین بگیرید؛ کل بدن از سر تا پا، به‌ویژه هر دو پا، دیده شود.</string>
+    <string name="gait_step_3">مسیر مستقیمی حدود ۵ متر را به‌صورت جانبی نسبت به دوربین انتخاب کنید.</string>
+    <string name="gait_step_4">پس از شمارش ۳ ثانیه، با سرعت راحت و طبیعی راه بروید تا پایان ثبت.</string>
+    <string name="gait_step_5">اگر کل بدن دیده نشد، پیش از شروع فاصله یا موقعیت دوربین را تنظیم کنید.</string>
+    <string name="gait_measures_title">شاخص‌های اندازه‌گیری‌شده</string>
+    <string name="gait_measure_1">تعداد گام‌های شناسایی‌شده</string>
+    <string name="gait_measure_2">آهنگ گام (گام در دقیقه)</string>
+    <string name="gait_measure_3">تغییرپذیری فاصله‌ی زمانی بین گام‌ها (درصد)</string>
+    <string name="gait_measure_4">خم شدن تنه و دامنه‌ی تاب خوردن بازوها (از تصویر، بدون واحد فیزیکی کالیبره‌شده)</string>
+    <string name="gait_not_measured_title">اندازه‌گیری نمی‌شود</string>
+    <string name="gait_not_measured_1">فشار کف پا: برای آن سنسور جداگانه لازم است و در این آزمون اندازه‌گیری نمی‌شود.</string>
+    <string name="gait_not_measured_2">سنسورهای گوشی در این نسخه استفاده نمی‌شوند؛ داده‌ای از آن‌ها ثبت یا جایگزین نشده است.</string>
+
+    <string name="gait_guide_model_missing">مدل تشخیص بدن در برنامه پیدا نشد.</string>
+    <string name="gait_guide_place_body">کل بدن را داخل کادر قرار دهید.</string>
+    <string name="gait_guide_body_ready">بدن کامل دیده می‌شود ✓</string>
+    <string name="gait_guide_body_partial">کل بدن، به‌ویژه پاها، را داخل تصویر نگه دارید.</string>
+    <string name="gait_live_body_share">بدن کامل در %1$s٪ از فریم‌های اخیر دیده شد</string>
+    <string name="gait_live_frames">فریم‌های دریافت‌شده: %1$s</string>
+    <string name="gait_camera_hint">دوربین را ثابت نگه دارید. پس از دیده شدن کل بدن، دکمه‌ی شروع فعال می‌شود.</string>
+    <string name="gait_ready_go">آماده‌اید؛ دکمه‌ی شروع را بزنید.</string>
+    <string name="gait_ready_wait">منتظر دیده شدن کل بدن در تصویر…</string>
+    <string name="gait_btn_cancel">لغو</string>
+    <string name="gait_session_countdown">آماده شوید: %1$s</string>
+    <string name="gait_session_walk">راه بروید: %1$s ثانیه مانده</string>
+
+    <string name="gait_result_title">نتیجه راه رفتن</string>
+    <string name="gait_result_duration">مدت ثبت</string>
+    <string name="gait_result_valid">فریم‌های دارای بدن کامل</string>
+    <string name="gait_result_steps">تعداد گام‌ها</string>
+    <string name="gait_result_steps_desc">گام‌ها از قله‌های فاصله‌ی مچ‌های پا در تصویر شناسایی شده‌اند. این شمارش تصویری است و با شمارش بالینی یکی نیست.</string>
+    <string name="gait_result_cadence">آهنگ گام</string>
+    <string name="gait_result_cadence_value">%1$s گام در دقیقه</string>
+    <string name="gait_result_variability">تغییرپذیری فاصله‌ی زمانی گام‌ها</string>
+    <string name="gait_result_variability_value">%1$s٪</string>
+    <string name="gait_result_variability_desc">انحراف معیار به میانگین فاصله‌ی زمانی بین گام‌ها. این عدد تشخیص نیست و فقط یکنواختی این ثبت را نشان می‌دهد.</string>
+    <string name="gait_result_lean">خم شدن تنه (میانگین)</string>
+    <string name="gait_result_lean_value">%1$s درجه</string>
+    <string name="gait_result_lean_desc">زاویه‌ی خط شانه تا لگن نسبت به محور عمودی تصویر. زاویه‌ی واقعی بدن نیست.</string>
+    <string name="gait_result_arm_left">دامنه‌ی تاب خوردن بازوی چپ</string>
+    <string name="gait_result_arm_right">دامنه‌ی تاب خوردن بازوی راست</string>
+    <string name="gait_result_arm_value">%1$s طول تنه</string>
+    <string name="gait_result_arm_desc">فاصله‌ی افقی مچ از شانه در واحد طول تنه، از تصویر و بدون کالیبراسیون.</string>
+    <string name="gait_result_pressure">فشار کف پا</string>
+    <string name="gait_result_pressure_value">اندازه‌گیری نشده</string>
+    <string name="gait_result_pressure_desc">سخت‌افزار فشار کف پا به این آزمون متصل نیست؛ مقداری جایگزین نشده است.</string>
+    <string name="gait_warn_duration">مدت ثبت کمتر از حد لازم بود.</string>
+    <string name="gait_warn_valid">بدن کامل در تعداد زیادی از فریم‌ها دیده نشد. دوربین و فاصله را بررسی کنید.</string>
+    <string name="gait_warn_gaps">دیده شدن بدن چند بار قطع شد. مسیر را بدون مانع و داخل کادر دوربین نگه دارید.</string>
+    <string name="gait_warn_fps">نرخ دریافت فریم کم بود؛ زمان‌بندی گام‌ها دقت کمتری دارد.</string>
+    <string name="gait_warn_steps">تعداد گام‌های کافی شناسایی نشد؛ آهنگ گام و تغییرپذیری محاسبه نشد.</string>
+
+    <string name="invalid_sts_incomplete">پنج تکرار کامل در مدت مجاز انجام نشد. آزمون را با حرکت راحت و ایمن تکرار کنید.</string>
+    <string name="invalid_sts_tracking">بدن در مدتی از آزمون به‌طور کامل دیده نشد، بنابراین ثبت معتبر نیست. آزمون را دوباره با کنترل وضعیت نشسته انجام دهید.</string>
+    <string name="invalid_sts_low_valid">بیشتر فریم‌های ثبت‌شده بدن کامل را نشان ندادند. دوربین را از کنار و در فاصله‌ی مناسب قرار دهید.</string>
+    <string name="invalid_tip_sts">دوربین را از کنار صندلی و در فاصله‌ی ۲ تا ۳ متری قرار دهید؛ کل بدن، به‌ویژه پاها، باید دیده شود.</string>
+
+    <string name="history_item_sts">%1$s تکرار  •  %2$s ثانیه</string>
+
+    <string name="test_sts_desc">از روی یک صندلی ثابت پنج بار بلند شوید و دوباره بنشینید؛ دوربین باید شما را از کنار ببیند.</string>
+    <string name="test_sts_purpose">زمان پنج تکرار بلند شدن و نشستن از صندلی، با اندازه‌گیری از تصویر دوربین. نتیجه نمره یا تشخیص نیست.</string>
+
+    <string name="sts_intro_instruction">در این آزمون پنج بار از صندلی بلند می‌شوید و دوباره می‌نشینید، با سرعتی راحت و ایمن. زمان کل از شروع حرکت اول تا نشستن کامل بعد از تکرار پنجم اندازه‌گیری می‌شود.</string>
+    <string name="sts_duration_value">حداکثر ۶۰ ثانیه برای یک اجرای کامل (پیش از آن ۳ ثانیه آمادگی)</string>
+    <string name="sts_safety_title">ایمنی</string>
+    <string name="sts_safety_text">در صورت سرگیجه، درد قفسه‌ی سینه، تنگی نفس غیرعادی یا احساس ناپایداری، فوراً بنشینید یا بایستید و آزمون را متوقف کنید. هرگز برای سریع‌تر انجام دادن، به خود فشار نیاورید. اگر امکان دارد، یک فرد آگاه در نزدیکی شما باشد.</string>
+    <string name="sts_intro_steps_title">مراحل آزمون</string>
+    <string name="sts_step_1">روی یک صندلی محکم و بدون چرخ بنشینید؛ پشتی صندلی به دیوار یا تکیه‌گاه ثابت باشد.</string>
+    <string name="sts_step_2">هر دو پا را روی زمین، روی سطح غیرلغزنده بگذارید. در صورت امکان دست‌ها را روی سینه بگذارید.</string>
+    <string name="sts_step_3">گوشی را روی پایه‌ای ثابت، از کنار صندلی و در فاصله‌ی ۲ تا ۳ متری قرار دهید.</string>
+    <string name="sts_step_4">پس از وضعیت نشسته، سه ثانیه آمادگی و سپس پنج بار بلند شوید و بنشینید.</string>
+    <string name="sts_step_5">اگر کل بدن دیده نشد یا احساس ناراحتی کردید، آزمون را لغو کنید.</string>
+    <string name="sts_checklist_title">فهرست آمادگی</string>
+    <string name="sts_check_chair">صندلی محکم و پایدار است و روی سطح غیرلغزنده قرار دارد.</string>
+    <string name="sts_check_floor">پاهایم روی زمین قرار می‌گیرد و امکان نشستن و بلند شدن امن دارم.</string>
+    <string name="sts_check_supervision">در صورت نیاز، یک فرد آگاه در نزدیکی من است یا نظر پزشک یا همراه را گرفته‌ام.</string>
+    <string name="sts_check_stop">می‌دانم در صورت احساس ناامنی، باید فوراً آزمون را متوقف کنم.</string>
+
+    <string name="sts_guide_model_missing">مدل تشخیص بدن در برنامه پیدا نشد.</string>
+    <string name="sts_guide_calibrating">بنشینید و بی‌حرکت بمانید؛ در حال ثبت وضعیت نشسته…</string>
+    <string name="sts_session_countdown">آماده شوید: %1$s</string>
+    <string name="sts_guide_seated_ready">وضعیت نشسته ثبت شد ✓</string>
+    <string name="sts_guide_body_ready">بدن از کنار دیده می‌شود ✓ حالا وضعیت نشسته را ثبت کنید.</string>
+    <string name="sts_guide_place_body">بنشینید؛ کل بدن از کنار، به‌ویژه پاها و زانو، داخل کادر باشد.</string>
+    <string name="sts_calib_few_frames">بدن به اندازه‌ی کافی دیده نشد. دوربین را از کنار و کمی دورتر قرار دهید.</string>
+    <string name="sts_calib_not_seated">زانوها به اندازه‌ی کافی خم نیست. لطفاً کامل بنشینید و دوباره ثبت کنید.</string>
+    <string name="sts_calib_unstable">در مدت ثبت حرکت زیادی دیده شد. بنشینید، بی‌حرکت بمانید و دوباره ثبت کنید.</string>
+    <string name="sts_live_repetitions">تکرار %1$s از %2$s</string>
+    <string name="sts_live_body_share">بدن از کنار در %1$s٪ از فریم‌های اخیر دیده شد</string>
+    <string name="sts_live_elapsed">زمان: %1$s ثانیه</string>
+    <string name="sts_camera_hint_calibrate">ابتدا وضعیت نشسته را ثبت کنید. پس از آن دکمه‌ی شروع فعال می‌شود.</string>
+    <string name="sts_camera_hint_start">وضعیت نشسته ثبت شد. برای شروع، دکمه‌ی شروع را بزنید.</string>
+    <string name="sts_stop_warning">در صورت سرگیجه، درد قفسه‌ی سینه، تنگی نفس یا ناپایداری، فوراً بنشینید و آزمون را متوقف کنید.</string>
+    <string name="sts_ready_go">وضعیت نشسته ثبت شده است؛ آماده‌اید.</string>
+    <string name="sts_ready_calibrate">آماده‌ی ثبت وضعیت نشسته هستید.</string>
+    <string name="sts_ready_wait">منتظر دیده شدن کل بدن از کنار…</string>
+    <string name="sts_btn_calibrate">ثبت وضعیت نشسته</string>
+    <string name="sts_btn_recalibrate">ثبت دوباره وضعیت نشسته</string>
+    <string name="sts_btn_pause">توقف و شروع دوباره</string>
+    <string name="sts_btn_cancel">لغو آزمون (بدون ثبت)</string>
+    <string name="sts_phase_ready">آماده</string>
+    <string name="sts_phase_seated">نشسته</string>
+    <string name="sts_phase_standing_up">در حال بلند شدن</string>
+    <string name="sts_phase_standing">ایستاده</string>
+    <string name="sts_phase_sitting_down">در حال نشستن</string>
+    <string name="sts_phase_repetition_done">یک تکرار کامل شد</string>
+    <string name="sts_phase_completed">پایان</string>
+    <string name="sts_phase_invalid">نامعتبر</string>
+    <string name="sts_phase_error">خطا</string>
+
+    <string name="sts_result_title">نتیجه بلند شدن از صندلی</string>
+    <string name="sts_section_measured">اندازه‌گیری‌شده</string>
+    <string name="sts_result_total">زمان کل پنج تکرار</string>
+    <string name="sts_result_total_desc">از شروع حرکت اول تا نشستن کامل بعد از تکرار پنجم.</string>
+    <string name="sts_result_seconds">%1$s ثانیه</string>
+    <string name="sts_result_reps">تکرارهای کامل</string>
+    <string name="sts_result_reps_value">%1$s از %2$s</string>
+    <string name="sts_result_rep_title">تکرار %1$s</string>
+    <string name="sts_result_rep_phases">بلند شدن: %1$s ثانیه  •  نشستن: %2$s ثانیه  •  اوج بالا رفتن لگن: %3$s طول ساق  •  اوج باز شدن زانو: %4$s درجه</string>
+    <string name="sts_section_derived">محاسبه‌شده از اندازه‌گیری‌ها</string>
+    <string name="sts_result_mean_rep">میانگین مدت هر تکرار</string>
+    <string name="sts_result_derived_desc">میانگین زمان‌های اندازه‌گیری‌شده‌ی تکرارها.</string>
+    <string name="sts_result_variability">تغییرپذیری مدت تکرارها</string>
+    <string name="sts_result_percent">%1$s٪</string>
+    <string name="sts_result_variability_desc">انحراف معیار به میانگین مدت تکرارها. این عدد تشخیص نیست.</string>
+    <string name="sts_result_pause">میانگین مکث بین تکرارها</string>
+    <string name="sts_result_pause_desc">فاصله‌ی زمانی بین نشستن کامل یک تکرار و شروع تکرار بعدی.</string>
+    <string name="sts_section_tracking">کیفیت ردیابی</string>
+    <string name="sts_result_valid">فریم‌های با بدن کامل</string>
+    <string name="sts_result_invalid_desc">فریم‌های نامعتبر: %1$s</string>
+    <string name="sts_result_partial">بلند شدن ناقص (شمرده نشد)</string>
+    <string name="sts_result_partial_desc">حرکت‌هایی که به ایستادن کامل نرسیدند و به حالت نشسته برگشتند؛ در نتیجه منظور نشدند.</string>
+    <string name="sts_result_reasons">دلیل فریم‌های نامعتبر</string>
+    <string name="sts_issue_no_pose">بدن دیده نشد</string>
+    <string name="sts_issue_error">خطای مدل</string>
+    <string name="sts_issue_low_visibility">بخشی از بدن واضح نبود</string>
+    <string name="sts_issue_out_of_frame">بخشی از بدن خارج از کادر بود</string>
+    <string name="sts_issue_too_small">بدن در تصویر کوچک بود</string>
+    <string name="sts_section_comparison">مقایسه با آزمون قبلی</string>
+    <string name="sts_compare_total">تفاوت زمان کل نسبت به آزمون قبلی</string>
+    <string name="sts_compare_delta">%1$s ثانیه</string>
+    <string name="sts_compare_desc">این تفاوت فقط توصیف دو اجرا است و به‌تنهایی نشانه‌ی اثر درمان یا پیشرفت بیماری نیست.</string>
+    <string name="sts_warn_low_quality">بخشی از فریم‌ها بدن کامل را نشان ندادند؛ نتیجه با کیفیت پایین‌تر ثبت شد. در صورت امکان آزمون را تکرار کنید.</string>
 </resources>

@@ -120,17 +120,37 @@ object AssessmentCatalog {
             startRoute = Screen.RestingTremorIntro.route,
             afterSensorCheckRoute = Screen.RestingTremorTest.route
         ),
-        planned(
-            AssessmentType.GAIT, R.string.test_gait_title, "Gait / Walking",
-            R.string.test_gait_desc, R.string.test_gait_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = false, icon = "🚶"
+        AssessmentDefinition(
+            type = AssessmentType.GAIT,
+            title = R.string.test_gait_title,
+            englishName = "Gait / Walking (camera pose)",
+            description = R.string.test_gait_desc,
+            purpose = R.string.test_gait_purpose,
+            // Camera pose only: no phone sensor is used by this protocol, and plantar pressure is not measured.
+            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL),
+            status = AssessmentStatus.AVAILABLE,
+            // Walking time; a 3 s preparation countdown precedes it.
+            durationSeconds = 20,
+            requiresHandSelection = false,
+            icon = "🚶",
+            startRoute = Screen.GaitIntro.route,
+            afterSensorCheckRoute = Screen.GaitTest.route
         ),
-        planned(
-            AssessmentType.SIT_TO_STAND, R.string.test_sts_title, "Sit-to-Stand",
-            R.string.test_sts_desc, R.string.test_sts_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = false, icon = "🪑"
+        AssessmentDefinition(
+            type = AssessmentType.SIT_TO_STAND,
+            title = R.string.test_sts_title,
+            englishName = "Five Times Sit-to-Stand (camera pose)",
+            description = R.string.test_sts_desc,
+            purpose = R.string.test_sts_purpose,
+            // Camera pose only: the phone is not worn; the chair and the body are observed from the side.
+            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.POSE_LANDMARK_MODEL),
+            status = AssessmentStatus.AVAILABLE,
+            // Time limit of one attempt; the measured total time is shown in the result.
+            durationSeconds = 60,
+            requiresHandSelection = false,
+            icon = "🪑",
+            startRoute = Screen.SitToStandIntro.route,
+            afterSensorCheckRoute = Screen.SitToStandTest.route
         ),
         planned(
             AssessmentType.SPEECH, R.string.test_speech_title, "Speech / Voice",
