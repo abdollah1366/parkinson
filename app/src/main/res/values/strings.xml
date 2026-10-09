@@ -197,9 +197,6 @@
     <string name="test_oc_desc">دست خود را مقابل دوربین باز و بسته کنید.</string>
     <string name="test_oc_purpose">بررسی دامنه باز و بسته شدن، سرعت، تعداد تکرار، ریتم و روند دامنه.</string>
 
-    <string name="test_ram_title">حرکات متناوب سریع دست</string>
-    <string name="test_ram_desc">حرکات تکراری و متناوب دست را با بیشترین سرعت ممکن انجام دهید.</string>
-    <string name="test_ram_purpose">بررسی تناوب، دامنه، نظم، تغییرپذیری و کند شدن حرکت در طول زمان.</string>
 
     <string name="test_rt_title">لرزش دست در حالت استراحت</string>
     <string name="test_rt_desc">دست به‌صورت آرام و تکیه‌داده قرار می‌گیرد و حرکت آن ثبت می‌شود.</string>
@@ -521,5 +518,60 @@
     <string name="oc_ready_go">مرحله ۲ از ۳: دست آماده است. با شروع، ۳ ثانیه آمادگی و سپس ۱۰ ثانیه ثبت انجام می‌شود.</string>
     <string name="oc_cue_text">دست را کامل باز کنید، سپس کامل ببندید. این حرکت را پشت سر هم تکرار کنید.</string>
     <string name="oc_cue_description">نمایش حرکت: باز و بسته شدن دست، به‌صورت تکراری</string>
+    <string name="invalid_gross_movement">در مدت ثبت، دست یا گوشی به‌طور کلی جابه‌جا شد و این ثبت برای حالت استراحت مناسب نیست. آزمون را تکرار کنید.</string>
+    <string name="invalid_tip_rest">دست را روی سطح تکیه دهید، گوشی را ثابت نگه دارید و دست را عمداً تکان ندهید.</string>
+
+    <!-- Resting Hand Tremor -->
+    <string name="rt_intro_instruction">در این آزمون بنشینید، دست و ساعد را در حالت آرام روی سطحی پایدار قرار دهید و دست را رها کنید. حرکت را عمداً ایجاد یا سرکوب نکنید و دست را برای ایجاد نتیجه تکان ندهید.</string>
+    <string name="rt_duration_value">۱۵ ثانیه ثبت پس از ۳ ثانیه آمادگی</string>
+    <string name="rt_intro_steps_title">وضعیت آزمون</string>
+    <string name="rt_step_1">راحت بنشینید.</string>
+    <string name="rt_step_2">در صورت امکان، ساعد و دست را روی سطح ثابت (مانند میز) تکیه دهید.</string>
+    <string name="rt_step_3">دست، مچ و بخشی از ساعد باید داخل کادر دوربین دیده شوند.</string>
+    <string name="rt_step_4">دست را آرام و راحت بگذارید؛ نه عمداً تکان دهید و نه عمداً آن را سفت نگه دارید.</string>
+    <string name="rt_step_5">از تکان دادن عمدی دست برای ایجاد نتیجه خودداری کنید.</string>
+    <string name="rt_step_6">اگر این وضعیت باعث ناراحتی شد، آزمون را متوقف کنید.</string>
+    <string name="rt_measures_title">موارد ثبت‌شده</string>
+    <string name="rt_measure_1">مدت ثبت و درصد زمانی که دست در کادر دیده شد</string>
+    <string name="rt_measure_2">تعداد و طول قطع شدن ثبت دست</string>
+    <string name="rt_measure_3">دامنه نسبی جابه‌جایی دست در تصویر، بر حسب درصد طول خود دست</string>
+    <string name="rt_measure_4">بسامد غالب حرکت، فقط وقتی داده برای محاسبه آن کافی باشد</string>
+    <string name="rt_camera_rest_hint">دست را روی سطح تکیه دهید و آرام بگذارید. از تکان دادن عمدی دست خودداری کنید.</string>
+    <string name="rt_ready_wait">مرحله ۱ از ۲: دست را داخل کادر قرار دهید و آرام بگذارید. وقتی دست تأیید شد، دکمه شروع فعال می‌شود.</string>
+    <string name="rt_ready_go">مرحله ۲ از ۲: دست آماده است. با شروع، ۳ ثانیه آمادگی و سپس ۱۵ ثانیه ثبت انجام می‌شود.</string>
+    <string name="rt_session_countdown">آماده شوید و دست را آرام بگذارید: %1$s</string>
+    <string name="rt_session_recording">دست را آرام بگذارید: %1$s ثانیه</string>
+    <string name="rt_btn_cancel">لغو آزمون</string>
+    <string name="rt_result_title">نتیجه لرزش دست در حالت استراحت</string>
+    <string name="rt_result_duration">مدت ثبت</string>
+    <string name="rt_result_duration_value">%1$s ثانیه ثبت‌شده (برنامه: %2$s ثانیه)</string>
+    <string name="rt_result_valid">فریم‌های با ثبت دست</string>
+    <string name="rt_result_valid_value">%1$s٪ از فریم‌ها</string>
+    <string name="rt_result_interruptions">قطع‌شدگی ثبت دست</string>
+    <string name="rt_result_interruptions_value">%1$s مورد؛ طولانی‌ترین: %2$s میلی‌ثانیه</string>
+    <string name="rt_result_rate">نرخ دریافت فریم</string>
+    <string name="rt_result_rate_value">%1$s فریم در ثانیه</string>
+    <string name="rt_result_amplitude">دامنه جابه‌جایی نسبی (تصویر)</string>
+    <string name="rt_result_amplitude_value">%1$s٪ طول دست</string>
+    <string name="rt_result_amplitude_desc">جابه‌جایی نقطه‌ی میانی کف دست در تصویر، نسبت به اندازه‌ی خود دست سنجیده می‌شود. این مقدار کالیبره‌شده و بر حسب میلی‌متر نیست.</string>
+    <string name="rt_result_frequency">بسامد غالب حرکت</string>
+    <string name="rt_result_frequency_value">%1$s هرتز</string>
+    <string name="rt_result_frequency_desc">فقط وقتی محاسبه می‌شود که داده برای تعیین یک قله‌ی بسامدی مطمئن کافی باشد.</string>
+    <string name="rt_result_periodicity">سهم انرژی در اطراف بسامد غالب</string>
+    <string name="rt_result_periodicity_value">%1$s٪</string>
+    <string name="rt_result_drift">جابه‌جایی آهسته‌ی کل دست</string>
+    <string name="rt_result_drift_value">%1$s٪ طول دست</string>
+    <string name="rt_result_no_score">این آزمون نمره کلی یا درجه‌ی لرزش ندارد. فقط ویژگی‌های اندازه‌گیری‌شده و کیفیت داده نمایش داده می‌شوند.</string>
+    <string name="rt_result_disclaimer">این یک اندازه‌گیری حرکتی مشاهده‌ای است و به‌تنهایی ابزار تشخیص بیماری نیست.</string>
+    <string name="rt_warn_gross">دست یا گوشی در طول ثبت جابه‌جا شد. آزمون را با دست آرام و گوشی ثابت تکرار کنید.</string>
+    <string name="rt_warn_interruptions">دست در بخشی از زمان داخل کادر دیده نشد یا ثبت قطع شد. دست را داخل کادر نگه دارید.</string>
+    <string name="rt_warn_valid">درصد فریم‌های با ثبت دست کم بود. نور و موقعیت دست را بررسی کنید.</string>
+    <string name="rt_warn_fps">نرخ دریافت فریم کم بود؛ زمان‌بندی حرکت دقت کمتری دارد.</string>
+    <string name="rt_warn_sampling">فاصله‌ی زمانی فریم‌ها نامنظم بود.</string>
+    <string name="rt_warn_duration">مدت ثبت کمتر از حد لازم بود.</string>
+    <string name="rt_warn_general">برخی شرایط ثبت مناسب نبود؛ در صورت امکان آزمون را تکرار کنید.</string>
+    <string name="rt_warn_title">هشدارها</string>
+
+    <string name="history_item_tremor">بسامد غالب: %1$s هرتز  •  دامنه نسبی: %2$s٪ طول دست</string>
     <string name="history_item_open_close">%1$s حرکت کامل  •  %2$s حرکت در ثانیه</string>
 </resources>

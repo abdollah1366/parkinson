@@ -13,6 +13,11 @@ import com.example.parkinson.tapping.SessionInvalidReason
 import com.example.parkinson.tapping.SessionState
 import com.example.parkinson.tapping.quality.QualityIssue
 import com.example.parkinson.tapping.quality.QualityReport
+import com.example.parkinson.tremor.RestingTremorError
+import com.example.parkinson.tremor.RestingTremorInvalidReason
+import com.example.parkinson.tremor.RestingTremorQualityIssue
+import com.example.parkinson.tremor.RestingTremorQualityReport
+import com.example.parkinson.tremor.RestingTremorState
 
 /**
  * Patient-facing reason why a test produced no result. Passed as a navigation argument
@@ -46,7 +51,8 @@ enum class InvalidResultKind(
     CAMERA_ERROR(R.string.invalid_camera_error, R.string.invalid_tip_camera, null),
     TRACKING_ERROR(R.string.invalid_tracking_error, R.string.invalid_tip_camera, null),
     STORAGE_ERROR(R.string.invalid_storage_error, R.string.invalid_tip_storage, null),
-    UNEXPECTED_ERROR(R.string.invalid_unexpected_error, R.string.invalid_tip_camera, null);
+    UNEXPECTED_ERROR(R.string.invalid_unexpected_error, R.string.invalid_tip_camera, null),
+    GROSS_MOVEMENT(R.string.invalid_gross_movement, R.string.invalid_tip_rest, R.string.invalid_headline_unreliable);
 
     companion object {
         fun from(state: SessionState): InvalidResultKind? = when (state) {
@@ -80,6 +86,36 @@ enum class InvalidResultKind(
             }
 
             else -> null
+        }
+
+        /** Resting Hand Tremor: data-quality findings mapped to the same categories, plus gross movement. */
+        fun fromRestingTremor(state: RestingTremorState): InvalidResultKind? = when (state) {
+            is RestingTremorState.Invalid -> when (val reason = state.reason) {
+                RestingTremorInvalidReason.Interrupted -> INTERRUPTED
+                is RestingTremorInvalidReason.QualityRejected -> fromRestingTremorQuality(reason.report)
+            }
+
+            is RestingTremorState.Error -> when (state.error) {
+                RestingTremorError.CAMERA_FAILURE, RestingTremorError.FRAME_STARVATION -> CAMERA_ERROR
+                RestingTremorError.TRACKING_FAILURE -> TRACKING_ERROR
+                RestingTremorError.STORAGE_FAILURE -> STORAGE_ERROR
+                RestingTremorError.UNEXPECTED -> UNEXPECTED_ERROR
+            }
+
+            else -> null
+        }
+
+        fun fromRestingTremorQuality(report: RestingTremorQualityReport): InvalidResultKind = when (report.primaryIssue) {
+            RestingTremorQualityIssue.GROSS_MOVEMENT -> GROSS_MOVEMENT
+            RestingTremorQualityIssue.MULTIPLE_HANDS -> MULTIPLE_HANDS
+            RestingTremorQualityIssue.WRONG_HAND -> WRONG_HAND
+            RestingTremorQualityIssue.TOO_FEW_FRAMES, RestingTremorQualityIssue.LOW_VALID_FRAMES -> INSUFFICIENT_FRAMES
+            RestingTremorQualityIssue.RECORDING_TOO_SHORT -> RECORDING_TOO_SHORT
+            RestingTremorQualityIssue.LONG_INTERRUPTION, RestingTremorQualityIssue.FREQUENT_INTERRUPTIONS -> EXCESSIVE_DROPOUT
+            RestingTremorQualityIssue.LOW_FRAME_RATE -> INSUFFICIENT_FPS
+            RestingTremorQualityIssue.NON_MONOTONIC_TIMESTAMPS,
+            RestingTremorQualityIssue.IRREGULAR_SAMPLING,
+            RestingTremorQualityIssue.REDUCED_VALID_FRAMES, null -> UNSTABLE_TRACKING
         }
 
         fun fromOpenCloseQuality(report: OpenCloseQualityReport): InvalidResultKind = when (report.primaryIssue) {

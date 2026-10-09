@@ -35,7 +35,10 @@ import com.example.parkinson.ui.screens.pronation.PronationSupinationIntroScreen
 import com.example.parkinson.ui.screens.pronation.PronationSupinationTestScreen
 import com.example.parkinson.ui.screens.result.HandStabilityResultScreen
 import com.example.parkinson.ui.screens.result.PronationSupinationResultScreen
+import com.example.parkinson.ui.screens.result.RestingTremorResultScreen
 import com.example.parkinson.ui.screens.selection.FingerTappingHandSelectionScreen
+import com.example.parkinson.ui.screens.tremor.RestingTremorCameraScreen
+import com.example.parkinson.ui.screens.tremor.RestingTremorIntroScreen
 import com.example.parkinson.ui.screens.sensorcheck.SensorCheckScreen
 import com.example.parkinson.ui.screens.splash.SplashScreen
 import com.example.parkinson.ui.screens.stability.HandStabilityIntroScreen
@@ -47,12 +50,14 @@ import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.PronationSupinationViewModel
+import com.example.parkinson.viewmodel.RestingTremorViewModel
 
 /** Result screen route of a stored result of any type. */
 fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
     AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
     AssessmentType.PRONATION_SUPINATION -> Screen.PronationSupinationResult.createRoute(result.assessmentId)
     AssessmentType.HAND_OPEN_CLOSE -> Screen.HandOpenCloseResult.createRoute(result.assessmentId)
+    AssessmentType.RESTING_TREMOR -> Screen.RestingTremorResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
 
@@ -68,6 +73,7 @@ fun ParkinsonNavGraph(
     handStabilityViewModel: HandStabilityViewModel = viewModel(factory = HandStabilityViewModel.Factory),
     pronationViewModel: PronationSupinationViewModel = viewModel(factory = PronationSupinationViewModel.Factory),
     handOpenCloseViewModel: HandOpenCloseViewModel = viewModel(factory = HandOpenCloseViewModel.Factory),
+    restingTremorViewModel: RestingTremorViewModel = viewModel(factory = RestingTremorViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -98,6 +104,7 @@ fun ParkinsonNavGraph(
         handStabilityViewModel.resetFlow()
         pronationViewModel.resetFlow()
         handOpenCloseViewModel.resetFlow()
+        restingTremorViewModel.resetFlow()
         val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
         navController.navigate(route) {
             popUpTo(Screen.Home.route)
@@ -453,6 +460,84 @@ fun ParkinsonNavGraph(
                 onNextTest = { goToNextTest(AssessmentType.HAND_OPEN_CLOSE) },
                 onHome = {
                     handOpenCloseViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Resting Hand Tremor ----------------------------------------------------------
+
+        composable(Screen.RestingTremorIntro.route) {
+            RestingTremorIntroScreen {
+                // A new run never shows a previous outcome.
+                restingTremorViewModel.resetFlow()
+                navController.navigate(Screen.RestingTremorHandSelection.route)
+            }
+        }
+
+        composable(Screen.RestingTremorHandSelection.route) {
+            val selectedHand by restingTremorViewModel.selectedHand.collectAsState()
+            FingerTappingHandSelectionScreen(
+                selectedHand = selectedHand,
+                onHandSelected = { hand -> restingTremorViewModel.selectHand(hand) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.RESTING_TREMOR.id))
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorTest.route) {
+            val selectedHand by restingTremorViewModel.selectedHand.collectAsState()
+            RestingTremorCameraScreen(
+                selectedHand = selectedHand,
+                session = restingTremorViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.RestingTremorResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.RestingTremorInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // The camera screen is right below on the back stack and starts fresh (IDLE).
+                onRetry = {
+                    if (!navController.popBackStack(Screen.RestingTremorTest.route, inclusive = false)) {
+                        navController.navigate(Screen.RestingTremorTest.route)
+                    }
+                },
+                onHome = {
+                    restingTremorViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.restingTremor(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            RestingTremorResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    restingTremorViewModel.session.reset()
+                    restingTremorViewModel.selectHand(hand)
+                    navController.navigate(Screen.RestingTremorTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.RESTING_TREMOR) },
+                onHome = {
+                    restingTremorViewModel.resetFlow()
                     goHome()
                 }
             )

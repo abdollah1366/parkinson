@@ -17,7 +17,7 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.entries.toSet(), all.map { it.type }.toSet())
         assertEquals(AssessmentType.entries.size, all.size)
         assertEquals(all.size, all.map { it.id }.toSet().size)
-        assertEquals(10, all.size)
+        assertEquals(9, all.size)
     }
 
     @Test
@@ -36,7 +36,8 @@ class AssessmentCatalogTest {
                 AssessmentType.FINGER_TAPPING,
                 AssessmentType.HAND_STABILITY,
                 AssessmentType.PRONATION_SUPINATION,
-                AssessmentType.HAND_OPEN_CLOSE
+                AssessmentType.HAND_OPEN_CLOSE,
+                AssessmentType.RESTING_TREMOR
             ),
             AssessmentCatalog.available.map { it.type }
         )
@@ -84,8 +85,13 @@ class AssessmentCatalogTest {
     }
 
     @Test
-    fun restingTremorIsMarkedResearch() {
-        assertEquals(AssessmentStatus.RESEARCH, AssessmentCatalog[AssessmentType.RESTING_TREMOR].status)
+    fun restingTremorIsAvailableWithAFullFlow() {
+        val rt = AssessmentCatalog[AssessmentType.RESTING_TREMOR]
+        assertEquals(AssessmentStatus.AVAILABLE, rt.status)
+        assertEquals(Screen.RestingTremorIntro.route, rt.startRoute)
+        assertEquals(Screen.RestingTremorTest.route, rt.afterSensorCheckRoute)
+        assertEquals(15, rt.durationSeconds)
+        assertEquals(listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL), rt.sensors)
     }
 
     @Test
@@ -102,7 +108,8 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.HAND_STABILITY, AssessmentCatalog.nextAvailableAfter(AssessmentType.FINGER_TAPPING)?.type)
         assertEquals(AssessmentType.PRONATION_SUPINATION, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
         assertEquals(AssessmentType.HAND_OPEN_CLOSE, AssessmentCatalog.nextAvailableAfter(AssessmentType.PRONATION_SUPINATION)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
+        assertEquals(AssessmentType.RESTING_TREMOR, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.RESTING_TREMOR)?.type)
         assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
     }
 

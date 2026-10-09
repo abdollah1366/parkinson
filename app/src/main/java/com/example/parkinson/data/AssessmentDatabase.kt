@@ -30,24 +30,27 @@ interface AssessmentDao {
 /**
  * v2 adds hand_stability_assessments, v3 adds pronation_supination_assessments, v4 adds columns
  * to pronation_supination_assessments, v5 adds columns to finger_tapping_assessments (layered
- * quality, interpretation, per-tap payload), v6 adds hand_open_close_assessments. All are automatic
- * migrations; existing rows are kept.
+ * quality, interpretation, per-tap payload), v6 adds hand_open_close_assessments, v7 adds
+ * resting_tremor_assessments. All are automatic migrations; existing rows are kept. The Rapid
+ * Alternating Movements test never stored anything, so it has no table and no legacy rows.
  */
 @Database(
     entities = [
         AssessmentEntity::class,
         HandStabilityEntity::class,
         PronationSupinationEntity::class,
-        HandOpenCloseEntity::class
+        HandOpenCloseEntity::class,
+        RestingTremorEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
-        AutoMigration(from = 5, to = 6)
+        AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7)
     ]
 )
 abstract class AssessmentDatabase : RoomDatabase() {
@@ -59,6 +62,8 @@ abstract class AssessmentDatabase : RoomDatabase() {
     abstract fun pronationSupinationDao(): PronationSupinationDao
 
     abstract fun handOpenCloseDao(): HandOpenCloseDao
+
+    abstract fun restingTremorDao(): RestingTremorDao
 
     companion object {
         private const val NAME = "assessments.db"

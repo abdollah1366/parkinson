@@ -105,18 +105,20 @@ object AssessmentCatalog {
             startRoute = Screen.HandOpenCloseIntro.route,
             afterSensorCheckRoute = Screen.HandOpenCloseTest.route
         ),
-        planned(
-            AssessmentType.RAPID_ALTERNATING, R.string.test_ram_title, "Rapid Alternating Movements",
-            R.string.test_ram_desc, R.string.test_ram_purpose,
-            listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL, SensorRequirement.GYROSCOPE),
-            durationSeconds = 10, hand = true, icon = "👋"
-        ),
-        planned(
-            AssessmentType.RESTING_TREMOR, R.string.test_rt_title, "Resting Hand Tremor",
-            R.string.test_rt_desc, R.string.test_rt_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = true, icon = "🤲",
-            status = AssessmentStatus.RESEARCH
+        AssessmentDefinition(
+            type = AssessmentType.RESTING_TREMOR,
+            title = R.string.test_rt_title,
+            englishName = "Resting Hand Tremor",
+            description = R.string.test_rt_desc,
+            purpose = R.string.test_rt_purpose,
+            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL),
+            status = AssessmentStatus.AVAILABLE,
+            // Recording length; a 3 s preparation countdown precedes it.
+            durationSeconds = 15,
+            requiresHandSelection = true,
+            icon = "🤲",
+            startRoute = Screen.RestingTremorIntro.route,
+            afterSensorCheckRoute = Screen.RestingTremorTest.route
         ),
         planned(
             AssessmentType.GAIT, R.string.test_gait_title, "Gait / Walking",
