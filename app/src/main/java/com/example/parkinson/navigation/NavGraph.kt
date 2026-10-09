@@ -41,6 +41,11 @@ import com.example.parkinson.ui.screens.gait.GaitIntroScreen
 import com.example.parkinson.ui.screens.gait.GaitTestScreen
 import com.example.parkinson.viewmodel.GaitViewModel
 import com.example.parkinson.viewmodel.SitToStandViewModel
+import com.example.parkinson.viewmodel.SpeechViewModel
+import com.example.parkinson.ui.screens.speech.SpeechIntroScreen
+import com.example.parkinson.ui.screens.speech.SpeechTaskSelectionScreen
+import com.example.parkinson.ui.screens.speech.SpeechTestScreen
+import com.example.parkinson.ui.screens.result.SpeechResultScreen
 import com.example.parkinson.ui.screens.sts.SitToStandCameraScreen
 import com.example.parkinson.ui.screens.sts.SitToStandIntroScreen
 import com.example.parkinson.ui.screens.result.SitToStandResultScreen
@@ -68,6 +73,7 @@ fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
     AssessmentType.RESTING_TREMOR -> Screen.RestingTremorResult.createRoute(result.assessmentId)
     AssessmentType.GAIT -> Screen.GaitResult.createRoute(result.assessmentId)
     AssessmentType.SIT_TO_STAND -> Screen.SitToStandResult.createRoute(result.assessmentId)
+    AssessmentType.SPEECH -> Screen.SpeechResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
 
@@ -86,6 +92,7 @@ fun ParkinsonNavGraph(
     restingTremorViewModel: RestingTremorViewModel = viewModel(factory = RestingTremorViewModel.Factory),
     gaitViewModel: GaitViewModel = viewModel(factory = GaitViewModel.Factory),
     sitToStandViewModel: SitToStandViewModel = viewModel(factory = SitToStandViewModel.Factory),
+    speechViewModel: SpeechViewModel = viewModel(factory = SpeechViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -119,6 +126,7 @@ fun ParkinsonNavGraph(
         restingTremorViewModel.resetFlow()
         gaitViewModel.resetFlow()
         sitToStandViewModel.resetFlow()
+        speechViewModel.resetFlow()
         val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
         navController.navigate(route) {
             popUpTo(Screen.Home.route)
@@ -681,6 +689,108 @@ fun ParkinsonNavGraph(
                 onNextTest = { goToNextTest(AssessmentType.SIT_TO_STAND) },
                 onHome = {
                     sitToStandViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Speech (acoustic, on-device) ------------------------------------------------
+
+        composable(Screen.SpeechIntro.route) {
+            // Each visit starts without consent or a selected task; consent is given again for every visit.
+            LaunchedEffect(Unit) { speechViewModel.resetFlow() }
+            val consent by speechViewModel.consent.collectAsState()
+            SpeechIntroScreen(
+                consent = consent,
+                onConsentChanged = { speechViewModel.setConsent(it) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.SPEECH.id))
+                }
+            )
+        }
+
+        composable(Screen.SpeechTaskSelection.route) {
+            val consent by speechViewModel.consent.collectAsState()
+            LaunchedEffect(consent) {
+                // Without consent no task can be started: return to the privacy notice.
+                if (!consent && !navController.popBackStack(Screen.SpeechIntro.route, inclusive = false)) {
+                    navController.navigate(Screen.SpeechIntro.route) { launchSingleTop = true }
+                }
+            }
+            SpeechTaskSelectionScreen(onTaskSelected = { task ->
+                speechViewModel.selectTask(task)
+                navController.navigate(Screen.SpeechTest.route)
+            })
+        }
+
+        composable(Screen.SpeechTest.route) {
+            val task by speechViewModel.task.collectAsState()
+            val consent by speechViewModel.consent.collectAsState()
+            val input by speechViewModel.input.collectAsState()
+            val checking by speechViewModel.inputChecking.collectAsState()
+            val inputError by speechViewModel.inputError.collectAsState()
+            val selected = task
+            LaunchedEffect(selected) {
+                if (selected == null) navController.navigate(Screen.SpeechTaskSelection.route) { launchSingleTop = true }
+            }
+            if (selected != null) {
+                SpeechTestScreen(
+                    task = selected,
+                    consent = consent,
+                    session = speechViewModel.session,
+                    input = input,
+                    inputChecking = checking,
+                    inputError = inputError,
+                    onCheckInput = { speechViewModel.checkInput() },
+                    onCompleted = { id ->
+                        navController.navigate(Screen.SpeechResult.createRoute(id)) {
+                            popUpTo(Screen.Home.route)
+                            launchSingleTop = true
+                        }
+                    },
+                    onInvalid = { kind ->
+                        navController.navigate(Screen.SpeechInvalid.createRoute(kind.name)) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+        }
+
+        composable(Screen.SpeechInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // Retry returns to the task screen; the recording starts again only after a new press of Start.
+                onRetry = {
+                    speechViewModel.session.reset()
+                    if (!navController.popBackStack(Screen.SpeechTest.route, inclusive = false)) {
+                        navController.navigate(Screen.SpeechTest.route)
+                    }
+                },
+                onHome = {
+                    speechViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.SpeechResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.speech(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            SpeechResultScreen(
+                result = result,
+                onRepeat = {
+                    // Same task, same visit: the consent given for this visit still applies.
+                    speechViewModel.session.reset()
+                    navController.navigate(Screen.SpeechTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.SPEECH) },
+                onHome = {
+                    speechViewModel.resetFlow()
                     goHome()
                 }
             )

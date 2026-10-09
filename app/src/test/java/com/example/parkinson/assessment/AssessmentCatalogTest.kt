@@ -39,7 +39,8 @@ class AssessmentCatalogTest {
                 AssessmentType.HAND_OPEN_CLOSE,
                 AssessmentType.RESTING_TREMOR,
                 AssessmentType.GAIT,
-                AssessmentType.SIT_TO_STAND
+                AssessmentType.SIT_TO_STAND,
+                AssessmentType.SPEECH
             ),
             AssessmentCatalog.available.map { it.type }
         )
@@ -113,7 +114,8 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.RESTING_TREMOR, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
         assertEquals(AssessmentType.GAIT, AssessmentCatalog.nextAvailableAfter(AssessmentType.RESTING_TREMOR)?.type)
         assertEquals(AssessmentType.SIT_TO_STAND, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.SIT_TO_STAND)?.type)
+        assertEquals(AssessmentType.SPEECH, AssessmentCatalog.nextAvailableAfter(AssessmentType.SIT_TO_STAND)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.SPEECH)?.type)
     }
 
     @Test

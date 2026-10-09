@@ -31,7 +31,7 @@ interface AssessmentDao {
  * v2 adds hand_stability_assessments, v3 adds pronation_supination_assessments, v4 adds columns
  * to pronation_supination_assessments, v5 adds columns to finger_tapping_assessments (layered
  * quality, interpretation, per-tap payload), v6 adds hand_open_close_assessments, v7 adds
- * resting_tremor_assessments, v8 adds gait_assessments, v9 adds sit_to_stand_assessments. All are automatic migrations; existing rows are kept. The Rapid
+ * resting_tremor_assessments, v8 adds gait_assessments, v9 adds sit_to_stand_assessments, v10 adds speech_assessments. All are automatic migrations; existing rows are kept. The Rapid
  * Alternating Movements test never stored anything, so it has no table and no legacy rows.
  */
 @Database(
@@ -42,9 +42,10 @@ interface AssessmentDao {
         HandOpenCloseEntity::class,
         RestingTremorEntity::class,
         GaitEntity::class,
-        SitToStandEntity::class
+        SitToStandEntity::class,
+        SpeechEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -54,7 +55,8 @@ interface AssessmentDao {
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
         AutoMigration(from = 7, to = 8),
-        AutoMigration(from = 8, to = 9)
+        AutoMigration(from = 8, to = 9),
+        AutoMigration(from = 9, to = 10)
     ]
 )
 abstract class AssessmentDatabase : RoomDatabase() {
@@ -72,6 +74,8 @@ abstract class AssessmentDatabase : RoomDatabase() {
     abstract fun gaitDao(): GaitDao
 
     abstract fun sitToStandDao(): SitToStandDao
+
+    abstract fun speechDao(): SpeechDao
 
     companion object {
         private const val NAME = "assessments.db"

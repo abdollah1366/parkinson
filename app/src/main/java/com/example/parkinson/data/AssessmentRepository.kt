@@ -4,6 +4,7 @@ import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
+import com.example.parkinson.speech.SpeechResult
 import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
@@ -39,6 +40,12 @@ interface AssessmentRepository {
     /** Every stored Sit-to-Stand result, newest first (for comparison with earlier sessions). */
     fun observeAllSitToStand(): Flow<List<SitToStandResult>>
 
+    suspend fun saveSpeech(result: SpeechResult)
+    fun observeSpeech(assessmentId: String): Flow<SpeechResult?>
+
+    /** Every stored speech result, newest first (for comparison with earlier sessions of the same task). */
+    fun observeAllSpeech(): Flow<List<SpeechResult>>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -51,6 +58,7 @@ class RoomAssessmentRepository(
     private val restingTremorDao: RestingTremorDao,
     private val gaitDao: GaitDao,
     private val sitToStandDao: SitToStandDao,
+    private val speechDao: SpeechDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -96,6 +104,14 @@ class RoomAssessmentRepository(
     override fun observeAllSitToStand(): Flow<List<SitToStandResult>> =
         sitToStandDao.observeAll().map { list -> list.map { it.toDomain() } }
 
+    override suspend fun saveSpeech(result: SpeechResult) = speechDao.insert(result.toEntity())
+
+    override fun observeSpeech(assessmentId: String): Flow<SpeechResult?> =
+        speechDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllSpeech(): Flow<List<SpeechResult>> =
+        speechDao.observeAll().map { list -> list.map { it.toDomain() } }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
         combine(
             combine(
@@ -110,15 +126,18 @@ class RoomAssessmentRepository(
         ) { others: List<AssessmentResult>, gait: List<GaitEntity> ->
             others + gait.map { it.toDomain() }
         }.let { withGait ->
-            combine(withGait, sitToStandDao.observeAll()) { others: List<AssessmentResult>, sts: List<SitToStandEntity> ->
-                (others + sts.map { it.toDomain() }).sortedByDescending { it.timestampEpochMs }
+            combine(withGait, sitToStandDao.observeAll(), speechDao.observeAll()) {
+                    others: List<AssessmentResult>, sts: List<SitToStandEntity>, speech: List<SpeechEntity>,
+                ->
+                (others + sts.map { it.toDomain() } + speech.map { it.toDomain() })
+                    .sortedByDescending { it.timestampEpochMs }
             }
         }
 
     companion object {
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
-            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao()
+            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao()
         )
     }
 }

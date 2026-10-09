@@ -152,11 +152,21 @@ object AssessmentCatalog {
             startRoute = Screen.SitToStandIntro.route,
             afterSensorCheckRoute = Screen.SitToStandTest.route
         ),
-        planned(
-            AssessmentType.SPEECH, R.string.test_speech_title, "Speech / Voice",
-            R.string.test_speech_desc, R.string.test_speech_purpose,
-            listOf(SensorRequirement.MICROPHONE),
-            durationSeconds = null, hand = false, icon = "🗣"
+        AssessmentDefinition(
+            type = AssessmentType.SPEECH,
+            title = R.string.test_speech_title,
+            englishName = "Speech / Voice (acoustic, on-device)",
+            description = R.string.test_speech_desc,
+            purpose = R.string.test_speech_purpose,
+            // Microphone only; the recording stays in memory and is never stored or uploaded.
+            sensors = listOf(SensorRequirement.MICROPHONE),
+            status = AssessmentStatus.AVAILABLE,
+            // Longest single task (spontaneous speech), not a planned fixed length.
+            durationSeconds = 30,
+            requiresHandSelection = false,
+            icon = "🗣",
+            startRoute = Screen.SpeechIntro.route,
+            afterSensorCheckRoute = Screen.SpeechTaskSelection.route
         ),
         planned(
             AssessmentType.DUAL_TASK, R.string.test_dual_title, "Dual-Task / Cognitive-Motor",

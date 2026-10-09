@@ -17,6 +17,11 @@ import com.example.parkinson.gait.GaitInvalidReason
 import com.example.parkinson.gait.GaitQualityIssue
 import com.example.parkinson.gait.GaitQualityReport
 import com.example.parkinson.gait.GaitState
+import com.example.parkinson.speech.SpeechError
+import com.example.parkinson.speech.SpeechFailure
+import com.example.parkinson.speech.SpeechQualityIssue
+import com.example.parkinson.speech.SpeechQualityReport
+import com.example.parkinson.speech.SpeechState
 import com.example.parkinson.sts.SitToStandError
 import com.example.parkinson.sts.SitToStandFailure
 import com.example.parkinson.sts.SitToStandInvalidReason
@@ -66,7 +71,14 @@ enum class InvalidResultKind(
     GAIT_TOO_FEW_STEPS(R.string.invalid_gait_steps, R.string.invalid_tip_gait, R.string.invalid_headline_insufficient),
     STS_INCOMPLETE(R.string.invalid_sts_incomplete, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
     STS_TRACKING_LOST(R.string.invalid_sts_tracking, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
-    STS_LOW_VALID(R.string.invalid_sts_low_valid, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient);
+    STS_LOW_VALID(R.string.invalid_sts_low_valid, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
+    SPEECH_TOO_QUIET(R.string.invalid_speech_quiet, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_CLIPPED(R.string.invalid_speech_clipped, R.string.invalid_tip_speech, R.string.invalid_headline_unreliable),
+    SPEECH_NOISY(R.string.invalid_speech_noisy, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_INCOMPLETE(R.string.invalid_speech_incomplete, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_PERMISSION(R.string.invalid_speech_permission, R.string.invalid_tip_speech_permission, null),
+    SPEECH_MIC_UNAVAILABLE(R.string.invalid_speech_mic_unavailable, R.string.invalid_tip_mic, null),
+    SPEECH_CONSENT(R.string.invalid_speech_consent, R.string.invalid_tip_consent, null);
 
     companion object {
         fun from(state: SessionState): InvalidResultKind? = when (state) {
@@ -157,6 +169,32 @@ enum class InvalidResultKind(
             }
 
             else -> null
+        }
+
+        /** Speech: quality findings and microphone errors. Only failures produce this screen; warnings do not. */
+        fun fromSpeech(state: SpeechState): InvalidResultKind? = when (state) {
+            is SpeechState.Invalid -> when (val reason = state.reason) {
+                SpeechFailure.Interrupted -> INTERRUPTED
+                is SpeechFailure.Quality -> fromSpeechQuality(reason.report)
+            }
+
+            is SpeechState.Error -> when (state.error) {
+                SpeechError.CONSENT_NOT_GIVEN -> SPEECH_CONSENT
+                SpeechError.MICROPHONE_PERMISSION_DENIED -> SPEECH_PERMISSION
+                SpeechError.MICROPHONE_UNAVAILABLE -> SPEECH_MIC_UNAVAILABLE
+                SpeechError.RECORDING_INTERRUPTED -> INTERRUPTED
+                SpeechError.STORAGE_FAILURE -> STORAGE_ERROR
+                SpeechError.UNEXPECTED -> UNEXPECTED_ERROR
+            }
+
+            else -> null
+        }
+
+        fun fromSpeechQuality(report: SpeechQualityReport): InvalidResultKind = when {
+            SpeechQualityIssue.CLIPPING in report.issues -> SPEECH_CLIPPED
+            SpeechQualityIssue.SILENCE in report.issues -> SPEECH_TOO_QUIET
+            SpeechQualityIssue.UNUSABLE_SNR in report.issues -> SPEECH_NOISY
+            else -> SPEECH_INCOMPLETE
         }
 
         fun fromGaitQuality(report: GaitQualityReport): InvalidResultKind = when (report.primaryIssue) {

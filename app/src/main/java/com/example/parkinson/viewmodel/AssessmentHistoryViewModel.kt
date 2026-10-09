@@ -10,6 +10,8 @@ import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
+import com.example.parkinson.speech.SpeechComparison
+import com.example.parkinson.speech.previousSpeech
 import com.example.parkinson.sts.SitToStandComparison
 import com.example.parkinson.sts.previousSitToStand
 import com.example.parkinson.pronation.PronationSupinationResult
@@ -57,6 +59,12 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     fun gait(id: String): Flow<Loadable<GaitResult?>> =
         repository.observeGait(id).map { Loadable.Loaded(it) }
+
+    /** A speech result with the most recent earlier result of the same task, for the comparison section. */
+    fun speech(id: String): Flow<Loadable<SpeechComparison?>> =
+        combine(repository.observeSpeech(id), repository.observeAllSpeech()) { current, all ->
+            current?.let { SpeechComparison(it, previousSpeech(it, all)) }
+        }.map { Loadable.Loaded(it) }
 
     /** A Sit-to-Stand result with the most recent earlier attempt, for the comparison section. */
     fun sitToStand(id: String): Flow<Loadable<SitToStandComparison?>> =

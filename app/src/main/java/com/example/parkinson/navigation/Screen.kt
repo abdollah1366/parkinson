@@ -91,6 +91,18 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "sit_to_stand_result/${Uri.encode(assessmentId)}"
     }
 
+    object SpeechIntro : Screen("speech_intro")
+    object SpeechTaskSelection : Screen("speech_task_selection")
+    object SpeechTest : Screen("speech_test")
+
+    object SpeechInvalid : Screen("speech_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "speech_invalid/${Uri.encode(kind)}"
+    }
+
+    object SpeechResult : Screen("speech_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "speech_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
