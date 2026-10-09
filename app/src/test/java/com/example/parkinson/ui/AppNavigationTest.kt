@@ -272,10 +272,10 @@ class AppNavigationTest {
     fun unimplementedTestCannotStart() {
         waitFor("به پایش حرکتی خوش آمدید")
         clickWhenShown("شروع")
-        openFromCatalog("باز و بسته کردن دست")
+        openFromCatalog("راه رفتن")
         rule.waitForIdle()
         // Still on the test selection screen; the card is disabled and nothing was started.
-        rule.onNodeWithText("باز و بسته کردن دست").assertIsDisplayed().assertIsNotEnabled()
+        rule.onNodeWithText("راه رفتن").assertIsDisplayed().assertIsNotEnabled()
         rule.onNodeWithText("روش انجام").assertDoesNotExist()
         rule.onNodeWithText("شروع آزمون").assertDoesNotExist()
     }

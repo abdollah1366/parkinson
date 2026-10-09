@@ -62,7 +62,7 @@ class StabilityAndCatalogUiTest {
     private val lowQuality = result("hs-low", SyntheticMotion().gap(5_000, 5_400))
 
     private val titles = listOf(
-        "ضربه زدن با انگشتان", "نگه‌داشتن دست ثابت", "آزمون چرخش دست", "باز و بسته کردن دست",
+        "ضربه زدن با انگشتان", "نگه‌داشتن دست ثابت", "آزمون چرخش دست", "آزمون باز و بسته کردن دست",
         "حرکات متناوب سریع دست", "لرزش دست در حالت استراحت", "راه رفتن", "بلند شدن از صندلی",
         "ارزیابی گفتار", "آزمون حرکتی-شناختی"
     )
@@ -70,7 +70,7 @@ class StabilityAndCatalogUiTest {
     @Test
     fun catalogShowsEveryTestWithItsStatus() {
         setContent { AssessmentCatalogScreen(onTestSelected = {}) }
-        rule.onNodeWithText("۳ آزمون آماده انجام • ۷ آزمون در حال توسعه").assertIsDisplayed()
+        rule.onNodeWithText("۴ آزمون آماده انجام • ۶ آزمون در حال توسعه").assertIsDisplayed()
         titles.forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsDisplayed()
@@ -87,13 +87,20 @@ class StabilityAndCatalogUiTest {
         rule.onNodeWithText("نگه‌داشتن دست ثابت").assertIsEnabled().performClick()
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("آزمون چرخش دست"))
         rule.onNodeWithText("آزمون چرخش دست").assertIsEnabled().performClick()
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText("آزمون باز و بسته کردن دست"))
+        rule.onNodeWithText("آزمون باز و بسته کردن دست").assertIsEnabled().performClick()
 
-        listOf("باز و بسته کردن دست", "راه رفتن", "ارزیابی گفتار").forEach { title ->
+        listOf("راه رفتن", "ارزیابی گفتار").forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsNotEnabled().performClick()
         }
         assertEquals(
-            listOf(AssessmentType.FINGER_TAPPING, AssessmentType.HAND_STABILITY, AssessmentType.PRONATION_SUPINATION),
+            listOf(
+                AssessmentType.FINGER_TAPPING,
+                AssessmentType.HAND_STABILITY,
+                AssessmentType.PRONATION_SUPINATION,
+                AssessmentType.HAND_OPEN_CLOSE
+            ),
             selected.map { it.type }
         )
     }

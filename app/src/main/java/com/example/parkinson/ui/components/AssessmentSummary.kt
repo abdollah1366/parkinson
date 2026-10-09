@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.example.parkinson.R
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
@@ -28,6 +29,12 @@ fun keyMetricsLine(result: AssessmentResult): String = when (result) {
         R.string.history_item_pronation,
         PersianFormat.integer(result.cycleCount),
         PersianFormat.decimal(result.cyclesPerSecond)
+    )
+
+    is HandOpenCloseResult -> stringResource(
+        R.string.history_item_open_close,
+        PersianFormat.integer(result.metrics.completedCycles),
+        result.metrics.cycleRatePerSecond?.let { PersianFormat.decimal(it, 2) } ?: "—"
     )
 
     else -> ""

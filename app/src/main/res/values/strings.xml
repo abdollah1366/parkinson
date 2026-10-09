@@ -193,7 +193,7 @@
     <string name="test_ps_desc">ارزیابی سرعت، دامنه و نظم حرکات چرخشی دست با استفاده از سنسورهای گوشی.</string>
     <string name="test_ps_purpose">اندازه‌گیری تعداد، سرعت، دامنه، ریتم و توقف‌های حرکت چرخشی ساعد با حسگرهای گوشی.</string>
 
-    <string name="test_oc_title">باز و بسته کردن دست</string>
+    <string name="test_oc_title">آزمون باز و بسته کردن دست</string>
     <string name="test_oc_desc">دست خود را مقابل دوربین باز و بسته کنید.</string>
     <string name="test_oc_purpose">بررسی دامنه باز و بسته شدن، سرعت، تعداد تکرار، ریتم و روند دامنه.</string>
 
@@ -340,11 +340,12 @@
     <string name="ps_result_index_value">%1$s / ۱۰۰</string>
     <string name="ps_result_index_cd">شاخص عملکرد حرکتی %1$s از ۱۰۰، %2$s</string>
     <string name="ps_result_index_unavailable">به دلیل کیفیت ناکافی ثبت، شاخص محاسبه نشد.</string>
-    <string name="ps_band_good">عملکرد حرکتی خوب</string>
-    <string name="ps_band_acceptable">عملکرد حرکتی قابل قبول</string>
-    <string name="ps_band_reduced">کاهش نسبی عملکرد حرکتی</string>
-    <string name="ps_band_significantly_reduced">کاهش قابل توجه عملکرد حرکتی</string>
-    <string name="ps_band_very_low">عملکرد حرکتی بسیار پایین</string>
+    <!-- Neutral wording: the band is a position in the INTERNAL software range, not a clinical category. -->
+    <string name="ps_band_good">امتیاز در بالاترین محدوده داخلی نرم‌افزار</string>
+    <string name="ps_band_acceptable">امتیاز در محدوده میانی داخلی نرم‌افزار</string>
+    <string name="ps_band_reduced">امتیاز در محدوده پایین‌تر داخلی نرم‌افزار</string>
+    <string name="ps_band_significantly_reduced">امتیاز در محدوده پایین داخلی نرم‌افزار</string>
+    <string name="ps_band_very_low">امتیاز در پایین‌ترین محدوده داخلی نرم‌افزار</string>
     <string name="ps_reliability_limited">نتیجه با اطمینان محدود قابل تفسیر است.</string>
     <string name="ps_reference_note">این نمره یک شاخص داخلی نرم‌افزار است و هنوز بر اساس داده هنجاری جمعیت بزرگ اعتبارسنجی نشده است.</string>
     <string name="ps_summary_title">خلاصه نتیجه</string>
@@ -468,4 +469,57 @@
     <string name="invalid_poor_tracking">ردیابی دست در بخش زیادی از آزمون برقرار نبود.</string>
     <string name="invalid_tip_light_tracking">تشخیص دست در این شرایط پایدار نیست. لطفاً نور محیط را بهتر کنید.</string>
     <string name="invalid_tip_fps">برنامه‌های دیگر را ببندید و دوباره تلاش کنید. در محیط کم‌نور، دوربین برخی گوشی‌ها کندتر کار می‌کند و نور بیشتر می‌تواند کمک کند.</string>
+    <!-- Hand Opening/Closing: measurements only, neutral wording, no diagnosis. -->
+    <string name="oc_intro_instruction">در این آزمون، دست خود را چند بار به‌آرامی باز و بسته کنید. دست را تا حد امکان کامل باز کنید و سپس به حالت بسته برگردانید. گوشی را ثابت نگه دارید و دست را در تمام مدت داخل کادر دوربین حفظ کنید.</string>
+    <string name="oc_duration_value">۱۰ ثانیه ثبت پس از ۳ ثانیه آمادگی</string>
+    <string name="oc_intro_steps_title">آمادگی پیش از آزمون</string>
+    <string name="oc_step_1">گوشی را روی سطح ثابت و صاف قرار دهید.</string>
+    <string name="oc_step_2">محیط را به‌خوبی روشن کنید و از نور یکنواخت استفاده کنید.</string>
+    <string name="oc_step_3">کل دست را داخل کادر نگه دارید و دست دیگر را روی آن نگذارید.</string>
+    <string name="oc_step_4">پس از شمارش معکوس، طبق راهنمای صفحه دست را باز و بسته کنید.</string>
+    <string name="oc_step_5">اگر حرکت درد یا ناراحتی ایجاد کرد، آزمون را متوقف کنید.</string>
+    <string name="oc_measures_title">موارد ثبت‌شده</string>
+    <string name="oc_measure_1">تعداد حرکت‌های کامل باز و بسته شدن</string>
+    <string name="oc_measure_2">سرعت تکرار و فاصله میان حرکت‌ها</string>
+    <string name="oc_measure_3">دامنه باز و بسته شدن انگشتان نسبت به طول هر انگشت</string>
+    <string name="oc_measure_4">کیفیت ثبت دست در کادر دوربین</string>
+    <string name="oc_result_disclaimer">این نتیجه ویژگی‌های حرکتی ثبت‌شده را نشان می‌دهد و به‌تنهایی برای تشخیص بیماری یا تعیین شدت آن کافی نیست.</string>
+    <string name="oc_result_title">نتیجه باز و بسته کردن دست</string>
+    <string name="oc_session_countdown">آماده شوید: %1$s</string>
+    <string name="oc_session_recording">باز و بسته کنید: %1$s ثانیه  •  حرکت کامل: %2$s</string>
+    <string name="oc_result_cycles">حرکت‌های کامل</string>
+    <string name="oc_result_rate">سرعت تکرار</string>
+    <string name="oc_result_rate_value">%1$s حرکت در ثانیه</string>
+    <string name="oc_result_interval">فاصله میان حرکت‌ها</string>
+    <string name="oc_result_interval_value">میانگین %1$s میلی‌ثانیه (تغییرپذیری %2$s٪)</string>
+    <string name="oc_result_amplitude">دامنه باز و بسته شدن (نسبی)</string>
+    <string name="oc_result_amplitude_value">میانگین %1$s از ۱ (تغییرپذیری %2$s٪)</string>
+    <string name="oc_result_amplitude_desc">میزان خم شدن انگشتان نسبت به طول هر انگشت سنجیده می‌شود: ۱ یعنی انگشت کاملاً صاف. این مقدار واحد ندارد و سانتی‌متر نیست.</string>
+    <string name="oc_result_duration">مدت ثبت</string>
+    <string name="oc_result_duration_value">%1$s ثانیه؛ زمان قابل‌استفاده %2$s ثانیه</string>
+    <string name="oc_result_tracking">ثبت دست در کادر</string>
+    <string name="oc_result_tracking_value">%1$s٪ از زمان؛ طولانی‌ترین قطع ثبت: %2$s میلی‌ثانیه</string>
+    <string name="oc_result_partial">حرکت‌های ناقص (شمارش نشده)</string>
+    <string name="oc_result_partial_value">%1$s مورد</string>
+    <string name="oc_result_quality_score">کیفیت داده (فنی)</string>
+    <string name="oc_result_no_score">این آزمون نمره کلی ندارد. فقط ویژگی‌های اندازه‌گیری‌شده و کیفیت ثبت نمایش داده می‌شوند.</string>
+    <string name="oc_result_unavailable">محاسبه نشد</string>
+    <string name="oc_result_score_value">%1$s از ۱۰۰</string>
+    <string name="oc_result_warnings_title">هشدارها</string>
+    <string name="oc_warn_few_cycles">تعداد حرکت‌های کامل برای محاسبه ریتم کافی نبود. آزمون را با باز و بسته کردن کامل دست تکرار کنید.</string>
+    <string name="oc_warn_partial">بخش زیادی از حرکت‌ها کامل نبودند. دست را تا انتها باز کنید و تا انتها ببندید.</string>
+    <string name="oc_warn_out_of_frame">بخشی از زمان، دست خارج از کادر بود. دست را داخل کادر نگه دارید.</string>
+    <string name="oc_warn_tracking">تشخیص دست در بخشی از زمان قطع شد. نور محیط و فاصله گوشی را بررسی کنید.</string>
+    <string name="oc_warn_fps">تعداد نتیجه‌های دوربین کم بود؛ زمان‌بندی حرکت‌ها دقت کمتری دارد.</string>
+    <string name="oc_warn_noise">سیگنال ثبت‌شده نویز زیادی داشت؛ گوشی را ثابت‌تر نگه دارید.</string>
+    <string name="oc_warn_hand_side">برچسب راست یا چپ دست در بخشی از ثبت مطمئن نبود.</string>
+    <string name="oc_warn_general">برخی شرایط ثبت مناسب نبود؛ در صورت امکان آزمون را تکرار کنید.</string>
+    <string name="invalid_no_cycles">حرکت کامل باز و بسته شدن تشخیص داده نشد.</string>
+    <string name="invalid_tip_cycles">دست را تا انتها باز کنید و سپس تا انتها ببندید؛ حرکت نیمه‌کاره شمرده نمی‌شود.</string>
+    <string name="invalid_too_few_cycles">تعداد حرکت‌های کامل برای نتیجه کافی نبود.</string>
+    <string name="oc_ready_wait">مرحله ۱ از ۳: دست را کامل داخل کادر قرار دهید. وقتی دست تأیید شد، دکمه شروع فعال می‌شود.</string>
+    <string name="oc_ready_go">مرحله ۲ از ۳: دست آماده است. با شروع، ۳ ثانیه آمادگی و سپس ۱۰ ثانیه ثبت انجام می‌شود.</string>
+    <string name="oc_cue_text">دست را کامل باز کنید، سپس کامل ببندید. این حرکت را پشت سر هم تکرار کنید.</string>
+    <string name="oc_cue_description">نمایش حرکت: باز و بسته شدن دست، به‌صورت تکراری</string>
+    <string name="history_item_open_close">%1$s حرکت کامل  •  %2$s حرکت در ثانیه</string>
 </resources>

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
+import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
@@ -42,6 +43,9 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     fun pronationSupination(id: String): Flow<Loadable<PronationSupinationResult?>> =
         repository.observePronationSupination(id).map { Loadable.Loaded(it) }
+
+    fun handOpenClose(id: String): Flow<Loadable<HandOpenCloseResult?>> =
+        repository.observeHandOpenClose(id).map { Loadable.Loaded(it) }
 
     companion object {
         val Factory = viewModelFactory {

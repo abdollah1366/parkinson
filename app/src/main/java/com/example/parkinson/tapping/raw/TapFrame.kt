@@ -26,7 +26,8 @@ enum class FrameStatus {
  * left/right label says; [sideStatus] is evaluated over the whole recording.
  *
  * @param index position of this frame in the recording (0-based, every result counts)
- * @param timestampMs SystemClock.uptimeMillis() of the camera frame
+ * @param timestampMs uptimeMillis() when the frame was handed to MediaPipe (HandLandmarkerManager.nextTimestamp),
+ *   not the camera exposure time: the delay between exposure and submission is not measured
  * @param thumbIndexDistancePx distance between thumb tip (4) and index tip (8), NaN if not VALID
  * @param handScalePx palm size reference (see [TapFrameExtractor]), NaN if not VALID
  */

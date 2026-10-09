@@ -9,7 +9,7 @@ tests show their status and **never produce a measurement**.
 | 1 | `finger_tapping` | ضربه زدن با انگشتان | Camera, MediaPipe hand model | 10 s | **Available** |
 | 2 | `hand_stability` | نگه‌داشتن دست ثابت | Accelerometer, gyroscope | 5 s + 15 s | **Available** |
 | 3 | `pronation_supination` | آزمون چرخش دست | Gyroscope (required), accelerometer (optional) | 5 s + 3-2-1 + 10 s | **Available** |
-| 4 | `hand_open_close` | باز و بسته کردن دست | Camera, hand model | 10 s | در حال توسعه |
+| 4 | `hand_open_close` | آزمون باز و بسته کردن دست | Camera, MediaPipe hand model | 3 s + 10 s | **Available** (see `hand-opening-closing-algorithm.md`) |
 | 5 | `rapid_alternating_movements` | حرکات متناوب سریع دست | Camera, hand model, gyroscope | 10 s | در حال توسعه |
 | 6 | `resting_hand_tremor` | لرزش دست در حالت استراحت | Accelerometer, gyroscope | not defined | پژوهشی – در حال توسعه |
 | 7 | `gait` | راه رفتن | Accelerometer, gyroscope | not defined | در حال توسعه (no safe protocol yet) |

@@ -1,6 +1,7 @@
 package com.example.parkinson.data
 
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
@@ -20,6 +21,9 @@ interface AssessmentRepository {
     suspend fun savePronationSupination(result: PronationSupinationResult)
     fun observePronationSupination(assessmentId: String): Flow<PronationSupinationResult?>
 
+    suspend fun saveHandOpenClose(result: HandOpenCloseResult)
+    fun observeHandOpenClose(assessmentId: String): Flow<HandOpenCloseResult?>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -27,7 +31,8 @@ interface AssessmentRepository {
 class RoomAssessmentRepository(
     private val dao: AssessmentDao,
     private val stabilityDao: HandStabilityDao,
-    private val pronationDao: PronationSupinationDao
+    private val pronationDao: PronationSupinationDao,
+    private val openCloseDao: HandOpenCloseDao
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -50,14 +55,22 @@ class RoomAssessmentRepository(
     override fun observePronationSupination(assessmentId: String): Flow<PronationSupinationResult?> =
         pronationDao.observeById(assessmentId).map { it?.toDomain() }
 
+    override suspend fun saveHandOpenClose(result: HandOpenCloseResult) = openCloseDao.insert(result.toEntity())
+
+    override fun observeHandOpenClose(assessmentId: String): Flow<HandOpenCloseResult?> =
+        openCloseDao.observeById(assessmentId).map { it?.toDomain() }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
-        combine(dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll()) { tapping, stability, pronation ->
-            (tapping.map { it.toDomain() } + stability.map { it.toDomain() } + pronation.map { it.toDomain() })
+        combine(dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll(), openCloseDao.observeAll()) {
+            tapping, stability, pronation, openClose ->
+            (tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
+                pronation.map { it.toDomain() } + openClose.map { it.toDomain() })
                 .sortedByDescending { it.timestampEpochMs }
         }
 
     companion object {
-        fun from(db: AssessmentDatabase) =
-            RoomAssessmentRepository(db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao())
+        fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
+            db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao()
+        )
     }
 }

@@ -103,11 +103,11 @@ class PronationSupinationUiTest {
         setContent { PronationSupinationResultScreen(Loadable.Loaded(valid), {}, {}, {}) }
         rule.onNodeWithText("نتیجه آزمون چرخش دست").assertIsDisplayed()
         val band = when (MotorPerformanceBand.forScore(score)) {
-            MotorPerformanceBand.GOOD -> "عملکرد حرکتی خوب"
-            MotorPerformanceBand.ACCEPTABLE -> "عملکرد حرکتی قابل قبول"
-            MotorPerformanceBand.REDUCED -> "کاهش نسبی عملکرد حرکتی"
-            MotorPerformanceBand.SIGNIFICANTLY_REDUCED -> "کاهش قابل توجه عملکرد حرکتی"
-            MotorPerformanceBand.VERY_LOW -> "عملکرد حرکتی بسیار پایین"
+            MotorPerformanceBand.GOOD -> "امتیاز در بالاترین محدوده داخلی نرم‌افزار"
+            MotorPerformanceBand.ACCEPTABLE -> "امتیاز در محدوده میانی داخلی نرم‌افزار"
+            MotorPerformanceBand.REDUCED -> "امتیاز در محدوده پایین‌تر داخلی نرم‌افزار"
+            MotorPerformanceBand.SIGNIFICANTLY_REDUCED -> "امتیاز در محدوده پایین داخلی نرم‌افزار"
+            MotorPerformanceBand.VERY_LOW -> "امتیاز در پایین‌ترین محدوده داخلی نرم‌افزار"
         }
         // TalkBack reads the index as one sentence.
         rule.onNodeWithContentDescription("شاخص عملکرد حرکتی ${PersianFormat.integer(score)} از ۱۰۰، $band").assertIsDisplayed()

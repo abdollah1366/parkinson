@@ -32,7 +32,12 @@ class AssessmentCatalogTest {
     @Test
     fun onlyImplementedTestsCanStart() {
         assertEquals(
-            listOf(AssessmentType.FINGER_TAPPING, AssessmentType.HAND_STABILITY, AssessmentType.PRONATION_SUPINATION),
+            listOf(
+                AssessmentType.FINGER_TAPPING,
+                AssessmentType.HAND_STABILITY,
+                AssessmentType.PRONATION_SUPINATION,
+                AssessmentType.HAND_OPEN_CLOSE
+            ),
             AssessmentCatalog.available.map { it.type }
         )
     }
@@ -96,7 +101,8 @@ class AssessmentCatalogTest {
     fun nextAvailableTestCycles() {
         assertEquals(AssessmentType.HAND_STABILITY, AssessmentCatalog.nextAvailableAfter(AssessmentType.FINGER_TAPPING)?.type)
         assertEquals(AssessmentType.PRONATION_SUPINATION, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.PRONATION_SUPINATION)?.type)
+        assertEquals(AssessmentType.HAND_OPEN_CLOSE, AssessmentCatalog.nextAvailableAfter(AssessmentType.PRONATION_SUPINATION)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
         assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
     }
 

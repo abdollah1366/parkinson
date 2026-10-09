@@ -1,12 +1,8 @@
-package com.example.parkinson.ui.screens.camera
+package com.example.parkinson.ui.screens.openclose
 
 import android.Manifest
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Preview
@@ -23,15 +19,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,38 +55,38 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.parkinson.R
 import com.example.parkinson.camera.CameraController
-import com.example.parkinson.diagnostics.TapDiagnostics
-import com.example.parkinson.mediapipe.CameraQuality
-import com.example.parkinson.mediapipe.HandSideStatus
-import com.example.parkinson.mediapipe.HandTrackingQuality
-import com.example.parkinson.mediapipe.LiveVisionStatus
-import com.example.parkinson.tapping.LiveTapStats
-import com.example.parkinson.ui.format.PersianFormat
-import java.util.Locale
 import com.example.parkinson.camera.CameraLens
 import com.example.parkinson.camera.CameraPreview
 import com.example.parkinson.camera.CameraState
+import com.example.parkinson.mediapipe.CameraQuality
 import com.example.parkinson.mediapipe.HandLandmarkerManager
-import com.example.parkinson.mediapipe.toHandSide
+import com.example.parkinson.mediapipe.HandSideStatus
+import com.example.parkinson.mediapipe.HandTrackingQuality
 import com.example.parkinson.mediapipe.HandTrackingResult
+import com.example.parkinson.mediapipe.toHandSide
 import com.example.parkinson.model.SelectedHand
-import com.example.parkinson.tapping.FingerTappingSession
-import com.example.parkinson.tapping.SessionError
-import com.example.parkinson.tapping.SessionState
-import com.example.parkinson.tapping.isActive
+import com.example.parkinson.openclose.HandOpenCloseSession
+import com.example.parkinson.openclose.OpenCloseError
+import com.example.parkinson.openclose.OpenCloseState
+import com.example.parkinson.openclose.isActive
 import com.example.parkinson.ui.components.PrimaryButton
+import com.example.parkinson.ui.format.PersianFormat
 import com.example.parkinson.ui.format.toPersianDigits
+import com.example.parkinson.ui.screens.camera.CameraErrorCard
+import com.example.parkinson.ui.screens.camera.CameraPermissionCard
+import com.example.parkinson.ui.screens.camera.CameraStatusPill
+import com.example.parkinson.ui.screens.camera.HandLandmarkOverlay
+import com.example.parkinson.ui.screens.camera.openAppSettings
 import com.example.parkinson.ui.screens.invalid.InvalidResultKind
 
 /**
- * Camera + hand tracking + Finger Tapping session.
- * Navigates away as soon as the session ends: to the result on DONE, to the invalid-result
- * screen on INVALID or ERROR.
+ * Camera + hand tracking + Hand Opening/Closing session. Navigates away as soon as the session has
+ * an outcome: to the result on DONE, to the invalid-result screen on INVALID or ERROR.
  */
 @Composable
-fun FingerTappingCameraScreen(
+fun HandOpenCloseCameraScreen(
     selectedHand: SelectedHand?,
-    session: FingerTappingSession,
+    session: HandOpenCloseSession,
     onCompleted: (assessmentId: String) -> Unit,
     onInvalid: (InvalidResultKind) -> Unit,
 ) {
@@ -105,33 +98,25 @@ fun FingerTappingCameraScreen(
     val cameraState by cameraController.cameraState.collectAsState()
     val cameraLens by cameraController.cameraLens.collectAsState()
 
-    val handLandmarkerManager = remember {
-        HandLandmarkerManager(context)
-    }
+    val handLandmarkerManager = remember { HandLandmarkerManager(context) }
     val trackingState by handLandmarkerManager.result.collectAsState()
+    val vision by handLandmarkerManager.liveStatus.collectAsState()
 
     val sessionState by session.state.collectAsState()
-    val liveTapCount by session.liveTapCount.collectAsState()
+    val liveCycles by session.liveCycles.collectAsState()
 
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
 
-    // Hand label text
     val handText = when (selectedHand) {
-        SelectedHand.RIGHT -> stringResource(R.string.hand_right)
         SelectedHand.LEFT -> stringResource(R.string.hand_left)
-        null -> stringResource(R.string.hand_right)
+        SelectedHand.RIGHT, null -> stringResource(R.string.hand_right)
     }
 
-    // Permission state
     var isPermissionGranted by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA,
-            ) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
-
     var isPermanentlyDenied by remember { mutableStateOf(value = false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -145,7 +130,6 @@ fun FingerTappingCameraScreen(
             val showRationale = activity?.let {
                 ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
             } ?: true
-
             if (!showRationale) {
                 isPermanentlyDenied = true
                 cameraController.updateCameraState(CameraState.PermissionPermanentlyDenied)
@@ -174,8 +158,8 @@ fun FingerTappingCameraScreen(
         handLandmarkerManager.resultListener = session::onTrackingResult
         onDispose {
             handLandmarkerManager.resultListener = null
-            // Rotation: the camera restarts, so a running session cannot continue -> INVALID.
-            // Leaving the screen: discard the session entirely.
+            // Rotation restarts the camera, so a running session cannot continue -> INVALID.
+            // Leaving the screen discards the session entirely.
             if ((context as? Activity)?.isChangingConfigurations == true) {
                 session.abort()
             } else {
@@ -186,13 +170,12 @@ fun FingerTappingCameraScreen(
         }
     }
 
-    // Observe the ACTIVITY lifecycle, not the navigation entry: leaving this screen (back) also
-    // stops the entry, and must reset the session (onDispose above), not report an interruption.
+    // Observe the ACTIVITY lifecycle: leaving this screen also stops the navigation entry and must reset.
     val activityLifecycleOwner = (context as? LifecycleOwner) ?: lifecycleOwner
     DisposableEffect(activityLifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                // App sent to the background (home, lock screen, another app) during a session -> INVALID.
+                // App sent to the background during a session -> INVALID.
                 Lifecycle.Event.ON_STOP -> session.abort()
                 // Permission may have been granted in the system settings meanwhile.
                 Lifecycle.Event.ON_RESUME -> if (!isPermissionGranted) {
@@ -210,21 +193,18 @@ fun FingerTappingCameraScreen(
 
     // A camera failure ends a running session with an error instead of a partial result.
     LaunchedEffect(cameraState) {
-        if (cameraState is CameraState.CameraError) session.fail(SessionError.CAMERA_FAILURE)
+        if (cameraState is CameraState.CameraError) session.fail(OpenCloseError.CAMERA_FAILURE)
     }
 
     // Leave the screen as soon as the session has an outcome.
     LaunchedEffect(sessionState) {
         when (val s = sessionState) {
-            is SessionState.Done -> onCompleted(s.assessment.assessmentId)
-            is SessionState.Invalid, is SessionState.Error -> InvalidResultKind.from(s)?.let(onInvalid)
+            is OpenCloseState.Done -> onCompleted(s.result.assessmentId)
+            is OpenCloseState.Invalid, is OpenCloseState.Error -> InvalidResultKind.fromOpenClose(s)?.let(onInvalid)
             else -> Unit
         }
     }
 
-    // Status texts from the separate quality layers. The handedness score is NOT an image or
-    // lighting measure; brightness comes from the measured luma, tracking from delivered landmarks.
-    val vision by handLandmarkerManager.liveStatus.collectAsState()
     val liveStats by session.liveStats.collectAsState()
     val handOkText = stringResource(R.string.ft_live_hand_ok, handText)
     val (guideMessage, patientStatusText, isHandValid) = when (val state = trackingState) {
@@ -248,8 +228,8 @@ fun FingerTappingCameraScreen(
     }
     val trackingPercent = PersianFormat.integer(Math.round(vision.trackingRate * 100).toInt())
     val qualityText = when {
-        vision.cameraQuality != CameraQuality.GOOD && vision.trackingQuality == HandTrackingQuality.POOR ->
-            stringResource(R.string.ft_live_light_tracking_poor)
+        vision.cameraQuality != CameraQuality.GOOD &&
+            vision.trackingQuality == HandTrackingQuality.POOR -> stringResource(R.string.ft_live_light_tracking_poor)
         vision.cameraQuality != CameraQuality.GOOD -> stringResource(R.string.ft_live_light_warning)
         vision.trackingQuality == HandTrackingQuality.GOOD -> stringResource(R.string.ft_live_tracking_good, trackingPercent)
         vision.trackingQuality == HandTrackingQuality.WARNING -> stringResource(R.string.ft_live_tracking_warning, trackingPercent)
@@ -269,7 +249,6 @@ fun FingerTappingCameraScreen(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header: Title + Selected Hand
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -277,31 +256,24 @@ fun FingerTappingCameraScreen(
             ) {
                 Column {
                     Text(
-                        text = stringResource(R.string.finger_tapping_title),
+                        text = stringResource(R.string.test_oc_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "✋", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = handText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = handText,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-
-                // Camera Status Badge
                 CameraStatusPill(cameraState = cameraState, isHandValid = isHandValid)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Camera Area / Permission Handling
             if (!isPermissionGranted) {
                 CameraPermissionCard(
                     isPermanentlyDenied = isPermanentlyDenied,
@@ -320,7 +292,6 @@ fun FingerTappingCameraScreen(
                     }
                 )
             } else {
-                // Live Camera Preview Card with MediaPipe Landmark Overlay & Guide Overlay
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -329,11 +300,7 @@ fun FingerTappingCameraScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 1. Live Camera View
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         val previewDescription = stringResource(R.string.cd_camera_preview)
                         CameraPreview(
                             preview = previewUseCase,
@@ -342,7 +309,6 @@ fun FingerTappingCameraScreen(
                                 .semantics { contentDescription = previewDescription }
                         )
 
-                        // 2. MediaPipe Hand Landmark Overlay
                         // Front camera preview is mirrored, so the overlay must be mirrored too.
                         HandLandmarkOverlay(
                             result = trackingState,
@@ -350,13 +316,11 @@ fun FingerTappingCameraScreen(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // 3. Subtle Guide Frame Overlay
                         val guideBorderColor = if (isHandValid) {
                             MaterialTheme.colorScheme.secondary
                         } else {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
                         }
-
                         Box(
                             modifier = Modifier
                                 .fillMaxSize(0.82f)
@@ -378,16 +342,14 @@ fun FingerTappingCameraScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(
-                                        if (isHandValid) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary.copy(
-                                            alpha = 0.85f
-                                        )
+                                        if (isHandValid) MaterialTheme.colorScheme.secondary
+                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
                                     )
                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                                 textAlign = TextAlign.Center
                             )
                         }
 
-                        // Patient Status Bar below frame
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -406,15 +368,14 @@ fun FingerTappingCameraScreen(
                             )
                         }
 
-                        // 4. Session overlay (countdown / recording / processing)
-                        SessionOverlay(sessionState = sessionState, tapCount = liveTapCount)
+                        SessionOverlay(sessionState = sessionState, cycles = liveCycles)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Technical Quality Indicator Card
+            // Technical status: image brightness and tracking share. Warnings only, never a score.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -434,7 +395,6 @@ fun FingerTappingCameraScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
                     )
-
                     if (isHandValid) {
                         Text(
                             text = "دست آماده است ✓",
@@ -448,13 +408,12 @@ fun FingerTappingCameraScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Developer diagnostics: debuggable builds only, never in release builds.
-            if (TapDiagnostics.enabled) {
-                DebugVisionPanel(vision, liveStats, sessionState)
-                Spacer(modifier = Modifier.height(12.dp))
+            // Demonstration of the movement while preparing and recording (drawing only, see HandOpenCloseCue).
+            if (sessionState !is OpenCloseState.Processing && sessionState !is OpenCloseState.Done) {
+                HandOpenCloseCue(modifier = Modifier.padding(vertical = 4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Privacy Note
             Text(
                 text = "🔒 " + stringResource(R.string.privacy_camera_note),
                 style = MaterialTheme.typography.bodyMedium,
@@ -466,37 +425,44 @@ fun FingerTappingCameraScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Primary Action Button
         val canStart = isPermissionGranted && cameraState is CameraState.CameraReady && isHandValid
         val running = sessionState.isActive
+        // Readiness step, shown just above the start button. It only reflects the live hand check.
+        if (sessionState == OpenCloseState.Idle) {
+            Text(
+                text = stringResource(if (canStart) R.string.oc_ready_go else R.string.oc_ready_wait),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (canStart) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (canStart) FontWeight.Bold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+        }
         PrimaryButton(
             text = stringResource(if (running) R.string.btn_test_running else R.string.btn_start_test),
             onClick = { session.start(selectedHand ?: SelectedHand.RIGHT) },
-            enabled = canStart && sessionState == SessionState.Idle,
+            enabled = canStart && sessionState == OpenCloseState.Idle,
             modifier = Modifier.padding(top = 8.dp)
         )
     }
 }
 
 @Composable
-private fun SessionOverlay(
-    sessionState: SessionState,
-    tapCount: Int,
-) {
+private fun SessionOverlay(sessionState: OpenCloseState, cycles: Int) {
     val text = when (sessionState) {
-        is SessionState.Countdown -> stringResource(R.string.session_countdown, sessionState.secondsLeft.toPersianDigits())
-        is SessionState.Recording -> stringResource(
-            R.string.session_recording,
+        is OpenCloseState.Countdown -> stringResource(R.string.oc_session_countdown, sessionState.secondsLeft.toPersianDigits())
+        is OpenCloseState.Recording -> stringResource(
+            R.string.oc_session_recording,
             sessionState.secondsLeft.toPersianDigits(),
-            tapCount.toPersianDigits()
+            PersianFormat.integer(cycles)
         )
 
-        is SessionState.Processing -> stringResource(R.string.session_processing)
+        is OpenCloseState.Processing -> stringResource(R.string.session_processing)
         else -> return
     }
     Text(
         text = text,
-        style = if (sessionState is SessionState.Countdown) {
+        style = if (sessionState is OpenCloseState.Countdown) {
             MaterialTheme.typography.headlineLarge
         } else {
             MaterialTheme.typography.titleLarge
@@ -511,199 +477,4 @@ private fun SessionOverlay(
             // Announced by screen readers as it changes.
             .semantics { liveRegion = LiveRegionMode.Polite }
     )
-}
-
-@Composable
-internal fun CameraErrorCard(
-    message: String,
-    onRetry: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(R.string.camera_status_unavailable),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.error,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            PrimaryButton(text = stringResource(R.string.btn_try_again), onClick = onRetry)
-        }
-    }
-}
-
-@Composable
-internal fun CameraStatusPill(
-    cameraState: CameraState,
-    isHandValid: Boolean,
-) {
-    val (textRes, color, showProgress) = when {
-        cameraState is CameraState.CameraReady && isHandValid -> Triple(
-            R.string.camera_status_ready,
-            MaterialTheme.colorScheme.secondary,
-            false
-        )
-
-        cameraState is CameraState.CameraError -> Triple(
-            R.string.camera_status_unavailable,
-            MaterialTheme.colorScheme.error,
-            false
-        )
-
-        else -> Triple(
-            R.string.camera_status_initializing,
-            MaterialTheme.colorScheme.primary,
-            true
-        )
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        if (showProgress) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(12.dp),
-                strokeWidth = 2.dp,
-                color = color
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-        }
-
-        Text(
-            text = stringResource(textRes),
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-internal fun CameraPermissionCard(
-    isPermanentlyDenied: Boolean,
-    onRequestPermission: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.large,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "📷",
-                style = MaterialTheme.typography.headlineLarge
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = if (isPermanentlyDenied) {
-                    stringResource(R.string.camera_denied_title)
-                } else {
-                    stringResource(R.string.camera_permission_title)
-                },
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = stringResource(R.string.camera_permission_desc),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (isPermanentlyDenied) {
-                PrimaryButton(
-                    text = stringResource(R.string.btn_open_settings),
-                    onClick = onOpenSettings
-                )
-            } else {
-                PrimaryButton(
-                    text = stringResource(R.string.btn_enable_camera),
-                    onClick = onRequestPermission
-                )
-            }
-        }
-    }
-}
-
-internal fun openAppSettings(context: Context) {
-    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-        data = Uri.fromParts("package", context.packageName, null)
-    }
-    context.startActivity(intent)
-}
-
-/** Live camera / tracking / tap figures for physical-device calibration (debug builds only). */
-@Composable
-private fun DebugVisionPanel(vision: LiveVisionStatus, stats: LiveTapStats, state: SessionState) {
-    val lines = listOf(
-        "Camera: ${vision.cameraQuality} (luma ${vision.meanLuma?.let { Math.round(it) } ?: "—"})",
-        "Hand tracking: ${vision.trackingQuality} ${Math.round(vision.trackingRate * 100)}% (2 s)",
-        "Results/s: ${String.format(Locale.US, "%.1f", vision.resultsPerSecond)}",
-        "Frames received / submitted / results: ${vision.framesReceived} / ${vision.framesSubmitted} / ${vision.resultsReceived}",
-        "Dropped camera / pipeline: ${vision.cameraFramesSkipped} / ${vision.pipelineFramesDropped}",
-        "Recording frames / valid landmarks: ${stats.framesAnalyzed} / ${stats.validLandmarkFrames}",
-        "Recording tracking: ${Math.round(stats.trackingRate * 100)}%",
-        "Tap events / rejected candidates: ${stats.tapEvents} / ${stats.rejectedTapCandidates}",
-        "Tap rate: ${String.format(Locale.US, "%.2f", stats.tapRateHz)}/s",
-        "Session: ${state::class.simpleName}"
-    )
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("DEBUG", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Left) }
-        }
-    }
 }

@@ -30,17 +30,24 @@ interface AssessmentDao {
 /**
  * v2 adds hand_stability_assessments, v3 adds pronation_supination_assessments, v4 adds columns
  * to pronation_supination_assessments, v5 adds columns to finger_tapping_assessments (layered
- * quality, interpretation, per-tap payload). All are automatic migrations; existing rows are kept.
+ * quality, interpretation, per-tap payload), v6 adds hand_open_close_assessments. All are automatic
+ * migrations; existing rows are kept.
  */
 @Database(
-    entities = [AssessmentEntity::class, HandStabilityEntity::class, PronationSupinationEntity::class],
-    version = 5,
+    entities = [
+        AssessmentEntity::class,
+        HandStabilityEntity::class,
+        PronationSupinationEntity::class,
+        HandOpenCloseEntity::class
+    ],
+    version = 6,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
-        AutoMigration(from = 4, to = 5)
+        AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 5, to = 6)
     ]
 )
 abstract class AssessmentDatabase : RoomDatabase() {
@@ -50,6 +57,8 @@ abstract class AssessmentDatabase : RoomDatabase() {
     abstract fun handStabilityDao(): HandStabilityDao
 
     abstract fun pronationSupinationDao(): PronationSupinationDao
+
+    abstract fun handOpenCloseDao(): HandOpenCloseDao
 
     companion object {
         private const val NAME = "assessments.db"

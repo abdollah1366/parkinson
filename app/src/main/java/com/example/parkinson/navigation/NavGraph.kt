@@ -24,6 +24,9 @@ import com.example.parkinson.ui.screens.history.AssessmentHistoryScreen
 import com.example.parkinson.ui.screens.home.HomeScreen
 import com.example.parkinson.ui.screens.intro.FingerTappingIntroScreen
 import com.example.parkinson.ui.screens.invalid.InvalidResultKind
+import com.example.parkinson.ui.screens.openclose.HandOpenCloseCameraScreen
+import com.example.parkinson.ui.screens.openclose.HandOpenCloseIntroScreen
+import com.example.parkinson.ui.screens.result.HandOpenCloseResultScreen
 import com.example.parkinson.ui.screens.invalid.InvalidResultScreen
 import com.example.parkinson.ui.screens.preparation.FingerTappingPreparationScreen
 import com.example.parkinson.ui.screens.ready.FingerTappingReadyScreen
@@ -40,6 +43,7 @@ import com.example.parkinson.ui.screens.stability.HandStabilityTestScreen
 import com.example.parkinson.ui.screens.welcome.WelcomeScreen
 import com.example.parkinson.viewmodel.AssessmentHistoryViewModel
 import com.example.parkinson.viewmodel.FingerTappingViewModel
+import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.PronationSupinationViewModel
@@ -48,6 +52,7 @@ import com.example.parkinson.viewmodel.PronationSupinationViewModel
 fun resultRouteFor(result: AssessmentResult): String = when (result.type) {
     AssessmentType.HAND_STABILITY -> Screen.HandStabilityResult.createRoute(result.assessmentId)
     AssessmentType.PRONATION_SUPINATION -> Screen.PronationSupinationResult.createRoute(result.assessmentId)
+    AssessmentType.HAND_OPEN_CLOSE -> Screen.HandOpenCloseResult.createRoute(result.assessmentId)
     else -> Screen.FingerTappingResult.createRoute(result.assessmentId)
 }
 
@@ -62,6 +67,7 @@ fun ParkinsonNavGraph(
     fingerTappingViewModel: FingerTappingViewModel = viewModel(factory = FingerTappingViewModel.Factory),
     handStabilityViewModel: HandStabilityViewModel = viewModel(factory = HandStabilityViewModel.Factory),
     pronationViewModel: PronationSupinationViewModel = viewModel(factory = PronationSupinationViewModel.Factory),
+    handOpenCloseViewModel: HandOpenCloseViewModel = viewModel(factory = HandOpenCloseViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -91,6 +97,7 @@ fun ParkinsonNavGraph(
         fingerTappingViewModel.resetFlow()
         handStabilityViewModel.resetFlow()
         pronationViewModel.resetFlow()
+        handOpenCloseViewModel.resetFlow()
         val route = AssessmentCatalog.nextAvailableAfter(current)?.startRoute ?: Screen.AssessmentCatalog.route
         navController.navigate(route) {
             popUpTo(Screen.Home.route)
@@ -368,6 +375,84 @@ fun ParkinsonNavGraph(
                 },
                 onHome = {
                     pronationViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Hand Opening/Closing ---------------------------------------------------------
+
+        composable(Screen.HandOpenCloseIntro.route) {
+            HandOpenCloseIntroScreen {
+                // A new run never shows a previous outcome.
+                handOpenCloseViewModel.resetFlow()
+                navController.navigate(Screen.HandOpenCloseHandSelection.route)
+            }
+        }
+
+        composable(Screen.HandOpenCloseHandSelection.route) {
+            val selectedHand by handOpenCloseViewModel.selectedHand.collectAsState()
+            FingerTappingHandSelectionScreen(
+                selectedHand = selectedHand,
+                onHandSelected = { hand -> handOpenCloseViewModel.selectHand(hand) },
+                onContinueClicked = {
+                    navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.HAND_OPEN_CLOSE.id))
+                }
+            )
+        }
+
+        composable(Screen.HandOpenCloseTest.route) {
+            val selectedHand by handOpenCloseViewModel.selectedHand.collectAsState()
+            HandOpenCloseCameraScreen(
+                selectedHand = selectedHand,
+                session = handOpenCloseViewModel.session,
+                onCompleted = { id ->
+                    navController.navigate(Screen.HandOpenCloseResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.HandOpenCloseInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.HandOpenCloseInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // The camera screen is right below on the back stack and starts fresh (IDLE).
+                onRetry = {
+                    if (!navController.popBackStack(Screen.HandOpenCloseTest.route, inclusive = false)) {
+                        navController.navigate(Screen.HandOpenCloseTest.route)
+                    }
+                },
+                onHome = {
+                    handOpenCloseViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.HandOpenCloseResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.handOpenClose(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            HandOpenCloseResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    handOpenCloseViewModel.session.reset()
+                    handOpenCloseViewModel.selectHand(hand)
+                    navController.navigate(Screen.HandOpenCloseTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
+                onNextTest = { goToNextTest(AssessmentType.HAND_OPEN_CLOSE) },
+                onHome = {
+                    handOpenCloseViewModel.resetFlow()
                     goHome()
                 }
             )

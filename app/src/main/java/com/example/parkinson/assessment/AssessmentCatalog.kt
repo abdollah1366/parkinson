@@ -91,11 +91,19 @@ object AssessmentCatalog {
             startRoute = Screen.PronationSupinationIntro.route,
             afterSensorCheckRoute = Screen.PronationSupinationTest.route
         ),
-        planned(
-            AssessmentType.HAND_OPEN_CLOSE, R.string.test_oc_title, "Hand Opening / Closing",
-            R.string.test_oc_desc, R.string.test_oc_purpose,
-            listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL),
-            durationSeconds = 10, hand = true, icon = "🖐"
+        AssessmentDefinition(
+            type = AssessmentType.HAND_OPEN_CLOSE,
+            title = R.string.test_oc_title,
+            englishName = "Hand Opening / Closing",
+            description = R.string.test_oc_desc,
+            purpose = R.string.test_oc_purpose,
+            sensors = listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL),
+            status = AssessmentStatus.AVAILABLE,
+            durationSeconds = 10,
+            requiresHandSelection = true,
+            icon = "🖐",
+            startRoute = Screen.HandOpenCloseIntro.route,
+            afterSensorCheckRoute = Screen.HandOpenCloseTest.route
         ),
         planned(
             AssessmentType.RAPID_ALTERNATING, R.string.test_ram_title, "Rapid Alternating Movements",
