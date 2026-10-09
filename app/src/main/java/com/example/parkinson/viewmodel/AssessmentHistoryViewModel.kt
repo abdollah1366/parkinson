@@ -12,6 +12,7 @@ import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
+import com.example.parkinson.tremor.RestingTremorResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +47,9 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     fun handOpenClose(id: String): Flow<Loadable<HandOpenCloseResult?>> =
         repository.observeHandOpenClose(id).map { Loadable.Loaded(it) }
+
+    fun restingTremor(id: String): Flow<Loadable<RestingTremorResult?>> =
+        repository.observeRestingTremor(id).map { Loadable.Loaded(it) }
 
     companion object {
         val Factory = viewModelFactory {

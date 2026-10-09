@@ -63,14 +63,14 @@ class StabilityAndCatalogUiTest {
 
     private val titles = listOf(
         "ضربه زدن با انگشتان", "نگه‌داشتن دست ثابت", "آزمون چرخش دست", "آزمون باز و بسته کردن دست",
-        "حرکات متناوب سریع دست", "لرزش دست در حالت استراحت", "راه رفتن", "بلند شدن از صندلی",
+        "لرزش دست در حالت استراحت", "راه رفتن", "بلند شدن از صندلی",
         "ارزیابی گفتار", "آزمون حرکتی-شناختی"
     )
 
     @Test
     fun catalogShowsEveryTestWithItsStatus() {
         setContent { AssessmentCatalogScreen(onTestSelected = {}) }
-        rule.onNodeWithText("۴ آزمون آماده انجام • ۶ آزمون در حال توسعه").assertIsDisplayed()
+        rule.onNodeWithText("۵ آزمون آماده انجام • ۴ آزمون در حال توسعه").assertIsDisplayed()
         titles.forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsDisplayed()
@@ -114,9 +114,9 @@ class StabilityAndCatalogUiTest {
     }
 
     @Test
-    fun restingTremorIsShownAsResearch() {
+    fun restingTremorIsShownAsAvailable() {
         setContent { AssessmentCatalogScreen(tests = listOf(AssessmentCatalog[AssessmentType.RESTING_TREMOR]), onTestSelected = {}) }
-        rule.onNodeWithText("پژوهشی – در حال توسعه", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("● آماده انجام").assertIsDisplayed()
     }
 
     @Test

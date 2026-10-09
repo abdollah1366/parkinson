@@ -57,6 +57,18 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "hand_open_close_result/${Uri.encode(assessmentId)}"
     }
 
+    object RestingTremorIntro : Screen("resting_tremor_intro")
+    object RestingTremorHandSelection : Screen("resting_tremor_hand_selection")
+    object RestingTremorTest : Screen("resting_tremor_test")
+
+    object RestingTremorInvalid : Screen("resting_tremor_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "resting_tremor_invalid/${Uri.encode(kind)}"
+    }
+
+    object RestingTremorResult : Screen("resting_tremor_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "resting_tremor_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
