@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +49,11 @@ sealed interface ImuSitToStandState {
     /** Sensors released; resume registers them again. */
     data class Paused(val repetitions: Int, val target: Int) : ImuSitToStandState
 
+    /** Sensors are released; the recording is being analysed. */
     data object Processing : ImuSitToStandState
+
+    /** The analysis passed; the result is being written. Not interruptible: the write always finishes. */
+    data object Saving : ImuSitToStandState
 
     data class Done(val result: ImuSitToStandResult) : ImuSitToStandState
 
@@ -153,7 +158,10 @@ class ImuSitToStandSession(
             _state.value = ImuSitToStandState.Error(ImuError.SENSOR_START_FAILED)
             return
         }
-        val id = synchronized(lock) { ++runId }
+        val id = synchronized(lock) {
+            outcomeClaimed = false
+            ++runId
+        }
         job = scope.launch { calibrate(id) }
     }
 
@@ -184,10 +192,26 @@ class ImuSitToStandSession(
         job = scope.launch { activeLoop(id, paused.repetitions) }
     }
 
-    /** Stops the attempt as interrupted: no result is produced. */
+    /**
+     * Stops the attempt as interrupted: no result is produced. Ignored once the result is being written ([Saving]),
+     * so a screen-off or back press cannot cut a finished measurement half-way.
+     */
     fun abort() {
-        if (!_state.value.isRunning()) return
+        val current = _state.value
+        if (!current.isRunning() || current == ImuSitToStandState.Saving) return
         stop(ImuSitToStandState.Invalid(ImuFailure.Interrupted))
+    }
+
+    private var outcomeClaimed = false
+
+    /**
+     * True exactly once per finished attempt. The screen uses it before navigating, so a recreated screen (rotation)
+     * that finds the same DONE, INVALID or ERROR state does not navigate a second time.
+     */
+    fun claimOutcome(): Boolean = synchronized(lock) {
+        if (outcomeClaimed) return false
+        outcomeClaimed = true
+        true
     }
 
     /** Cancels everything without a result, and returns to IDLE. */
@@ -308,15 +332,18 @@ class ImuSitToStandSession(
         when (outcome) {
             is FinalOutcome.Failed -> publish(id, ImuSitToStandState.Invalid(outcome.reason))
             is FinalOutcome.Ready -> {
-                try {
-                    onCompleted(outcome.result)
-                } catch (e: CancellationException) {
-                    throw e
+                // SAVING is published first, so a stop from now on is refused by abort() and the write is never
+                // started for a run that was already stopped.
+                if (!publish(id, ImuSitToStandState.Saving)) return
+                val saved = try {
+                    // NonCancellable: once the write starts it finishes, so no record is left without its state.
+                    withContext(NonCancellable) { onCompleted(outcome.result) }
+                    true
                 } catch (e: Exception) {
-                    publish(id, ImuSitToStandState.Error(ImuError.STORAGE_FAILURE))
-                    return
+                    false
                 }
-                publish(id, ImuSitToStandState.Done(outcome.result))
+                if (saved) publish(id, ImuSitToStandState.Done(outcome.result))
+                else publish(id, ImuSitToStandState.Error(ImuError.STORAGE_FAILURE))
             }
         }
     }
@@ -417,7 +444,8 @@ class ImuSitToStandSession(
 
     private fun ImuSitToStandState.isRunning(): Boolean =
         this is ImuSitToStandState.Calibrating || this is ImuSitToStandState.Countdown ||
-            this is ImuSitToStandState.Active || this is ImuSitToStandState.Paused || this is ImuSitToStandState.Processing
+            this is ImuSitToStandState.Active || this is ImuSitToStandState.Paused ||
+            this is ImuSitToStandState.Processing || this == ImuSitToStandState.Saving
 
     companion object {
         const val PROTOCOL_ID = "five_times_sit_to_stand_imu"

@@ -81,6 +81,7 @@ class ImuSessionTest {
     private fun TestScope.sitToStand(
         source: FakeSensorSource,
         out: MutableList<ImuSitToStandResult>,
+        save: suspend (ImuSitToStandResult) -> Unit = { out += it },
     ): ImuSitToStandSession = ImuSitToStandSession(
         scope = this,
         repository = MotionSensorRepository(source),
@@ -91,7 +92,7 @@ class ImuSessionTest {
         newId = { "sts-session" },
         newSessionId = { "visit" },
         processingDispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler),
-        onCompleted = { out += it },
+        onCompleted = save,
     )
 
     @Test
@@ -120,6 +121,86 @@ class ImuSessionTest {
         assertEquals(done.result, saved.single())
         assertEquals(1, source.registrations)
         assertTrue(!source.running)
+    }
+
+    @Test
+    fun theWriteRunsInTheSavingStateAndDoneIsPublishedOnlyAfterIt() = runTest {
+        val source = FakeSensorSource()
+        val saved = mutableListOf<ImuSitToStandResult>()
+        lateinit var session: ImuSitToStandSession
+        val statesDuringWrite = mutableListOf<ImuSitToStandState>()
+        session = sitToStand(source, saved, save = { result ->
+            statesDuringWrite += session.state.value
+            delay(1_000L)
+            saved += result
+        })
+        feed(source, SyntheticImu.TransferProfile(calibrationS = 6.0, cycles = 5), durationMs = 30_000L)
+        session.start()
+        advanceTimeBy(32_000L)
+        runCurrent()
+        assertEquals(listOf<ImuSitToStandState>(ImuSitToStandState.Saving), statesDuringWrite)
+        assertEquals(1, saved.size)
+        assertEquals(ImuSitToStandState.Done(saved.single()), session.state.value)
+    }
+
+    @Test
+    fun anAbortArrivingDuringTheWriteIsRefusedAndTheMeasurementStillCompletes() = runTest {
+        val source = FakeSensorSource()
+        val saved = mutableListOf<ImuSitToStandResult>()
+        lateinit var session: ImuSitToStandSession
+        session = sitToStand(source, saved, save = { result ->
+            // Screen-off or back press while the result is being written.
+            session.abort()
+            delay(1_000L)
+            saved += result
+        })
+        feed(source, SyntheticImu.TransferProfile(calibrationS = 6.0, cycles = 5), durationMs = 30_000L)
+        session.start()
+        advanceTimeBy(32_000L)
+        runCurrent()
+        assertEquals(1, saved.size)
+        assertTrue("state=${session.state.value}", session.state.value is ImuSitToStandState.Done)
+    }
+
+    @Test
+    fun aFailedWriteReportsAStorageErrorAndPublishesNoResult() = runTest {
+        val source = FakeSensorSource()
+        val session = sitToStand(source, mutableListOf(), save = { throw IllegalStateException("disk full") })
+        feed(source, SyntheticImu.TransferProfile(calibrationS = 6.0, cycles = 5), durationMs = 30_000L)
+        session.start()
+        advanceTimeBy(32_000L)
+        runCurrent()
+        assertEquals(ImuSitToStandState.Error(ImuError.STORAGE_FAILURE), session.state.value)
+        assertTrue(!source.running)
+    }
+
+    @Test
+    fun theFinishedOutcomeIsClaimedOnceSoARecreatedScreenDoesNotNavigateAgain() = runTest {
+        val source = FakeSensorSource()
+        val saved = mutableListOf<ImuSitToStandResult>()
+        val session = sitToStand(source, saved)
+        feed(source, SyntheticImu.TransferProfile(calibrationS = 6.0, cycles = 5), durationMs = 30_000L)
+        session.start()
+        advanceTimeBy(32_000L)
+        runCurrent()
+        assertTrue(session.claimOutcome())
+        assertTrue(!session.claimOutcome())
+    }
+
+    @Test
+    fun startingAgainAfterACompletedRunRegistersNothingAndSavesNothing() = runTest {
+        val source = FakeSensorSource()
+        val saved = mutableListOf<ImuSitToStandResult>()
+        val session = sitToStand(source, saved)
+        feed(source, SyntheticImu.TransferProfile(calibrationS = 6.0, cycles = 5), durationMs = 30_000L)
+        session.start()
+        advanceTimeBy(32_000L)
+        runCurrent()
+        assertTrue(session.state.value is ImuSitToStandState.Done)
+        session.start()
+        advanceTimeBy(1_000L)
+        assertEquals(1, source.registrations)
+        assertEquals(1, saved.size)
     }
 
     @Test

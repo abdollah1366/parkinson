@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -118,11 +119,24 @@ fun ImuSitToStandScreen(
     val availability by session.availability.collectAsState()
 
     LifecycleGuard(onStop = { session.abort() }, onLeave = { session.reset() })
+    // The phone sits in a pocket and the screen can time out during the test: keep it on while the run is active,
+    // as the other motion tests do. A screen-off is otherwise an interruption (ON_STOP).
+    val view = LocalView.current
+    val running = state is ImuSitToStandState.Calibrating || state is ImuSitToStandState.Countdown ||
+        state is ImuSitToStandState.Active || state is ImuSitToStandState.Paused ||
+        state is ImuSitToStandState.Processing || state == ImuSitToStandState.Saving
+    DisposableEffect(running) {
+        view.keepScreenOn = running
+        onDispose { view.keepScreenOn = false }
+    }
+    // Navigates once per finished attempt (see claimOutcome), even when the screen is recreated.
     LaunchedEffect(state) {
         when (val s = state) {
-            is ImuSitToStandState.Done -> onCompleted(s.result.assessmentId)
-            is ImuSitToStandState.Invalid -> onInvalid(InvalidResultKind.fromImuSitToStand(s.reason))
-            is ImuSitToStandState.Error -> onInvalid(InvalidResultKind.fromImuError(s.error))
+            is ImuSitToStandState.Done -> if (session.claimOutcome()) onCompleted(s.result.assessmentId)
+            is ImuSitToStandState.Invalid ->
+                if (session.claimOutcome()) onInvalid(InvalidResultKind.fromImuSitToStand(s.reason))
+            is ImuSitToStandState.Error ->
+                if (session.claimOutcome()) onInvalid(InvalidResultKind.fromImuError(s.error))
             else -> Unit
         }
     }
@@ -185,7 +199,7 @@ fun ImuSitToStandScreen(
                 }
             }
 
-            ImuSitToStandState.Processing -> InfoCard(stringResource(R.string.imu_processing))
+            ImuSitToStandState.Processing, ImuSitToStandState.Saving -> InfoCard(stringResource(R.string.imu_processing))
             is ImuSitToStandState.Done, is ImuSitToStandState.Invalid, is ImuSitToStandState.Error -> Unit
         }
     }
