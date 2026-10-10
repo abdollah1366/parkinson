@@ -217,11 +217,22 @@ fun ImuGaitScreen(
     val availability by session.availability.collectAsState()
 
     LifecycleGuard(onStop = { session.abort() }, onLeave = { session.reset() })
+    // Same as the sit-to-stand test: keep the screen on during the walk, and navigate once per finished walk.
+    val view = LocalView.current
+    val running = state is ImuGaitState.Calibrating || state is ImuGaitState.Countdown ||
+        state is ImuGaitState.Walking || state is ImuGaitState.Paused ||
+        state is ImuGaitState.Processing || state == ImuGaitState.Saving
+    DisposableEffect(running) {
+        view.keepScreenOn = running
+        onDispose { view.keepScreenOn = false }
+    }
     LaunchedEffect(state) {
         when (val s = state) {
-            is ImuGaitState.Done -> onCompleted(s.result.assessmentId)
-            is ImuGaitState.Invalid -> onInvalid(InvalidResultKind.fromImuGait(s.reason))
-            is ImuGaitState.Error -> onInvalid(InvalidResultKind.fromImuError(s.error))
+            is ImuGaitState.Done -> if (session.claimOutcome()) onCompleted(s.result.assessmentId)
+            is ImuGaitState.Invalid ->
+                if (session.claimOutcome()) onInvalid(InvalidResultKind.fromImuGait(s.reason))
+            is ImuGaitState.Error ->
+                if (session.claimOutcome()) onInvalid(InvalidResultKind.fromImuError(s.error))
             else -> Unit
         }
     }
@@ -285,7 +296,7 @@ fun ImuGaitScreen(
                 }
             }
 
-            ImuGaitState.Processing -> InfoCard(stringResource(R.string.imu_processing))
+            ImuGaitState.Processing, ImuGaitState.Saving -> InfoCard(stringResource(R.string.imu_processing))
             is ImuGaitState.Done, is ImuGaitState.Invalid, is ImuGaitState.Error -> Unit
         }
     }

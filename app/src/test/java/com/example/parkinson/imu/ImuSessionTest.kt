@@ -331,6 +331,38 @@ class ImuSessionTest {
         assertEquals("gait-session", saved.single().assessmentId)
     }
 
+    @Test
+    fun anAbortDuringTheGaitWriteIsRefusedAndTheWalkIsSavedOnceAsDone() = runTest {
+        val source = FakeSensorSource()
+        val saved = mutableListOf<ImuGaitResult>()
+        lateinit var session: ImuGaitSession
+        session = ImuGaitSession(
+            scope = this,
+            repository = MotionSensorRepository(source),
+            config = ImuGaitSessionConfig(walkingMs = 12_000L),
+            clock = { testScheduler.currentTime },
+            nanoClock = { base + testScheduler.currentTime * 1_000_000L },
+            wallClock = { 1_700_000_000_000L },
+            newId = { "gait-session" },
+            newSessionId = { "visit" },
+            processingDispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler),
+            onCompleted = { result ->
+                // Screen-off or back press while the walk is being written.
+                session.abort()
+                delay(1_000L)
+                saved += result
+            },
+        )
+        feedGait(source, startAtMs = 0L, durationMs = 25_000L)
+        session.start()
+        advanceTimeBy(26_000L)
+        runCurrent()
+        assertEquals(1, saved.size)
+        assertTrue("state=${session.state.value}", session.state.value is ImuGaitState.Done)
+        assertTrue(session.claimOutcome())
+        assertTrue(!session.claimOutcome())
+    }
+
     /** Standing still for the first 6 s, then 2 steps per second of synthetic walking. */
     private fun TestScope.feedGait(source: FakeSensorSource, startAtMs: Long, durationMs: Long) = launch {
         val start = testScheduler.currentTime
