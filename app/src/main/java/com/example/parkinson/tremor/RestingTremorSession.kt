@@ -26,13 +26,16 @@ sealed interface RestingTremorState {
     data class Recording(val secondsLeft: Int) : RestingTremorState
     data object Processing : RestingTremorState
 
-    /** A usable result (quality VALID or LOW_QUALITY), already saved. */
+    /** A usable camera result (quality VALID or LOW_QUALITY), already saved. */
     data class Done(val result: RestingTremorResult) : RestingTremorState
 
-    /** No result: interrupted, or the quality control rejected the recording. */
+    /** A usable phone-motion result without a camera result, already saved. */
+    data class DoneImu(val result: RestingTremorImuResult) : RestingTremorState
+
+    /** No result: interrupted, or the quality control rejected the camera recording. */
     data class Invalid(val reason: RestingTremorInvalidReason) : RestingTremorState
 
-    /** No result: a technical failure (camera, tracking, storage). */
+    /** No result: a technical failure that left no usable data from either sensor path. */
     data class Error(val error: RestingTremorError) : RestingTremorState
 }
 
@@ -43,7 +46,7 @@ sealed interface RestingTremorInvalidReason {
     /** Stopped before the recording finished (cancelled, screen left, app backgrounded, rotation). */
     data object Interrupted : RestingTremorInvalidReason
 
-    /** The recording finished but quality control rejected it. */
+    /** The recording finished but quality control rejected the camera data. */
     data class QualityRejected(val report: RestingTremorQualityReport) : RestingTremorInvalidReason
 }
 
@@ -66,24 +69,38 @@ data class RestingTremorLiveStats(
 )
 
 /**
- * One Resting Hand Tremor recording: IDLE -> COUNTDOWN -> RECORDING -> PROCESSING -> DONE / INVALID / ERROR.
- * A session that does not complete normally never produces a result.
+ * One Resting Hand Tremor recording: IDLE -> COUNTDOWN -> RECORDING -> PROCESSING -> DONE / DONE_IMU / INVALID /
+ * ERROR. Two acquisition paths run side by side and are judged separately:
  *
- * Every MediaPipe result is pushed into [onTrackingResult] (synchronous listener, MediaPipe thread). Results
- * whose timestamp lies inside the recording window are kept as raw frames. The analysis runs once, on the
- * complete recording. Shared state is guarded by [lock]; a run id stops a stale run from publishing.
+ *  - Camera: every MediaPipe result inside the recording window is kept as a raw frame ([onTrackingResult]).
+ *    The camera result is stored as before, and only when the camera data is usable.
+ *  - Phone motion ([motion], optional): the accelerometer (required) and gyroscope (optional) are started before
+ *    the timed recording begins and stopped after it. The phone-motion result is stored whenever the accelerometer
+ *    stream was registered, including when its data is insufficient (explicit INSUFFICIENT_DATA status).
+ *
+ * A camera failure during a recording that the phone-motion path is still capturing does not end the recording:
+ * the camera result is then unavailable and the phone-motion path decides the outcome. Without an active
+ * phone-motion capture, a camera failure ends the recording as before. Shared state is guarded by [lock]; a run
+ * id stops a stale run from publishing.
  */
 class RestingTremorSession(
     private val scope: CoroutineScope,
     /** Must be the clock used for HandTrackingResult.timestampMs. */
     private val clock: () -> Long = SystemClock::uptimeMillis,
     private val wallClock: () -> Long = System::currentTimeMillis,
+    /** Must be the clock used for the sensor event timestamps (elapsed realtime, ns). */
+    private val elapsedNs: () -> Long = SystemClock::elapsedRealtimeNanos,
     private val newAssessmentId: () -> String = { UUID.randomUUID().toString() },
     private val config: RestingTremorSessionConfig = RestingTremorSessionConfig(),
     private val engine: RestingTremorEngine = RestingTremorEngine(),
+    private val imuEngine: RestingTremorImuEngine = RestingTremorImuEngine(),
+    /** Phone-motion capture; null = camera-only session. */
+    private val motion: RestingTremorMotionRecorder? = null,
     private val processingDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    /** Persists a usable result before DONE is published. */
+    /** Persists a usable camera result before DONE is published. */
     private val onCompleted: suspend (RestingTremorResult) -> Unit = {},
+    /** Persists a phone-motion result (usable or insufficient) before DONE_IMU or INVALID is published. */
+    private val onImuCompleted: suspend (RestingTremorImuResult) -> Unit = {},
 ) {
 
     private val _state = MutableStateFlow<RestingTremorState>(RestingTremorState.Idle)
@@ -105,6 +122,12 @@ class RestingTremorSession(
     // Arrival counts of the current recording window (diagnostics only).
     private var resultsInWindow = 0
     private var resultsOutsideWindow = 0
+
+    /** True while the phone-motion capture of the current recording is running. */
+    private var imuRecording = false
+
+    /** The first camera failure of the current recording; null while the camera path is healthy. */
+    private var cameraFailure: RestingTremorError? = null
 
     private var job: Job? = null
 
@@ -140,9 +163,13 @@ class RestingTremorSession(
         stop(RestingTremorState.Invalid(RestingTremorInvalidReason.Interrupted))
     }
 
-    /** Stops an active session because of a technical failure reported from outside (camera). */
+    /**
+     * Reports a technical failure from outside (camera). During a phone-motion recording it only marks the camera
+     * path as failed; otherwise it ends the session with an error.
+     */
     fun fail(error: RestingTremorError) {
         if (!_state.value.isActive) return
+        if (degradeCamera(error)) return
         stop(RestingTremorState.Error(error))
     }
 
@@ -154,6 +181,7 @@ class RestingTremorSession(
     private fun stop(finalState: RestingTremorState) {
         job?.cancel()
         job = null
+        motion?.discard()
         synchronized(lock) {
             clearRecordingLocked()
             runId++
@@ -162,17 +190,25 @@ class RestingTremorSession(
     }
 
     private suspend fun run(id: Int, hand: SelectedHand) {
+        var motionStopped = false
         try {
+            // The phone-motion capture starts before the countdown, so a camera stall during the countdown can be
+            // absorbed by the motion path, and the sensors are already recording when timing begins.
+            val imuStarted = motion?.start(IMU_SAMPLING_PERIOD_US) == MotionStartOutcome.STARTED
+            synchronized(lock) {
+                if (id != runId) return
+                imuRecording = imuStarted
+            }
             if (!runTimed(id, config.countdownMs) { RestingTremorState.Countdown(it) }) return
 
             val startMs = clock()
             val startWall = wallClock()
             synchronized(lock) {
                 if (id != runId) return
-                clearRecordingLocked()
                 acceptFromMs = startMs
                 acceptUntilMs = Long.MAX_VALUE
             }
+            if (imuStarted) motion?.markRecordingStart()
             if (!runTimed(id, config.recordingMs, onTick = { updateLive(id, startMs) }) { RestingTremorState.Recording(it) }) return
 
             val endMs = startMs + config.recordingMs
@@ -188,47 +224,94 @@ class RestingTremorSession(
                 if (id != runId) return
                 acceptFromMs = Long.MAX_VALUE
                 acceptUntilMs = Long.MIN_VALUE
-                Capture(frames.toList(), wallClock(), resultsInWindow, resultsOutsideWindow)
+                imuRecording = false
+                CameraCapture(frames.toList(), wallClock(), resultsInWindow, resultsOutsideWindow, cameraFailure)
             }
-            val recorded = capture.frames
+            val motionCapture = if (imuStarted) motion?.stop() else null
+            motionStopped = true
             val endWall = capture.endWallMs
 
-            val recording = RestingTremorRecording(recorded, config.recordingMs)
-            val analysis = withContext(processingDispatcher) {
-                engine.analyze(recording)
+            val recording = RestingTremorRecording(capture.frames, config.recordingMs)
+            val cameraAnalysis = if (capture.cameraFailure == null) {
+                withContext(processingDispatcher) { engine.analyze(recording) }
+            } else {
+                null
             }
-            RestingTremorDiagnostics.report(capture.resultsInWindow, capture.resultsOutside, recording, analysis)
-            val metrics = analysis.metrics
-            if (!analysis.quality.isUsable || metrics == null) {
-                publish(id, RestingTremorState.Invalid(RestingTremorInvalidReason.QualityRejected(analysis.quality)))
-                return
+            cameraAnalysis?.let { RestingTremorDiagnostics.report(capture.resultsInWindow, capture.resultsOutside, recording, it) }
+            val cameraResult = cameraAnalysis?.let { analysis ->
+                val metrics = analysis.metrics
+                if (analysis.quality.isUsable && metrics != null) {
+                    RestingTremorResult.from(
+                        analysis = analysis,
+                        metrics = metrics,
+                        frames = capture.frames,
+                        assessmentId = newAssessmentId(),
+                        startEpochMs = startWall,
+                        endEpochMs = endWall,
+                        hand = hand,
+                        plannedDurationMs = config.recordingMs,
+                        signal = engine.signal,
+                    )
+                } else {
+                    null
+                }
             }
 
-            val result = RestingTremorResult.from(
-                analysis = analysis,
-                metrics = metrics,
-                frames = recorded,
-                assessmentId = newAssessmentId(),
-                startEpochMs = startWall,
-                endEpochMs = endWall,
-                hand = hand,
-                plannedDurationMs = config.recordingMs,
-                signal = engine.signal,
-            )
-            try {
-                onCompleted(result)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                publish(id, RestingTremorState.Error(RestingTremorError.STORAGE_FAILURE))
-                return
+            val imuResult = motionCapture?.let { capturedMotion ->
+                val windowEnd = capturedMotion.windowStartNs + config.recordingMs * NS_PER_MS
+                val accel = capturedMotion.accelerometer.filter { it.timestampNs in capturedMotion.windowStartNs..windowEnd }
+                val gyro = capturedMotion.gyroscope.filter { it.timestampNs in capturedMotion.windowStartNs..windowEnd }
+                val analysis = withContext(processingDispatcher) {
+                    imuEngine.analyze(accel, gyro, config.recordingMs)
+                }
+                RestingTremorImuResult.from(
+                    analysis = analysis,
+                    assessmentId = newAssessmentId(),
+                    startEpochMs = startWall,
+                    endEpochMs = endWall,
+                    hand = hand,
+                    plannedDurationMs = config.recordingMs,
+                    gyroscopePresent = motion?.gyroscopeAvailable() == true,
+                    config = imuEngine.config,
+                )
             }
-            publish(id, RestingTremorState.Done(result))
+
+            // Save what was measured, then decide the outcome. Each save failure is a storage error.
+            if (cameraResult != null) {
+                if (!save(id) { onCompleted(cameraResult) }) return
+            }
+            if (imuResult != null) {
+                if (!save(id) { onImuCompleted(imuResult) }) return
+            }
+
+            when {
+                cameraResult != null -> publish(id, RestingTremorState.Done(cameraResult))
+                imuResult?.isUsable == true -> publish(id, RestingTremorState.DoneImu(imuResult))
+                capture.cameraFailure != null -> publish(id, RestingTremorState.Error(capture.cameraFailure))
+                cameraAnalysis != null ->
+                    publish(id, RestingTremorState.Invalid(RestingTremorInvalidReason.QualityRejected(cameraAnalysis.quality)))
+                else -> publish(id, RestingTremorState.Error(RestingTremorError.UNEXPECTED))
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // Never crash on an analysis bug; report it and produce no result.
             publish(id, RestingTremorState.Error(RestingTremorError.UNEXPECTED))
+        } finally {
+            if (!motionStopped) motion?.discard()
+        }
+    }
+
+    /** Runs [action] (a save). Returns false, after publishing a storage error, when it fails. */
+    private suspend fun save(id: Int, action: suspend () -> Unit): Boolean {
+        return try {
+            action()
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            publish(id, RestingTremorState.Error(RestingTremorError.STORAGE_FAILURE))
+            false
         }
     }
 
@@ -244,13 +327,25 @@ class RestingTremorSession(
             val left = end - clock()
             if (left <= 0) return true
             healthError()?.let { error ->
-                publish(id, RestingTremorState.Error(error))
-                return false
+                if (!degradeCamera(error)) {
+                    publish(id, RestingTremorState.Error(error))
+                    return false
+                }
             }
             if (!publish(id, stateFor(ceilSeconds(left)))) return false
             onTick()
             delay(min(config.tickMs, left))
         }
+    }
+
+    /**
+     * Marks the camera path as failed while the phone-motion capture is running, so the recording continues on
+     * the motion data alone. Returns false when no phone-motion capture is running (the caller must then stop).
+     */
+    private fun degradeCamera(error: RestingTremorError): Boolean = synchronized(lock) {
+        if (!imuRecording) return@synchronized false
+        if (cameraFailure == null) cameraFailure = error
+        true
     }
 
     private fun updateLive(id: Int, startMs: Long) {
@@ -289,16 +384,25 @@ class RestingTremorSession(
         frames.clear()
         resultsInWindow = 0
         resultsOutsideWindow = 0
+        imuRecording = false
+        cameraFailure = null
         _liveStats.value = RestingTremorLiveStats()
     }
 
     private fun ceilSeconds(ms: Long): Int = ((ms + 999) / 1000).toInt()
 
-    /** What is taken from the session when a recording window closes. */
-    private class Capture(
+    /** What is taken from the camera path when its recording window closes. */
+    private class CameraCapture(
         val frames: List<RestingTremorFrame>,
         val endWallMs: Long,
         val resultsInWindow: Int,
         val resultsOutside: Int,
+        val cameraFailure: RestingTremorError?,
     )
+
+    private companion object {
+        /** 100 Hz requested; the measured rate is always computed from the event timestamps. */
+        const val IMU_SAMPLING_PERIOD_US = 10_000
+        const val NS_PER_MS = 1_000_000L
+    }
 }

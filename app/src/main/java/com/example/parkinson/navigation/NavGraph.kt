@@ -40,7 +40,9 @@ import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.imu.ImuGaitResult
 import com.example.parkinson.imu.ImuSitToStandResult
 import com.example.parkinson.sts.SitToStandResult
+import com.example.parkinson.ui.screens.result.RestingTremorImuResultScreen
 import com.example.parkinson.ui.screens.result.RestingTremorResultScreen
+import com.example.parkinson.tremor.RestingTremorImuResult
 import com.example.parkinson.ui.screens.gait.GaitIntroScreen
 import com.example.parkinson.ui.screens.imu.ImuGaitScreen
 import com.example.parkinson.ui.screens.imu.ImuSitToStandScreen
@@ -77,6 +79,7 @@ fun resultRouteFor(result: AssessmentResult): String = when {
     result is ImuGaitResult -> Screen.GaitResult.createRoute(result.assessmentId)
     result is SitToStandResult -> Screen.SitToStandLegacyResult.createRoute(result.assessmentId)
     result is GaitResult -> Screen.GaitLegacyResult.createRoute(result.assessmentId)
+    result is RestingTremorImuResult -> Screen.RestingTremorImuResult.createRoute(result.assessmentId)
     else -> resultRouteByType(result)
 }
 
@@ -531,6 +534,12 @@ fun ParkinsonNavGraph(
                         launchSingleTop = true
                     }
                 },
+                onCompletedImu = { id ->
+                    navController.navigate(Screen.RestingTremorImuResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
                 onInvalid = { kind ->
                     navController.navigate(Screen.RestingTremorInvalid.createRoute(kind.name)) {
                         launchSingleTop = true
@@ -570,6 +579,26 @@ fun ParkinsonNavGraph(
                     }
                 },
                 onNextTest = { goToNextTest(AssessmentType.RESTING_TREMOR) },
+                onHome = {
+                    restingTremorViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.RestingTremorImuResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.restingTremorImu(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            RestingTremorImuResultScreen(
+                result = result,
+                onRepeat = { hand ->
+                    restingTremorViewModel.session.reset()
+                    restingTremorViewModel.selectHand(hand)
+                    navController.navigate(Screen.RestingTremorTest.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                },
                 onHome = {
                     restingTremorViewModel.resetFlow()
                     goHome()

@@ -81,14 +81,15 @@ import com.example.parkinson.ui.screens.camera.openAppSettings
 import com.example.parkinson.ui.screens.invalid.InvalidResultKind
 
 /**
- * Camera + hand tracking + Hand Opening/Closing session. Navigates away as soon as the session has
- * an outcome: to the result on DONE, to the invalid-result screen on INVALID or ERROR.
+ * Camera + hand tracking + phone-motion session. Navigates away as soon as the session has an outcome: to the
+ * camera result on DONE, to the phone-motion result on DONE_IMU, to the invalid-result screen on INVALID or ERROR.
  */
 @Composable
 fun RestingTremorCameraScreen(
     selectedHand: SelectedHand?,
     session: RestingTremorSession,
     onCompleted: (assessmentId: String) -> Unit,
+    onCompletedImu: (assessmentId: String) -> Unit,
     onInvalid: (InvalidResultKind) -> Unit,
 ) {
     val context = LocalContext.current
@@ -200,6 +201,7 @@ fun RestingTremorCameraScreen(
     LaunchedEffect(sessionState) {
         when (val s = sessionState) {
             is RestingTremorState.Done -> onCompleted(s.result.assessmentId)
+            is RestingTremorState.DoneImu -> onCompletedImu(s.result.assessmentId)
             is RestingTremorState.Invalid, is RestingTremorState.Error -> InvalidResultKind.fromRestingTremor(s)?.let(onInvalid)
             else -> Unit
         }

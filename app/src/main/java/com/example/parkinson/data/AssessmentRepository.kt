@@ -10,6 +10,7 @@ import com.example.parkinson.speech.SpeechResult
 import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
+import com.example.parkinson.tremor.RestingTremorImuResult
 import com.example.parkinson.tremor.RestingTremorResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -32,6 +33,9 @@ interface AssessmentRepository {
 
     suspend fun saveRestingTremor(result: RestingTremorResult)
     fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?>
+
+    suspend fun saveRestingTremorImu(result: RestingTremorImuResult)
+    fun observeRestingTremorImu(assessmentId: String): Flow<RestingTremorImuResult?>
 
     suspend fun saveGait(result: GaitResult)
     fun observeGait(assessmentId: String): Flow<GaitResult?>
@@ -73,6 +77,7 @@ class RoomAssessmentRepository(
     private val speechDao: SpeechDao,
     private val imuSitToStandDao: ImuSitToStandDao,
     private val imuGaitDao: ImuGaitDao,
+    private val restingTremorImuDao: RestingTremorImuDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -104,6 +109,11 @@ class RoomAssessmentRepository(
 
     override fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?> =
         restingTremorDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override suspend fun saveRestingTremorImu(result: RestingTremorImuResult) = restingTremorImuDao.insert(result.toEntity())
+
+    override fun observeRestingTremorImu(assessmentId: String): Flow<RestingTremorImuResult?> =
+        restingTremorImuDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveGait(result: GaitResult) = gaitDao.insert(result.toEntity())
 
@@ -162,10 +172,11 @@ class RoomAssessmentRepository(
                 others + sts.map { it.toDomain() } + speech.map { it.toDomain() }
             }
         }.let { withSpeech ->
-            combine(withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll()) {
-                    others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
-                ->
-                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() })
+            combine(
+                withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll(), restingTremorImuDao.observeAll()
+            ) { others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
+                imuTremor: List<RestingTremorImuEntity> ->
+                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() } + imuTremor.map { it.toDomain() })
                     .sortedByDescending { it.timestampEpochMs }
             }
         }
@@ -173,7 +184,8 @@ class RoomAssessmentRepository(
     companion object {
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
-            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao()
+            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao(),
+            db.restingTremorImuDao(),
         )
     }
 }

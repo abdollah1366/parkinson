@@ -45,9 +45,10 @@ interface AssessmentDao {
         SitToStandEntity::class,
         SpeechEntity::class,
         ImuSitToStandEntity::class,
-        ImuGaitEntity::class
+        ImuGaitEntity::class,
+        RestingTremorImuEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -59,7 +60,8 @@ interface AssessmentDao {
         AutoMigration(from = 7, to = 8),
         AutoMigration(from = 8, to = 9),
         AutoMigration(from = 9, to = 10),
-        AutoMigration(from = 10, to = 11)
+        AutoMigration(from = 10, to = 11),
+        AutoMigration(from = 12, to = 13)
     ]
 )
 abstract class AssessmentDatabase : RoomDatabase() {
@@ -83,6 +85,8 @@ abstract class AssessmentDatabase : RoomDatabase() {
     abstract fun imuSitToStandDao(): ImuSitToStandDao
 
     abstract fun imuGaitDao(): ImuGaitDao
+
+    abstract fun restingTremorImuDao(): RestingTremorImuDao
 
     companion object {
         private const val NAME = "assessments.db"

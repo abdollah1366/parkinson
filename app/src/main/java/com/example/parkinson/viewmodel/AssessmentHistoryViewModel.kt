@@ -22,6 +22,7 @@ import com.example.parkinson.sts.previousSitToStand
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
+import com.example.parkinson.tremor.RestingTremorImuResult
 import com.example.parkinson.tremor.RestingTremorResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,6 +62,9 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     fun restingTremor(id: String): Flow<Loadable<RestingTremorResult?>> =
         repository.observeRestingTremor(id).map { Loadable.Loaded(it) }
+
+    fun restingTremorImu(id: String): Flow<Loadable<RestingTremorImuResult?>> =
+        repository.observeRestingTremorImu(id).map { Loadable.Loaded(it) }
 
     fun gait(id: String): Flow<Loadable<GaitResult?>> =
         repository.observeGait(id).map { Loadable.Loaded(it) }

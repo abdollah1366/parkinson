@@ -918,4 +918,35 @@
     <string name="invalid_imu_time_limit">آزمون در مدت مجاز پنج تکرار کامل نشد.</string>
     <string name="invalid_tip_imu">گوشی را در جیب جلوی شلوار، نزدیک لگن، محکم و در همان موقعیت نگه دارید و از صندلی یا مسیر محکم استفاده کنید.</string>
     <string name="invalid_tip_imu_sensor">اگر حسگر در دسترس نیست یا قطع می‌شود، برنامه‌های دیگر را ببندید و دوباره تلاش کنید.</string>
+
+    <!-- Resting Hand Tremor: phone-motion (accelerometer / gyroscope) result -->
+    <string name="rt_imu_result_title">نتیجه‌ی حسگرهای حرکتی گوشی</string>
+    <string name="rt_imu_result_intro">این نتیجه از حرکت خود گوشی به‌دست آمده است، نه مستقیم از حرکت دست. حرکت گوشی در دست، وزن آن و نحوه‌ی گرفتن آن روی داده‌ها اثر می‌گذارد.</string>
+    <string name="rt_imu_result_modality">منبع اندازه‌گیری: شتاب‌سنج و ژیروسکوپ گوشی (بدون دوربین)</string>
+    <string name="rt_imu_result_modality_accel_only">منبع اندازه‌گیری: شتاب‌سنج گوشی (بدون ژیروسکوپ)</string>
+    <string name="rt_imu_gyro_missing">این گوشی ژیروسکوپ ندارد؛ ویژگی‌های ژیروسکوپ محاسبه نشده‌اند.</string>
+    <string name="rt_imu_gyro_unusable">ژیروسکوپ داده‌ی معتبر کافی نداشت؛ ویژگی‌های ژیروسکوپ محاسبه نشده‌اند.</string>
+    <string name="rt_imu_result_duration">مدت ضبط</string>
+    <string name="rt_imu_result_duration_value">%1$s ثانیه از %2$s ثانیه</string>
+    <string name="rt_imu_result_samples">نمونه‌های معتبر شتاب‌سنج</string>
+    <string name="rt_imu_result_samples_value">%1$s نمونه، نرخ %2$s هرتز</string>
+    <string name="rt_imu_result_dropouts">قطعی‌های داده</string>
+    <string name="rt_imu_result_dropouts_value">%1$s مورد، طولانی‌ترین %2$s میلی‌ثانیه</string>
+    <string name="rt_imu_result_accel_rms">دامنه‌ی شتاب (RMS، بدون گرانش)</string>
+    <string name="rt_imu_result_accel_rms_value">%1$s متر بر مجذور ثانیه</string>
+    <string name="rt_imu_result_gyro_rms">دامنه‌ی سرعت زاویه‌ای (RMS)</string>
+    <string name="rt_imu_result_gyro_rms_value">%1$s رادیان بر ثانیه</string>
+    <string name="rt_imu_result_frequency">فرکانس غالب گوشی</string>
+    <string name="rt_imu_result_frequency_value">%1$s هرتز در بازه‌ی ۳ تا ۱۲ هرتز</string>
+    <string name="rt_imu_result_frequency_none">در بازه‌ی ۳ تا ۱۲ هرتز قله‌ی معتبری پیدا نشد؛ فرکانسی گزارش نمی‌شود.</string>
+    <string name="rt_imu_insufficient_title">داده‌ی معتبر کافی نیست</string>
+    <string name="rt_imu_insufficient_body">ضبط انجام شد، اما داده‌ی حسگرها برای محاسبه‌ی ویژگی‌ها کافی نبود. آزمون را دوباره انجام دهید و گوشی را در دست ثابت نگه دارید.</string>
+    <string name="rt_imu_issue_few_samples">تعداد نمونه‌های معتبر شتاب‌سنج کم بود.</string>
+    <string name="rt_imu_issue_short">مدت داده‌ی ثبت‌شده کمتر از حد لازم بود.</string>
+    <string name="rt_imu_issue_rate">نرخ نمونه‌برداری شتاب‌سنج برای تحلیل کافی نبود.</string>
+    <string name="rt_imu_issue_long_gap">داده‌ها یک قطعی‌ی طولانی داشتند.</string>
+    <string name="rt_imu_issue_gaps">قطعی‌های داده زیاد بود.</string>
+    <string name="rt_imu_issue_dropped">بخشی از نمونه‌ها نامعتبر بود و کنار گذاشته شد.</string>
+    <string name="rt_imu_issue_gyro">ژیروسکوپ داده‌ی معتبر کافی نداشت.</string>
+    <string name="rt_imu_no_score">این نتیجه نمره ندارد. فقط ویژگی‌های اندازه‌گیری‌شده و کیفیت داده نمایش داده می‌شوند.</string>
 </resources>

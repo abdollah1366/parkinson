@@ -69,6 +69,11 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "resting_tremor_result/${Uri.encode(assessmentId)}"
     }
 
+    /** Phone-motion (accelerometer / gyroscope) result of the resting-hand test. */
+    object RestingTremorImuResult : Screen("resting_tremor_imu_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "resting_tremor_imu_result/${Uri.encode(assessmentId)}"
+    }
+
     object GaitIntro : Screen("gait_intro")
     object GaitTest : Screen("gait_test")
 
