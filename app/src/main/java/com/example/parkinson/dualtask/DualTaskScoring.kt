@@ -30,14 +30,15 @@ object SerialSubtraction {
 /**
  * Reference values of the dual-task test. Sources (see docs/dual-task.md):
  *
- * - Srygley et al., Brain Res 2009;1253:92-99: 276 healthy older adults, serial 3 subtractions for 2 minutes: 44.96
- *   (SD 16.86) subtractions while walking, about 22 per minute; usual gait speed 1.24 m/s, 1.11 m/s while
- *   subtracting (about 10 % slower).
- * - Yogev et al., Eur J Neurosci 2005;22:1248 (PhysioNet "Gait in Parkinson's Disease"): stride and swing time
- *   variability rise under serial subtraction in Parkinson's disease, not in healthy controls.
- * - Vitorio et al., J Parkinsons Dis 2021;11:653: dual-task costs separate Parkinson's disease from controls only
- *   weakly (AUC 0.54 for gait speed); single- and dual-task gait measures themselves separate better. So the cost
- *   is one domain of three, not the whole score.
+ * - Srygley et al., Brain Res 2009;1253:92-99: 276 healthy adults aged 70-90, serial 3 subtractions for 2 minutes:
+ *   44.96 (SD 16.86) subtractions while walking, about 22 per minute; usual gait speed 1.24 m/s, 1.11 m/s while
+ *   subtracting (about 10 % slower; a speed cost, cadence usually drops less).
+ * - Priest et al., J Neuroeng Rehabil 2008;5:29: healthy women aged about 80 slowed by 30 % while counting backwards,
+ *   so healthy costs vary widely.
+ * - Yogev et al., Eur J Neurosci 2005;22:1248 (PhysioNet "Gait in Parkinson's Disease"): gait variability rises with
+ *   dual tasking in Parkinson's disease, not in age-matched controls.
+ * - Vitorio et al., J Parkinsons Dis 2021;11:653: the gait-speed dual-task cost separates Parkinson's disease from
+ *   controls only weakly (AUC 0.54, alphabet task). So the cost is one domain of three, not the whole score.
  *
  * Bounds marked ENGINEERING are choices around these values, not validated cut-offs.
  */
