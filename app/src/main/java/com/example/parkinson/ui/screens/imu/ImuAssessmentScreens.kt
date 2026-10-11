@@ -255,7 +255,7 @@ fun ImuGaitScreen(
             ImuGaitState.Idle -> {
                 issue?.let { InfoCard(stringResource(calibrationIssueText(it))) }
                 InfoCard(stringResource(R.string.imu_gait_idle_hint))
-                PrimaryButton(text = stringResource(R.string.imu_btn_calibrate), onClick = { session.start() })
+                PrimaryButton(text = stringResource(R.string.imu_btn_calibrate_standing), onClick = { session.start() })
             }
 
             is ImuGaitState.Calibrating -> {

@@ -31,7 +31,7 @@ interface AssessmentDao {
  * v2 adds hand_stability_assessments, v3 adds pronation_supination_assessments, v4 adds columns
  * to pronation_supination_assessments, v5 adds columns to finger_tapping_assessments (layered
  * quality, interpretation, per-tap payload), v6 adds hand_open_close_assessments, v7 adds
- * resting_tremor_assessments, v8 adds gait_assessments, v9 adds sit_to_stand_assessments, v10 adds speech_assessments, v11 adds imu_sit_to_stand_assessments and imu_gait_assessments (the camera-era tables are kept). All are automatic migrations; existing rows are kept. The Rapid
+ * resting_tremor_assessments, v8 adds gait_assessments, v9 adds sit_to_stand_assessments, v10 adds speech_assessments, v11 adds imu_sit_to_stand_assessments and imu_gait_assessments (the camera-era tables are kept), v14 adds nullable stride, turn and tremor columns to imu_gait_assessments. All are automatic migrations; existing rows are kept. The Rapid
  * Alternating Movements test never stored anything, so it has no table and no legacy rows.
  */
 @Database(
@@ -48,7 +48,7 @@ interface AssessmentDao {
         ImuGaitEntity::class,
         RestingTremorImuEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -61,7 +61,8 @@ interface AssessmentDao {
         AutoMigration(from = 8, to = 9),
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11),
-        AutoMigration(from = 12, to = 13)
+        AutoMigration(from = 12, to = 13),
+        AutoMigration(from = 13, to = 14)
     ]
 )
 abstract class AssessmentDatabase : RoomDatabase() {

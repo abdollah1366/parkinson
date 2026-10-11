@@ -88,7 +88,7 @@ fun GaitIntroScreen(onContinueClicked: () -> Unit) {
                 title = stringResource(R.string.gait_measures_title),
                 items = listOf(
                     R.string.gait_measure_1, R.string.gait_measure_2, R.string.gait_measure_3,
-                    R.string.gait_measure_4
+                    R.string.gait_measure_4, R.string.gait_measure_5
                 ).map { stringResource(it) },
                 numbered = false
             )

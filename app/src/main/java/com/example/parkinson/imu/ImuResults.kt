@@ -159,12 +159,44 @@ data class ImuGaitResult(
     override val algorithmVersion: String,
     val configSummary: String,
     override val scoringVersion: String,
+    /** Stride-based measures (thigh swing, see [GaitFeatures]); null when not measured or for older results. */
+    val strides: Int? = null,
+    val strideTimeMs: Double? = null,
+    val strideCvPercent: Double? = null,
+    val stepRegularity: Double? = null,
+    val strideRegularity: Double? = null,
+    val stepAsymmetryPercent: Double? = null,
+    /** Turns of more than 45 degrees, and the speed and duration of those of at least 90 degrees. */
+    val turnCount: Int? = null,
+    val meanTurnVelocityDegPerSec: Double? = null,
+    val peakTurnVelocityDegPerSec: Double? = null,
+    val meanTurnDurationMs: Double? = null,
+    /** EXPERIMENTAL tremor-band peak prominence while walking and while standing still (calibration), and its frequency. */
+    val walkingTremorIndex: Double? = null,
+    val walkingTremorHz: Double? = null,
+    val standingTremorIndex: Double? = null,
+    val standingTremorHz: Double? = null,
 ) : AssessmentResult {
 
     override val type: AssessmentType get() = AssessmentType.GAIT
     override val hand: SelectedHand? get() = null
     override val quality: AssessmentQuality get() = AssessmentQuality(qualityStatus, coveragePercent.roundToInt().coerceIn(0, 100))
-    override val performanceIndex: Int? get() = null
+
+    /**
+     * Preliminary score against published reference values (see [GaitReference]). Only results recorded with the
+     * scoring version are scored; older results keep no score.
+     */
+    val gaitScore: GaitScore?
+        get() = if (scoringVersion != GaitScoring.VERSION) null else GaitScoring.score(
+            cadence = cadenceStepsPerMinute,
+            strideCvPercent = strideCvPercent,
+            stepAsymmetryPercent = stepAsymmetryPercent,
+            meanTurnVelocityDegPerSec = meanTurnVelocityDegPerSec,
+            walkingTremorIndex = walkingTremorIndex,
+            standingTremorIndex = standingTremorIndex,
+        )
+
+    override val performanceIndex: Int? get() = gaitScore?.overall
 
     /** Plantar pressure is not measured; the phone is the only sensor. */
     val plantarPressureMeasured: Boolean get() = false
