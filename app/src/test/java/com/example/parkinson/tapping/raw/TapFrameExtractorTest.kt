@@ -62,6 +62,26 @@ class TapFrameExtractorTest {
     }
 
     @Test
+    fun nonFiniteFingertipCoordinateIsOutOfFrameWithNoDistance() {
+        val f = TapFrameExtractor.extract(0, hand(index = Float.NaN to 0.5f))
+        assertEquals(FrameStatus.OUT_OF_FRAME, f.status)
+        assertFalse(f.isValid)
+        // Unavailable is NaN, never a fabricated 0 px distance.
+        assertTrue(f.thumbIndexDistancePx.isNaN())
+    }
+
+    @Test
+    fun infiniteWristCoordinateIsOutOfFrame() {
+        val lm = MutableList(HandLandmarkIndex.COUNT) { HandLandmark(it, 0.5f, 0.5f, 0f) }
+        lm[HandLandmarkIndex.WRIST] = HandLandmark(0, 0.5f, Float.POSITIVE_INFINITY, 0f)
+        val f = TapFrameExtractor.extract(
+            0, HandTrackingResult.HandDetected(1_000L, lm, HandSide.RIGHT, 0.9f, 200, 400)
+        )
+        assertEquals(FrameStatus.OUT_OF_FRAME, f.status)
+        assertFalse(f.isValid)
+    }
+
+    @Test
     fun nonHandResultsMapToStatuses() {
         assertEquals(FrameStatus.NO_HAND, TapFrameExtractor.extract(0, HandTrackingResult.NoHandDetected(1)).status)
         assertEquals(FrameStatus.NO_HAND, TapFrameExtractor.extract(0, HandTrackingResult.TrackingLost(1)).status)
