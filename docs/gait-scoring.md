@@ -21,15 +21,17 @@ diagnosis. Results recorded before this version keep no score (`ImuGaitResult.ga
 
 ## Reference values and score bounds
 
+Checked against PubMed on 2026-10-11 (see "Sources checked" at the end).
+
 Each domain is scored linearly between a healthy bound (100) and a zero bound (0). The overall score is the mean of
 the measured domains and needs at least two.
 
 | Domain | Reference | Full score | Sign when | Zero |
 |---|---|---|---|---|
-| Rhythm (cadence) | Healthy adults usually walk at about 100-120 steps/min (Tudor-Locke et al., IJBNPA 2019, 16:8, review of cadence studies). | >= 100 steps/min | < 100 | <= 70 |
-| Variability (stride-time CV) | Meta-analysis of 21 studies, 519 people with PD and 574 controls: a stride-time CV of 2.4 % (95 % CI 1.9-3.9 %) separates the groups (König et al., Front Hum Neurosci 2016, 10:319). | <= 2.4 % | > 3.9 % (upper CI bound) | >= 8 % |
-| Symmetry (step timing) | Healthy older adults walk with a left/right swing-time asymmetry of a few percent; it is higher in PD and in elderly fallers (Yogev et al., Exp Brain Res 2007, 177:336). Bounds are engineering choices. | <= 5 % | > 10 % | >= 20 % |
-| Turning (mean turn velocity, turns >= 90 deg) | Normal-speed turns, lumbar sensor: controls 78.0 deg/s (CV 0.15), PD 69.7 deg/s (CV 0.18) (El-Gohary et al., Sensors 2014, 14:356). | >= 78 deg/s | < 66 deg/s (control mean - 1 SD) | <= 40 deg/s |
+| Rhythm (cadence) | Healthy adults aged 70+ walk at 109 (SD 13) steps/min; men 103, women 112 (Hollman et al., Gait Posture 2011, 34:111, 294 people, GAITRite). Zero is the mean - 3 SD. | >= 100 steps/min | < 90 (about mean - 1.5 SD) | <= 70 |
+| Variability (stride-time CV) | Meta-analysis of 34 studies; the 21 that reported stride-time CV (519 people with PD, 574 controls) give 2.4 % (95 % CI 1.9-3.9 %) as the cut-off that separates the groups, AUC 0.74 (König et al., Front Hum Neurosci 2016, 10:319). | <= 2.4 % | > 3.9 % (upper CI bound) | >= 8 % |
+| Symmetry (step timing) | Swing-time asymmetry, 100 x \|ln(right/left)\|, is higher in PD and in elderly fallers than in healthy older adults (Yogev et al., Exp Brain Res 2007, 177:336). This app's step-timing measure is about half that log-ratio for small differences. Bounds are engineering choices aimed at a limp. | <= 5 % | > 10 % | >= 20 % |
+| Turning (mean turn velocity, turns >= 90 deg) | Laboratory turns at the preferred speed, lumbar sensor, 21 PD and 19 controls: controls 78.0 deg/s (CV 0.15), PD 69.7 deg/s (CV 0.18); PD turned slower at every speed (El-Gohary et al., Sensors 2014, 14:356). | >= 78 deg/s | < 66 deg/s (control mean - 1 SD) | <= 40 deg/s |
 
 Signs reported (`GaitSign`):
 
@@ -47,6 +49,21 @@ An asymmetry alone (a limp) does not produce the Parkinsonian pattern.
   data from people with and without PD (for example the PhysioNet "Gait in Parkinson's Disease" database for stride
   timing, and a thigh-accelerometer dataset such as Daphnet for the pocket position).
 * Age is not entered, so age-specific cadence and variability norms are not applied.
+* Cadence alone separates PD poorly: meta-analyses found it slightly lower in PD (-4.9 steps/min, Bonacina et al.,
+  Clin Biomech 2024, 120:106359) or even higher on medication (Zanardi et al., Sci Rep 2021, 11:752); the main PD
+  change is shorter strides, which a phone in the pocket does not measure. A low cadence therefore counts towards the
+  Parkinsonian pattern only below 90 steps/min and only together with other signs.
 * The walk is 30 s in a home setting; few strides or few large turns leave domains unmeasured (shown as such).
 * The tests use synthetic signals (`SyntheticThighGait`), which show the computations are correct, not that real
   Parkinsonian walking is classified correctly.
+
+## Sources checked (PubMed, 2026-10-11)
+
+| Source | What was checked | Result |
+|---|---|---|
+| König 2016, [doi:10.3389/fnhum.2016.00319](https://doi.org/10.3389/fnhum.2016.00319) | Full text | 2.4 % (95 % CI 1.9-3.9 %), 21 studies, 519 PD / 574 controls: confirmed. |
+| El-Gohary 2014, [doi:10.3390/s140100356](https://doi.org/10.3390/s140100356) | Full text | Turn detection parameters and "PD slower at all speeds" confirmed. The 78.0 / 69.7 deg/s values are in a table that PubMed does not return; not re-checked. |
+| Yogev 2007, [doi:10.1007/s00221-006-0676-3](https://doi.org/10.1007/s00221-006-0676-3) | Abstract | Asymmetry is higher in PD and fallers, and is defined on swing time as a log-ratio (see table). |
+| Tudor-Locke 2019, [doi:10.1186/s12966-019-0769-6](https://doi.org/10.1186/s12966-019-0769-6) | Abstract | Not a source for usual cadence: 100 steps/min is the moderate-intensity threshold for adults aged 21-40. Replaced by Hollman 2011. |
+| Hollman 2011, [doi:10.1016/j.gaitpost.2011.03.024](https://doi.org/10.1016/j.gaitpost.2011.03.024) | Full text | 109 (SD 13) steps/min, men 103, women 112, age 70+. |
+| Zanardi 2021, [doi:10.1038/s41598-020-80768-2](https://doi.org/10.1038/s41598-020-80768-2); Bonacina 2024, [doi:10.1016/j.clinbiomech.2024.106359](https://doi.org/10.1016/j.clinbiomech.2024.106359) | Abstracts | Cadence in PD vs controls is not consistently lower. |
