@@ -1,5 +1,8 @@
 package com.example.parkinson.ui.screens.camera
 
+import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCues
+import com.example.parkinson.voice.rememberVoiceGuide
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -111,6 +114,8 @@ fun FingerTappingCameraScreen(
     val trackingState by handLandmarkerManager.result.collectAsState()
 
     val sessionState by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.fingerTapping(sessionState))
     val liveTapCount by session.liveTapCount.collectAsState()
 
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }

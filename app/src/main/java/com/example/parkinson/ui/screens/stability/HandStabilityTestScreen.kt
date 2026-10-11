@@ -1,5 +1,8 @@
 package com.example.parkinson.ui.screens.stability
 
+import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCues
+import com.example.parkinson.voice.rememberVoiceGuide
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -90,6 +93,8 @@ fun HandStabilityTestScreen(
     onHome: () -> Unit,
 ) {
     val state by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.handStability(state))
     val hand = selectedHand ?: SelectedHand.RIGHT
 
     // Leaving the screen, backgrounding or locking ends the test without a result. A rotation
