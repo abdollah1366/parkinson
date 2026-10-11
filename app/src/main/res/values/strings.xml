@@ -647,19 +647,19 @@
     <string name="test_sts_desc">از روی صندلی، با گوشی در جیب جلوی شلوار، پنج بار بلند شوید و بنشینید. بدون دوربین.</string>
     <string name="test_sts_purpose">زمان پنج بار بلند شدن از صندلی با حسگرهای گوشی. نمره یا تشخیص نیست.</string>
 
-    <string name="sts_intro_instruction">در این آزمون گوشی را در جیب جلوی شلوار قرار می‌دهید و پنج بار از صندلی بلند می‌شوید و دوباره می‌نشینید. زمان از شروع حرکت اول تا نشستن کامل بعد از تکرار پنجم با حسگرهای گوشی اندازه‌گیری می‌شود.</string>
+    <string name="sts_intro_instruction">در این آزمون گوشی را در جیب جلوی شلوار می‌گذارید (یا با دو دست روی سینه نگه می‌دارید) و پنج بار از صندلی بلند می‌شوید و دوباره می‌نشینید. زمان از شروع حرکت اول تا نشستن کامل بعد از تکرار پنجم با حسگرهای گوشی اندازه‌گیری می‌شود.</string>
     <string name="sts_duration_value">حداکثر ۶۰ ثانیه برای پنج تکرار؛ پیش از آن ثبت وضعیت نشسته و ۳ ثانیه آمادگی</string>
     <string name="sts_safety_title">ایمنی</string>
     <string name="sts_safety_text">روی صندلی محکم و روی سطح غیرلغزنده بنشینید. در صورت سرگیجه، درد قفسه‌ی سینه، تنگی نفس یا ناپایداری، فوراً بنشینید و آزمون را متوقف کنید. هرگز برای سریع‌تر تمام کردن فشار نیاورید.</string>
     <string name="sts_intro_steps_title">مراحل آزمون</string>
     <string name="sts_step_1">صندلی محکم، بدون چرخ و روی سطح غیرلغزنده انتخاب کنید.</string>
-    <string name="sts_step_2">گوشی را محکم در جیب جلوی شلوار، نزدیک لگن، قرار دهید.</string>
+    <string name="sts_step_2">گوشی را محکم در جیب جلوی شلوار، نزدیک لگن، قرار دهید؛ یا آن را با دو دست روی سینه نگه دارید.</string>
     <string name="sts_step_3">بنشینید و حدود ۲٫۵ ثانیه بی‌حرکت بمانید تا وضعیت نشسته ثبت شود.</string>
     <string name="sts_step_4">پس از شمارش ۳ ثانیه، با سرعتی ایمن پنج بار بلند شوید و بنشینید.</string>
     <string name="sts_step_5">در صورت احساس ناراحتی، بنشینید و آزمون را لغو کنید.</string>
     <string name="sts_checklist_title">فهرست آمادگی</string>
     <string name="sts_check_chair">صندلی محکم و پایدار است و روی سطح غیرلغزنده قرار دارد.</string>
-    <string name="sts_check_floor">گوشی در جیب جلوی شلوار و نزدیک لگن است و در تمام آزمون در همان موقعیت می‌ماند.</string>
+    <string name="sts_check_floor">گوشی در جیب جلوی شلوار یا با دو دست روی سینه است و در تمام آزمون در همان موقعیت می‌ماند.</string>
     <string name="sts_check_supervision">در صورت نیاز، یک فرد آگاه در نزدیکی من است یا نظر پزشک یا همراه را گرفته‌ام.</string>
     <string name="sts_check_stop">می‌دانم در صورت احساس ناامنی، باید فوراً بنشینم و آزمون را متوقف کنم.</string>
 
@@ -887,7 +887,7 @@
     <string name="imu_paused_gait">راه رفتن متوقف شد (گام‌ها تا اینجا: %1$s). برای ادامه، دکمه‌ی ادامه را بزنید.</string>
     <string name="imu_percent">%1$s٪</string>
     <string name="imu_placement_gait">گوشی را محکم در جیب جلوی شلوار، نزدیک لگن، قرار دهید و در تمام مدت راه رفتن همان موقعیت را حفظ کنید. گوشی را در دست نگیرید.</string>
-    <string name="imu_placement_sts">گوشی را محکم در جیب جلوی شلوار، نزدیک لگن، قرار دهید و در تمام آزمون همان‌طور نگه دارید. گوشی را در دست نگیرید.</string>
+    <string name="imu_placement_sts">بهترین حالت: گوشی محکم در جیب جلوی شلوار، نزدیک لگن. اگر جیب ندارید، گوشی را با دو دست روی سینه نگه دارید و دست‌ها را تکان ندهید.</string>
     <string name="imu_placement_title">جایگذاری گوشی</string>
     <string name="imu_processing">در حال تحلیل داده‌های حسگر…</string>
     <string name="imu_rates_value">شتاب‌سنج %1$s هرتز  •  ژیروسکوپ %2$s هرتز</string>
@@ -906,13 +906,13 @@
     <string name="imu_sensor_not_checked">وضعیت حسگرها هنوز بررسی نشده است.</string>
     <string name="imu_sensor_ready">شتاب‌سنج و ژیروسکوپ در دسترس‌اند ✓</string>
     <string name="imu_sts_calibrating">بنشینید و بی‌حرکت بمانید؛ وضعیت نشسته در حال ثبت است…</string>
-    <string name="imu_sts_idle_hint">روی صندلی محکمی بنشینید، گوشی را در جیب قرار دهید و بی‌حرکت بمانید. سپس ثبت وضعیت نشسته را شروع کنید.</string>
+    <string name="imu_sts_idle_hint">روی صندلی محکمی بنشینید، گوشی را در جیب بگذارید یا روی سینه نگه دارید و بی‌حرکت بمانید. سپس ثبت وضعیت نشسته را شروع کنید.</string>
     <string name="imu_sts_live">تکرار %1$s از %2$s</string>
     <string name="imu_sts_result_title">نتیجه‌ی بلند شدن از صندلی (حسگر گوشی)</string>
     <string name="invalid_imu_data">کیفیت داده‌ی حسگر برای ثبت نتیجه کافی نبود.</string>
     <string name="invalid_imu_gap">در میان آزمون، داده‌ی حسگر قطع شد یا آزمون متوقف شد؛ زمان کل معتبر نیست. آزمون را از اول تکرار کنید.</string>
     <string name="invalid_imu_incomplete">پنج تکرار کامل ثبت نشد. آزمون را با حرکت راحت و ایمن تکرار کنید.</string>
-    <string name="invalid_imu_no_transfer">حرکت بلند شدن در داده‌ی گوشی دیده نشد. گوشی را محکم در جیب جلو نگه دارید و آزمون را تکرار کنید.</string>
+    <string name="invalid_imu_no_transfer">حرکت بلند شدن در داده‌ی گوشی دیده نشد. گوشی را در جیب جلوی شلوار بگذارید یا با دو دست روی سینه نگه دارید، کامل بایستید و آزمون را تکرار کنید.</string>
     <string name="invalid_imu_sensor_lost">داده‌ی حسگر در میان آزمون قطع شد.</string>
     <string name="invalid_imu_sensor_missing">شتاب‌سنج یا ژیروسکوپ در دسترس نیست.</string>
     <string name="invalid_imu_steps">گام‌های کافی در یک الگوی راه رفتن پیوسته شناسایی نشد. مسیر را کامل طی کنید و دوباره آزمون کنید.</string>

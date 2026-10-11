@@ -74,6 +74,8 @@ data class SitToStandImuAnalysis(
     /** Largest posture change seen (deg). A value near zero means no transfer was registered. Null without data. */
     val maxPostureDeg: Double?,
     val coveragePercent: Double,
+    /** True when the repetitions come from the vertical movement ([VerticalSitToStandDetector]), not the posture. */
+    val byVerticalMovement: Boolean = false,
 ) {
     /** Total time from the first repetition's start to the last one's sustained seated posture (ms). */
     val totalTimeMs: Double? get() = if (repetitions.isEmpty()) null else repetitions.last().seatedReachedMs - repetitions.first().standOnsetMs
@@ -239,6 +241,23 @@ object SitToStandImuDetector {
         )
     }
 
+    /**
+     * Both detectors on the same data: the posture detector (phone in the trouser pocket), and the vertical-movement
+     * detector (phone held at the chest or in another pocket). The vertical result is used only when it counts more
+     * repetitions, so a pocket recording keeps the posture result.
+     */
+    fun analyzeAnyPlacement(
+        grid: ImuGrid,
+        reference: Vec3,
+        thresholds: SitToStandImuThresholds = SitToStandImuThresholds(),
+        vertical: VerticalSitToStandThresholds = VerticalSitToStandThresholds(),
+    ): SitToStandImuAnalysis {
+        val posture = analyze(grid, reference, thresholds)
+        if (posture.repetitions.size >= thresholds.targetRepetitions) return posture
+        val movement = VerticalSitToStandDetector.analyze(grid, reference, vertical, thresholds.maxGapMs)
+        return if (movement.repetitions.size > posture.repetitions.size) movement else posture
+    }
+
     /** Posture angle per grid point (deg), smoothed by a moving average over valid points within [halfMs]. */
     private fun smoothedPosture(grid: ImuGrid, reference: Vec3, halfMs: Double): DoubleArray {
         val raw = DoubleArray(grid.size) { grid.gravityAngleDeg(it, reference) }
@@ -264,7 +283,7 @@ object SitToStandImuDetector {
     }
 
     /** Stretches without data, longer than [maxGapMs]. */
-    private fun invalidIntervals(grid: ImuGrid, maxGapMs: Double): List<InvalidInterval> {
+    internal fun invalidIntervals(grid: ImuGrid, maxGapMs: Double): List<InvalidInterval> {
         val out = ArrayList<InvalidInterval>()
         var start: Double? = null
         for (i in 0 until grid.size) {
