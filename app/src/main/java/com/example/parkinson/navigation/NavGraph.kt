@@ -75,6 +75,12 @@ import com.example.parkinson.viewmodel.FingerTappingViewModel
 import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
+import com.example.parkinson.viewmodel.ProfileViewModel
+import com.example.parkinson.ui.screens.profile.RegistrationScreen
+import com.example.parkinson.ui.screens.result.CenteredMessage
+import com.example.parkinson.R
+import androidx.compose.ui.res.stringResource
+import com.example.parkinson.norms.toNormPerson
 import com.example.parkinson.viewmodel.PronationSupinationViewModel
 import com.example.parkinson.viewmodel.RestingTremorViewModel
 
@@ -116,11 +122,16 @@ fun ParkinsonNavGraph(
     speechViewModel: SpeechViewModel = viewModel(factory = SpeechViewModel.Factory),
     dualTaskViewModel: DualTaskViewModel = viewModel(factory = DualTaskViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
+    profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory),
 ) {
     val context = LocalContext.current
     val capabilities: DeviceCapabilities = remember {
         (context.applicationContext as? ParkinsonApplication)?.deviceCapabilities ?: AndroidDeviceCapabilities(context)
     }
+    // Published reference values, compared on the result screens with the registered age, sex and diagnosis.
+    val normComparator = remember { runCatching { (context.applicationContext as? ParkinsonApplication)?.normComparator }.getOrNull() }
+    val registeredProfile by profileViewModel.profile.collectAsState()
+    val normPerson = (registeredProfile as? Loadable.Loaded)?.value.toNormPerson()
 
     /** Back to Home, keeping Home itself (creates it if it is not on the back stack). */
     fun goHome() {
@@ -170,9 +181,41 @@ fun ParkinsonNavGraph(
 
         composable(Screen.Welcome.route) {
             WelcomeScreen {
-                navController.navigate(Screen.Home.route) {
+                // Nobody registered yet: the registration comes first. While the profile is still loading, Home
+                // opens and its profile card offers the registration.
+                val unregistered = profileViewModel.profile.value == Loadable.Loaded(null)
+                navController.navigate(if (unregistered) Screen.Registration.route else Screen.Home.route) {
                     popUpTo(Screen.Welcome.route) { inclusive = true }
                 }
+            }
+        }
+
+        composable(Screen.Registration.route) {
+            val write by profileViewModel.write.collectAsState()
+            RegistrationScreen(
+                existing = null,
+                write = write,
+                onSave = { form ->
+                    profileViewModel.save(form) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Registration.route) { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.ProfileEdit.route) {
+            val profile by profileViewModel.profile.collectAsState()
+            val write by profileViewModel.write.collectAsState()
+            when (val p = profile) {
+                Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
+                is Loadable.Loaded -> RegistrationScreen(
+                    existing = p.value,
+                    write = write,
+                    onSave = { form -> profileViewModel.save(form) { navController.popBackStack() } },
+                    onDelete = p.value?.let { { profileViewModel.delete { navController.popBackStack() } } },
+                )
             }
         }
 
@@ -182,6 +225,11 @@ fun ParkinsonNavGraph(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
                 onOpenHistory = { navController.navigate(Screen.History.route) },
+                profile = profileViewModel.profile.collectAsState().value,
+                onOpenProfile = {
+                    profileViewModel.clearError()
+                    navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
+                },
                 onStartAssessmentClicked = { navController.navigate(Screen.AssessmentCatalog.route) }
             )
         }
@@ -292,6 +340,8 @@ fun ParkinsonNavGraph(
             val assessment by assessmentFlow.collectAsState(initial = Loadable.Loading)
 
             FingerTappingResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 assessment = assessment,
                 onRepeat = { hand: SelectedHand ->
                     fingerTappingViewModel.selectHand(hand)
@@ -412,6 +462,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.pronationSupination(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             PronationSupinationResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     pronationViewModel.session.reset()
@@ -577,6 +629,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.restingTremor(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             RestingTremorResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     restingTremorViewModel.session.reset()
@@ -598,6 +652,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.restingTremorImu(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             RestingTremorImuResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     restingTremorViewModel.session.reset()
@@ -663,6 +719,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.imuGait(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             ImuGaitResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = {
                     gaitViewModel.resetFlow()
@@ -741,6 +799,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.imuSitToStand(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             ImuSitToStandResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = {
                     sitToStandViewModel.resetFlow()

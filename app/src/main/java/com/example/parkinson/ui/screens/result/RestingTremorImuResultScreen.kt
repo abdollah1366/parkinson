@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
 import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.NormPerson
+import com.example.parkinson.norms.forTremorFrequency
 import com.example.parkinson.tremor.ImuTremorQualityIssue
 import com.example.parkinson.tremor.RestingTremorImuResult
 import com.example.parkinson.ui.components.PrimaryButton
@@ -43,7 +46,8 @@ import com.example.parkinson.viewmodel.Loadable
 fun RestingTremorImuResultScreen(
     result: Loadable<RestingTremorImuResult?>,
     onRepeat: (SelectedHand) -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (result) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -52,7 +56,7 @@ fun RestingTremorImuResultScreen(
             if (value == null) {
                 CenteredMessage(stringResource(R.string.result_not_found))
             } else {
-                ImuTremorContent(value, onRepeat, onHome)
+                ImuTremorContent(value, onRepeat, onHome, norms, person)
             }
         }
     }
@@ -62,7 +66,8 @@ fun RestingTremorImuResultScreen(
 private fun ImuTremorContent(
     r: RestingTremorImuResult,
     onRepeat: (SelectedHand) -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator?,
+    person: NormPerson,
 ) {
     val m = r.metrics
     fun d(v: Double, digits: Int = 1) = PersianFormat.decimal(v, digits)
@@ -181,6 +186,8 @@ private fun ImuTremorContent(
             content = MaterialTheme.colorScheme.onSecondaryContainer,
             extra = listOf(stringResource(R.string.rt_result_disclaimer)),
         )
+
+        norms?.let { ReferenceNormsCard(it.forTremorFrequency(m?.dominantFrequencyHz, person), person) }
 
         Spacer(modifier = Modifier.height(8.dp))
         PrimaryButton(text = stringResource(R.string.btn_repeat_assessment), onClick = { onRepeat(r.hand) })

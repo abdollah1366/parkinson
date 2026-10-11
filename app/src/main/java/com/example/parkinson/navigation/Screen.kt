@@ -6,6 +6,12 @@ sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Welcome : Screen("welcome")
     object Home : Screen("home")
+
+    /** First registration, before Home. */
+    object Registration : Screen("registration")
+
+    /** Editing (or deleting) the registration from Home. */
+    object ProfileEdit : Screen("profile_edit")
     object FingerTappingIntro : Screen("finger_tapping_intro")
     object FingerTappingHandSelection : Screen("finger_tapping_hand_selection")
     object FingerTappingPreparation : Screen("finger_tapping_preparation")

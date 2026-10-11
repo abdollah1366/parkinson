@@ -1,0 +1,26 @@
+# Published reference values used to compare results with healthy people and with people with Parkinson's disease.
+# Every row names its source and DOI (found and checked through PubMed on 2026-10-11). See docs/reference-norms.md.
+# Columns: better = higher|lower|band. applied = yes when the app compares results with the row; no = kept for reference only.
+# Empty cells mean the source does not give that number. No commas inside cells (the parser splits on commas).
+test,metric,unit,group,sex,age_min,age_max,mean,sd,low,high,cutoff,better,n,applied,source,doi,note
+gait,gait.cadence,steps/min,healthy,any,70,120,109,13,,,,higher,294,yes,Hollman 2011 Gait Posture 34:111,10.1016/j.gaitpost.2011.03.024,Mayo Clinic Study of Aging; GAITRite walkway
+gait,gait.cadence,steps/min,healthy,male,70,120,103,13,,,,higher,294,yes,Hollman 2011 Gait Posture 34:111,10.1016/j.gaitpost.2011.03.024,SD is the whole sample's (the paper's sex-specific SD was not taken)
+gait,gait.cadence,steps/min,healthy,female,70,120,112,13,,,,higher,294,yes,Hollman 2011 Gait Posture 34:111,10.1016/j.gaitpost.2011.03.024,SD is the whole sample's (the paper's sex-specific SD was not taken)
+gait,gait.cadence,steps/min,pd,any,0,120,,,,,,higher,,no,Bonacina 2024 Clin Biomech 120:106359,10.1016/j.clinbiomech.2024.106359,Meta-analysis: cadence only 4.93 steps/min lower in PD; not a usable separator
+gait,gait.stride_cv,%,pd,any,0,120,,,,,2.4,lower,1093,yes,Konig 2016 Front Hum Neurosci 10:319,10.3389/fnhum.2016.00319,Stride-time CV above 2.4% (CI 1.9-3.9) separates PD (519) from healthy (574); lab walkways not a phone in the pocket
+gait,gait.turn_velocity,deg/s,healthy,any,0,120,78.0,,,,,higher,,yes,El-Gohary 2014 Sensors 14:356,10.3390/s140100356,Lab turns with body-worn sensors; table value not re-checked in PubMed full text
+gait,gait.turn_velocity,deg/s,pd,any,0,120,69.7,,,,,higher,,yes,El-Gohary 2014 Sensors 14:356,10.3390/s140100356,Lab turns with body-worn sensors; table value not re-checked in PubMed full text
+sit_to_stand,sts.five_times,s,healthy,any,60,69,11.4,,,,,lower,,yes,Bohannon 2006 Percept Mot Skills 103:215,10.2466/pms.103.1.215-222,Meta-analysis; slower than this is worse than average for the age group
+sit_to_stand,sts.five_times,s,healthy,any,70,79,12.6,,,,,lower,,yes,Bohannon 2006 Percept Mot Skills 103:215,10.2466/pms.103.1.215-222,Meta-analysis; slower than this is worse than average for the age group
+sit_to_stand,sts.five_times,s,healthy,any,80,89,14.8,,,,,lower,,yes,Bohannon 2006 Percept Mot Skills 103:215,10.2466/pms.103.1.215-222,Meta-analysis; slower than this is worse than average for the age group
+sit_to_stand,sts.five_times,s,pd,any,0,120,20.25,14.12,,,16.0,lower,80,yes,Duncan 2011 Arch Phys Med Rehabil 92:1431,10.1016/j.apmr.2011.04.008,Cut-off 16.0 s separates fallers from non-fallers with PD (sensitivity 0.75; specificity 0.68)
+finger_tapping,ft.tap_rate,Hz,healthy,any,0,120,3.08,1.09,,,,higher,158,yes,Paparella 2025 Mov Disord,10.1002/mds.70082,46.26 (SD 16.41) taps in 15 s; mean age 66; optoelectronic; tap count did not separate PD from healthy
+finger_tapping,ft.tap_rate,Hz,pd,any,0,120,3.24,0.93,,,,higher,192,yes,Paparella 2025 Mov Disord,10.1002/mds.70082,PD off medication: 48.65 (SD 13.89) taps in 15 s
+finger_tapping,ft.tap_rate,Hz,pd,any,0,120,,,,,2.65,higher,75,no,Wu 2023 Digit Health 9,10.1177/20552076231176653,Kinect camera; Youden cut-off (AUC 0.746; sensitivity 68%; specificity 76%); not used because Paparella found no difference in tap count
+finger_tapping,ft.interval_cv,%,healthy,any,0,120,9,3,,,,lower,158,yes,Paparella 2025 Mov Disord,10.1002/mds.70082,Rhythm CV 0.09 (SD 0.03); mean age 66
+finger_tapping,ft.interval_cv,%,pd,any,0,120,14,7,,,,lower,192,yes,Paparella 2025 Mov Disord,10.1002/mds.70082,PD off medication: rhythm CV 0.14 (SD 0.07)
+pronation_supination,ps.cycle_rate,Hz,pd,any,0,120,,,,,2.36,higher,75,yes,Wu 2023 Digit Health 9,10.1177/20552076231176653,Kinect camera; Youden cut-off (sensitivity 62%; specificity 80%); median age 67
+pronation_supination,ps.amplitude,deg,pd,any,0,120,,,,,94.04,higher,75,no,Wu 2023 Digit Health 9,10.1177/20552076231176653,Specificity only 48%; kept for reference
+hand_open_close,oc.cycle_rate,Hz,pd,any,0,120,,,,,4.14,higher,75,no,Wu 2023 Digit Health 9,10.1177/20552076231176653,Kinect camera (sensitivity 78%; specificity 80%); the paper may count each opening and closing so not compared with the app's full cycles
+tremor,tremor.frequency,Hz,healthy,any,0,120,,,8,12,,band,,yes,Bhatia 2018 Mov Disord 33:75,10.1002/mds.27121,MDS consensus: central component of physiological tremor
+tremor,tremor.frequency,Hz,pd,any,0,120,,,4,8,,band,,yes,Bhatia 2018 Mov Disord 33:75,10.1002/mds.27121,MDS consensus: most pathological tremors including parkinsonian rest tremor; also essential tremor so not specific to PD

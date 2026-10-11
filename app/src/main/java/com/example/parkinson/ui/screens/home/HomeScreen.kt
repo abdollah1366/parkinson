@@ -37,6 +37,8 @@ import com.example.parkinson.R
 import com.example.parkinson.assessment.AssessmentCatalog
 import com.example.parkinson.assessment.AssessmentDefinition
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.profile.Gender
+import com.example.parkinson.profile.UserProfile
 import com.example.parkinson.ui.components.QualityChip
 import com.example.parkinson.ui.components.assessmentTitle
 import com.example.parkinson.ui.components.handLabel
@@ -44,6 +46,7 @@ import com.example.parkinson.ui.components.indexLine
 import com.example.parkinson.ui.components.keyMetricsLine
 import com.example.parkinson.ui.components.statusLabel
 import com.example.parkinson.ui.format.PersianFormat
+import com.example.parkinson.ui.format.toPersianDigits
 import com.example.parkinson.ui.screens.splash.MedicalLogoIcon
 import com.example.parkinson.viewmodel.Loadable
 
@@ -53,6 +56,10 @@ fun HomeScreen(
     tests: List<AssessmentDefinition> = AssessmentCatalog.all,
     onOpenAssessment: (AssessmentResult) -> Unit = {},
     onOpenHistory: () -> Unit = {},
+    /** The registration; nothing is shown while it is loading. */
+    profile: Loadable<UserProfile?> = Loadable.Loading,
+    /** Opens the registration screen (new or edit). */
+    onOpenProfile: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -80,6 +87,8 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        if (profile is Loadable.Loaded) ProfileCard(profile.value, onOpenProfile)
 
         MotorAssessmentsCard(tests, onStartAssessmentClicked)
 
@@ -281,6 +290,40 @@ private fun LatestAssessmentCard(
                     .heightIn(min = 48.dp)
             ) {
                 Text(text = stringResource(R.string.btn_view_history), style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
+}
+
+/** Who is registered (name, age, gender, masked national ID), or an invitation to register. */
+@Composable
+private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (profile == null) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (profile == null) {
+                Text(stringResource(R.string.home_profile_missing_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.home_profile_missing_text), style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.home_profile_register)) }
+            } else {
+                Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(
+                        R.string.home_profile_line,
+                        profile.age.toPersianDigits(),
+                        stringResource(if (profile.gender == Gender.MALE) R.string.reg_gender_male else R.string.reg_gender_female),
+                        PersianFormat.digits(profile.maskedNationalId),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
             }
         }
     }

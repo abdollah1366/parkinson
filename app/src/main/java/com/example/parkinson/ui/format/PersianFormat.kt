@@ -23,6 +23,11 @@ object PersianFormat {
             isGroupingUsed = false
         }.format(value)
 
+    /** ASCII digits in [text] as Persian digits, without grouping (codes, phone numbers). */
+    fun digits(text: String): String = buildString(text.length) {
+        for (c in text) append(if (c in '0'..'9') '۰' + (c - '0') else c)
+    }
+
     /** e.g. ۱۴۰۵/۰۷/۱۵ - ۱۴:۳۰ */
     @SuppressLint("SimpleDateFormat") // The locale is explicit: fa_IR with the Persian calendar.
     fun dateTime(epochMs: Long): String =

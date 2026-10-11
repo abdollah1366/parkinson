@@ -43,6 +43,9 @@ import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.assessment.ReliabilityLevel
 import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.mediapipe.CameraQuality
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.NormPerson
+import com.example.parkinson.norms.forFingerTapping
 import com.example.parkinson.tapping.scoring.TappingNote
 import com.example.parkinson.tapping.result.FingerTappingAssessment
 import com.example.parkinson.ui.components.PrimaryButton
@@ -57,7 +60,8 @@ fun FingerTappingResultScreen(
     onRepeat: (SelectedHand) -> Unit,
     onNewAssessment: () -> Unit,
     onHome: () -> Unit,
-    onNextTest: () -> Unit = {},
+    onNextTest: () -> Unit = {},    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (assessment) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -81,7 +85,7 @@ fun FingerTappingResultScreen(
                     PrimaryButton(text = stringResource(R.string.btn_back_home), onClick = onHome)
                 }
             } else {
-                ResultContent(value, onRepeat, onNewAssessment, onHome, onNextTest)
+                ResultContent(value, onRepeat, onNewAssessment, onHome, onNextTest, norms, person)
             }
         }
     }
@@ -93,7 +97,8 @@ private fun ResultContent(
     onRepeat: (SelectedHand) -> Unit,
     onNewAssessment: () -> Unit,
     onHome: () -> Unit,
-    onNextTest: () -> Unit,
+    onNextTest: () -> Unit,    norms: NormComparator?,
+    person: NormPerson,
 ) {
     var showDetails by rememberSaveable { mutableStateOf(false) }
     val notMeasurable = stringResource(R.string.result_not_measurable)
@@ -199,6 +204,8 @@ private fun ResultContent(
                 )
             )
         }
+
+        norms?.let { ReferenceNormsCard(it.forFingerTapping(a, person), person) }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
