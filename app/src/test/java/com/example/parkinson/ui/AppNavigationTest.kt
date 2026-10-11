@@ -17,6 +17,9 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import com.example.parkinson.MainActivity
+import com.example.parkinson.ParkinsonApplication
+import com.example.parkinson.profile.ProfileValidationTest
+import kotlinx.coroutines.runBlocking
 import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.tapping.FingerTappingSession
 import com.example.parkinson.tapping.SessionInvalidReason
@@ -48,6 +51,12 @@ class AppNavigationTest {
 
     private fun waitFor(text: String) {
         rule.waitUntil(timeoutMillis = 10_000) { rule.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** These walks start as a registered person; the first registration is covered by RegistrationFlowTest. */
+    @Before
+    fun registered() = runBlocking {
+        (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.save(ProfileValidationTest.sample())
     }
 
     @Before

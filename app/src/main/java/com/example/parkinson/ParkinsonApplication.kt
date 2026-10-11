@@ -6,6 +6,8 @@ import com.example.parkinson.assessment.AndroidDeviceCapabilities
 import com.example.parkinson.assessment.DeviceCapabilities
 import com.example.parkinson.data.AssessmentDatabase
 import com.example.parkinson.data.AssessmentRepository
+import com.example.parkinson.data.ProfileRepository
+import com.example.parkinson.data.RoomProfileRepository
 import com.example.parkinson.data.RoomAssessmentRepository
 import com.example.parkinson.diagnostics.SensorDiagnostics
 import com.example.parkinson.diagnostics.TapDiagnostics
@@ -17,9 +19,11 @@ import com.example.parkinson.tremor.RestingTremorDiagnostics
 /** Holds the app-wide singletons (a minimal manual dependency container). */
 class ParkinsonApplication : Application() {
 
-    val assessmentRepository: AssessmentRepository by lazy {
-        RoomAssessmentRepository.from(AssessmentDatabase.build(this))
-    }
+    private val database: AssessmentDatabase by lazy { AssessmentDatabase.build(this) }
+
+    val assessmentRepository: AssessmentRepository by lazy { RoomAssessmentRepository.from(database) }
+
+    val profileRepository: ProfileRepository by lazy { RoomProfileRepository.from(database) }
 
     val motionSensorSource: MotionSensorSource by lazy { AndroidMotionSensorSource(this) }
 
