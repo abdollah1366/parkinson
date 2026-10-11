@@ -41,6 +41,9 @@ import com.example.parkinson.assessment.MotorPerformanceBand
 import com.example.parkinson.assessment.PerformanceTrendState
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.assessment.ReliabilityLevel
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.NormPerson
+import com.example.parkinson.norms.forPronation
 import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.QualityChip
 import com.example.parkinson.ui.components.handLabel
@@ -85,7 +88,8 @@ fun PronationSupinationResultScreen(
     result: Loadable<PronationSupinationResult?>,
     onRepeat: (SelectedHand) -> Unit,
     onBackToTests: () -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (result) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -105,7 +109,7 @@ fun PronationSupinationResultScreen(
                     PrimaryButton(text = stringResource(R.string.btn_back_home), onClick = onHome)
                 }
             } else {
-                PronationContent(value, onRepeat, onBackToTests, onHome)
+                PronationContent(value, onRepeat, onBackToTests, onHome, norms, person)
             }
         }
     }
@@ -116,7 +120,8 @@ private fun PronationContent(
     r: PronationSupinationResult,
     onRepeat: (SelectedHand) -> Unit,
     onBackToTests: () -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator?,
+    person: NormPerson,
 ) {
     var showDetails by rememberSaveable { mutableStateOf(false) }
 
@@ -176,6 +181,8 @@ private fun PronationContent(
             )
             Text(trend, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
+
+        norms?.let { ReferenceNormsCard(it.forPronation(r, person), person) }
 
         Card(
             modifier = Modifier.fillMaxWidth(),

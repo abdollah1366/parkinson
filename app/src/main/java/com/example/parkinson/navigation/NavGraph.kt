@@ -80,6 +80,7 @@ import com.example.parkinson.ui.screens.profile.RegistrationScreen
 import com.example.parkinson.ui.screens.result.CenteredMessage
 import com.example.parkinson.R
 import androidx.compose.ui.res.stringResource
+import com.example.parkinson.norms.toNormPerson
 import com.example.parkinson.viewmodel.PronationSupinationViewModel
 import com.example.parkinson.viewmodel.RestingTremorViewModel
 
@@ -127,6 +128,10 @@ fun ParkinsonNavGraph(
     val capabilities: DeviceCapabilities = remember {
         (context.applicationContext as? ParkinsonApplication)?.deviceCapabilities ?: AndroidDeviceCapabilities(context)
     }
+    // Published reference values, compared on the result screens with the registered age, sex and diagnosis.
+    val normComparator = remember { runCatching { (context.applicationContext as? ParkinsonApplication)?.normComparator }.getOrNull() }
+    val registeredProfile by profileViewModel.profile.collectAsState()
+    val normPerson = (registeredProfile as? Loadable.Loaded)?.value.toNormPerson()
 
     /** Back to Home, keeping Home itself (creates it if it is not on the back stack). */
     fun goHome() {
@@ -335,6 +340,8 @@ fun ParkinsonNavGraph(
             val assessment by assessmentFlow.collectAsState(initial = Loadable.Loading)
 
             FingerTappingResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 assessment = assessment,
                 onRepeat = { hand: SelectedHand ->
                     fingerTappingViewModel.selectHand(hand)
@@ -455,6 +462,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.pronationSupination(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             PronationSupinationResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     pronationViewModel.session.reset()
@@ -620,6 +629,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.restingTremor(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             RestingTremorResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     restingTremorViewModel.session.reset()
@@ -641,6 +652,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.restingTremorImu(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             RestingTremorImuResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = { hand ->
                     restingTremorViewModel.session.reset()
@@ -706,6 +719,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.imuGait(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             ImuGaitResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = {
                     gaitViewModel.resetFlow()
@@ -784,6 +799,8 @@ fun ParkinsonNavGraph(
             val resultFlow = remember(id) { historyViewModel.imuSitToStand(id) }
             val result by resultFlow.collectAsState(initial = Loadable.Loading)
             ImuSitToStandResultScreen(
+                norms = normComparator,
+                person = normPerson,
                 result = result,
                 onRepeat = {
                     sitToStandViewModel.resetFlow()

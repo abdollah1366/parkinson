@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.example.parkinson.R
 import com.example.parkinson.assessment.QualityStatus
 import com.example.parkinson.model.SelectedHand
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.NormPerson
+import com.example.parkinson.norms.forTremorFrequency
 import com.example.parkinson.tremor.RestingTremorQualityIssue
 import com.example.parkinson.tremor.RestingTremorResult
 import com.example.parkinson.ui.components.PrimaryButton
@@ -43,7 +46,8 @@ fun RestingTremorResultScreen(
     result: Loadable<RestingTremorResult?>,
     onRepeat: (SelectedHand) -> Unit,
     onNextTest: () -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (result) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -52,7 +56,7 @@ fun RestingTremorResultScreen(
             if (value == null) {
                 CenteredMessage(stringResource(R.string.result_not_found))
             } else {
-                RestingTremorContent(value, onRepeat, onNextTest, onHome)
+                RestingTremorContent(value, onRepeat, onNextTest, onHome, norms, person)
             }
         }
     }
@@ -63,7 +67,8 @@ private fun RestingTremorContent(
     r: RestingTremorResult,
     onRepeat: (SelectedHand) -> Unit,
     onNextTest: () -> Unit,
-    onHome: () -> Unit,
+    onHome: () -> Unit,    norms: NormComparator?,
+    person: NormPerson,
 ) {
     val m = r.metrics
     fun d(v: Double, digits: Int = 1) = PersianFormat.decimal(v, digits)
@@ -182,6 +187,8 @@ private fun RestingTremorContent(
                 )
             }
         }
+
+        norms?.let { ReferenceNormsCard(it.forTremorFrequency(m.dominantFrequencyHz, person), person) }
 
         Spacer(modifier = Modifier.height(8.dp))
         PrimaryButton(text = stringResource(R.string.btn_repeat_assessment), onClick = { onRepeat(r.hand) })

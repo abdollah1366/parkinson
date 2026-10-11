@@ -31,6 +31,10 @@ import com.example.parkinson.imu.GaitSign
 import com.example.parkinson.imu.ImuComparison
 import com.example.parkinson.imu.ImuGaitResult
 import com.example.parkinson.imu.ImuSitToStandResult
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.NormPerson
+import com.example.parkinson.norms.forGait
+import com.example.parkinson.norms.forSitToStand
 import com.example.parkinson.ui.components.PrimaryButton
 import com.example.parkinson.ui.components.QualityChip
 import com.example.parkinson.ui.format.PersianFormat
@@ -42,6 +46,8 @@ fun ImuSitToStandResultScreen(
     result: Loadable<ImuComparison<ImuSitToStandResult>?>,
     onRepeat: () -> Unit,
     onHome: () -> Unit,
+    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (result) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -91,6 +97,7 @@ fun ImuSitToStandResultScreen(
                         )
                         Text(stringResource(R.string.imu_compare_desc), style = MaterialTheme.typography.bodySmall)
                     }
+                    norms?.let { ReferenceNormsCard(it.forSitToStand(r, person), person) }
                     NoScoreCard()
                     Spacer(modifier = Modifier.height(8.dp))
                     PrimaryButton(text = stringResource(R.string.btn_repeat_assessment), onClick = onRepeat)
@@ -108,6 +115,8 @@ fun ImuGaitResultScreen(
     onRepeat: () -> Unit,
     onNextTest: () -> Unit,
     onHome: () -> Unit,
+    norms: NormComparator? = null,
+    person: NormPerson = NormPerson.UNKNOWN,
 ) {
     when (result) {
         Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
@@ -171,6 +180,7 @@ fun ImuGaitResultScreen(
                         )
                         Text(stringResource(R.string.imu_compare_desc), style = MaterialTheme.typography.bodySmall)
                     }
+                    norms?.let { ReferenceNormsCard(it.forGait(r, person), person) }
                     if (score == null) NoScoreCard() else NoteCard(stringResource(R.string.gait_score_disclaimer))
                     Spacer(modifier = Modifier.height(8.dp))
                     PrimaryButton(text = stringResource(R.string.btn_repeat_assessment), onClick = onRepeat)

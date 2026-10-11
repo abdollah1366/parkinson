@@ -14,6 +14,8 @@ import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.sensors.AndroidMotionSensorSource
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.gait.GaitDiagnostics
+import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.norms.ReferenceNorms
 import com.example.parkinson.tremor.RestingTremorDiagnostics
 
 /** Holds the app-wide singletons (a minimal manual dependency container). */
@@ -28,6 +30,11 @@ class ParkinsonApplication : Application() {
     val motionSensorSource: MotionSensorSource by lazy { AndroidMotionSensorSource(this) }
 
     val deviceCapabilities: DeviceCapabilities by lazy { AndroidDeviceCapabilities(this) }
+
+    /** Published reference values bundled in assets (no server), read once on first use. */
+    val normComparator: NormComparator by lazy {
+        NormComparator(ReferenceNorms.parse(assets.open(ReferenceNorms.ASSET_PATH).bufferedReader().use { it.readText() }))
+    }
 
     override fun onCreate() {
         super.onCreate()
