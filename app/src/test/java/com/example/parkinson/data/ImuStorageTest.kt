@@ -7,6 +7,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.parkinson.assessment.AssessmentType
 import com.example.parkinson.assessment.QualityStatus
+import com.example.parkinson.imu.GaitScoring
+import com.example.parkinson.imu.GaitSign
 import com.example.parkinson.imu.ImuDataInfo
 import com.example.parkinson.imu.ImuGaitResult
 import com.example.parkinson.imu.ImuRepetition
@@ -181,6 +183,40 @@ class ImuStorageTest {
         val backNull = requireNotNull(runBlocking { repository.observeImuGait("imu-gait-2").first() })
         assertNull(backNull.cadenceStepsPerMinute)
         assertNull(backNull.stepIntervalCvPercent)
+    }
+
+    @Test
+    fun gaitScoreMeasuresSurviveTheRoundTripAndGiveTheSameScore() {
+        val scored = gait("imu-gait-scored", 1_700_000_200_000L, cadence = 92.0).copy(
+            scoringVersion = GaitScoring.VERSION,
+            strides = 14,
+            strideTimeMs = 1_304.0,
+            strideCvPercent = 4.6,
+            stepRegularity = 0.61,
+            strideRegularity = 0.74,
+            stepAsymmetryPercent = 3.1,
+            turnCount = 2,
+            meanTurnVelocityDegPerSec = 58.0,
+            peakTurnVelocityDegPerSec = 121.0,
+            meanTurnDurationMs = 3_100.0,
+            walkingTremorIndex = 2.2,
+            walkingTremorHz = 4.9,
+            standingTremorIndex = null,
+            standingTremorHz = null,
+        )
+        runBlocking { repository.saveImuGait(scored) }
+        val back = requireNotNull(runBlocking { repository.observeImuGait("imu-gait-scored").first() })
+        assertEquals(scored, back)
+        assertEquals(scored.gaitScore, back.gaitScore)
+        assertEquals(scored.gaitScore!!.overall, back.performanceIndex)
+        assertTrue(GaitSign.SLOW_TURNING in back.gaitScore!!.signs)
+
+        // A result from before the scoring version keeps no score.
+        runBlocking { repository.saveImuGait(gait("imu-gait-old", 1_700_000_300_000L, cadence = 92.0)) }
+        val old = requireNotNull(runBlocking { repository.observeImuGait("imu-gait-old").first() })
+        assertNull(old.gaitScore)
+        assertNull(old.performanceIndex)
+        assertNull(old.strideTimeMs)
     }
 
     @Test

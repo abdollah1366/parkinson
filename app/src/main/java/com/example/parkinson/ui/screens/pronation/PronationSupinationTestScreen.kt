@@ -1,5 +1,8 @@
 package com.example.parkinson.ui.screens.pronation
 
+import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCues
+import com.example.parkinson.voice.rememberVoiceGuide
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -101,6 +104,8 @@ fun PronationSupinationTestScreen(
     onExit: () -> Unit,
 ) {
     val state by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.pronation(state))
     val hand = selectedHand ?: SelectedHand.RIGHT
     val activity = LocalActivity.current
     var confirmStop by rememberSaveable { mutableStateOf(false) }

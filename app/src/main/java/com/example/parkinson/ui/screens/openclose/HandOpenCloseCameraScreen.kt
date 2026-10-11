@@ -1,5 +1,8 @@
 package com.example.parkinson.ui.screens.openclose
 
+import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCues
+import com.example.parkinson.voice.rememberVoiceGuide
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -103,6 +106,8 @@ fun HandOpenCloseCameraScreen(
     val vision by handLandmarkerManager.liveStatus.collectAsState()
 
     val sessionState by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.openClose(sessionState))
     val liveCycles by session.liveCycles.collectAsState()
 
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }

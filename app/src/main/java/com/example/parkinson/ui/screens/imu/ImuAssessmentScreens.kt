@@ -1,5 +1,8 @@
 package com.example.parkinson.ui.screens.imu
 
+import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCues
+import com.example.parkinson.voice.rememberVoiceGuide
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -115,6 +118,8 @@ fun ImuSitToStandScreen(
 ) {
     val scroll = rememberScrollState()
     val state by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.sitToStand(state))
     val issue by session.calibrationIssue.collectAsState()
     val availability by session.availability.collectAsState()
 
@@ -213,6 +218,8 @@ fun ImuGaitScreen(
 ) {
     val scroll = rememberScrollState()
     val state by session.state.collectAsState()
+    val voice = rememberVoiceGuide()
+    SpeakCue(voice, VoiceCues.gait(state))
     val issue by session.calibrationIssue.collectAsState()
     val availability by session.availability.collectAsState()
 
@@ -255,7 +262,7 @@ fun ImuGaitScreen(
             ImuGaitState.Idle -> {
                 issue?.let { InfoCard(stringResource(calibrationIssueText(it))) }
                 InfoCard(stringResource(R.string.imu_gait_idle_hint))
-                PrimaryButton(text = stringResource(R.string.imu_btn_calibrate), onClick = { session.start() })
+                PrimaryButton(text = stringResource(R.string.imu_btn_calibrate_standing), onClick = { session.start() })
             }
 
             is ImuGaitState.Calibrating -> {
