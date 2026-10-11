@@ -48,8 +48,8 @@ enum class QualityStatus { VALID, LOW_QUALITY, INSUFFICIENT_DATA, INVALID }
 /** Technical quality of one recording; describes the measurement, never the person. */
 data class AssessmentQuality(
     val status: QualityStatus,
-    /** 0..100 */
-    val score: Int
+    /** 0..100, or null when the score cannot be measured (never a stand-in zero). */
+    val score: Int?
 )
 
 /**

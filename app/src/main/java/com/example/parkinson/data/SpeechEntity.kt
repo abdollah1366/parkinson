@@ -34,7 +34,8 @@ data class SpeechEntity(
     val qualityStatus: String,
     /** Comma-separated SpeechQualityIssue names. */
     val qualityIssues: String,
-    val qualityScore: Int,
+    /** Null when the voiced share was not measured (never a stored zero). */
+    val qualityScore: Int?,
     val durationMs: Double,
     val sampleRateHz: Int,
     val requestedSampleRateHz: Int,

@@ -47,7 +47,7 @@ interface AssessmentDao {
         ImuSitToStandEntity::class,
         ImuGaitEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -88,6 +88,8 @@ abstract class AssessmentDatabase : RoomDatabase() {
         private const val NAME = "assessments.db"
 
         fun build(context: Context): AssessmentDatabase =
-            Room.databaseBuilder(context.applicationContext, AssessmentDatabase::class.java, NAME).build()
+            Room.databaseBuilder(context.applicationContext, AssessmentDatabase::class.java, NAME)
+                .addMigrations(MIGRATION_11_12)
+                .build()
     }
 }

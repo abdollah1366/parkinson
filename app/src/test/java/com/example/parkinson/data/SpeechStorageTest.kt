@@ -3,10 +3,12 @@ package com.example.parkinson.data
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.driver.AndroidSQLiteDriver
+import androidx.sqlite.execSQL
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.parkinson.assessment.AssessmentType
 import com.example.parkinson.assessment.QualityStatus
+import com.example.parkinson.speech.AudioCapture
 import com.example.parkinson.speech.SpeechAnalysis
 import com.example.parkinson.speech.SpeechComparison
 import com.example.parkinson.speech.SpeechMetric
@@ -157,5 +159,81 @@ class SpeechStorageTest {
         assertEquals(5_000.0, back.measured(SpeechMetric.DURATION_MS)!!, 1e-6)
         // Only the entries present in the row are decoded; the rest are absent, not invented.
         assertEquals(1, back.metrics.size)
+    }
+
+    /** A capture with no samples: the voiced share cannot be measured at all. */
+    private fun emptyCaptureResult(id: String, endEpochMs: Long): SpeechResult {
+        val capture = AudioCapture(ShortArray(0), 8_000, 8_000)
+        val analysis = SpeechTaskEngine(SpeechSignalConfig()).analyze(SpeechTask.SUSTAINED_VOWEL, capture, plannedDurationMs = 5_000L)
+        return SpeechResult.from(
+            analysis = analysis,
+            capture = capture,
+            assessmentId = id,
+            sessionId = "visit-$id",
+            startEpochMs = endEpochMs - 5_000L,
+            endEpochMs = endEpochMs,
+            consentAccepted = true,
+            signal = SpeechSignalConfig(),
+            plannedDurationMs = 5_000L,
+        )
+    }
+
+    @Test
+    fun anUnmeasurableVoicedShareGivesNoQualityScoreNotAZero() {
+        val empty = emptyCaptureResult("sp-empty", 1_000L)
+        assertNull(empty.qualityScore)
+        assertNull(empty.quality.score)
+        assertNull(empty.measured(SpeechMetric.VOICED_PERCENT))
+
+        runBlocking { repository.saveSpeech(empty) }
+        val back = requireNotNull(runBlocking { repository.observeSpeech("sp-empty").first() })
+        assertNull(back.qualityScore)
+    }
+
+    @Test
+    fun aSilentRecordingGivesNoVoicedShareAndNoFakeZeroScore() {
+        // Silence is too weak for the engine to judge voicing: the share is reported as unavailable, not as 0 %.
+        val capture = SyntheticSpeech.capture(SyntheticSpeech.silence(5_000, rate = 8_000), rate = 8_000, requested = 8_000)
+        val analysis = SpeechTaskEngine(SpeechSignalConfig()).analyze(SpeechTask.SUSTAINED_VOWEL, capture, plannedDurationMs = 5_000L)
+        val silent = SpeechResult.from(
+            analysis = analysis, capture = capture, assessmentId = "sp-silent", sessionId = "visit-silent",
+            startEpochMs = 0L, endEpochMs = 5_000L, consentAccepted = true,
+            signal = SpeechSignalConfig(), plannedDurationMs = 5_000L,
+        )
+        assertEquals(
+            SpeechValue.Unavailable(UnavailableReason.LOW_QUALITY_SIGNAL),
+            silent.metrics[SpeechMetric.VOICED_PERCENT],
+        )
+        assertNull(silent.qualityScore)
+    }
+
+    /** Version 11 -> 12 makes the score nullable; only rows whose voiced share was unavailable lose their 0. */
+    @Test
+    fun migrationFromVersion11NullsOnlyTheScoresThatWereNeverMeasured() {
+        val v11 = migrationHelper.createDatabase(11)
+        for ((id, metrics, score) in listOf(
+            Triple("sp-unavailable", "VOICED_PERCENT=U:NOT_ENOUGH_VOICED_FRAMES;DURATION_MS=5000.0", 0L),
+            Triple("sp-measured", "VOICED_PERCENT=42.0;DURATION_MS=5000.0", 42L),
+        )) {
+            v11.execSQL(
+                "INSERT INTO speech_assessments (assessmentId, timestampEpochMs, startEpochMs, endEpochMs, sessionId, " +
+                    "task, plannedDurationMs, consentAccepted, qualityStatus, qualityIssues, qualityScore, durationMs, " +
+                    "sampleRateHz, requestedSampleRateHz, metrics, algorithmVersion, configSummary, scoringVersion) " +
+                    "VALUES ('$id', 1, 0, 5000, 'visit', 'sustained_vowel', 5000, 1, 'VALID', '', $score, 5000.0, " +
+                    "8000, 8000, '$metrics', 'sp-algo', 'cfg', 'sp-score')"
+            )
+        }
+        v11.close()
+
+        val v12 = migrationHelper.runMigrationsAndValidate(12, listOf(MIGRATION_11_12))
+        v12.prepare("SELECT assessmentId, qualityScore FROM speech_assessments ORDER BY assessmentId").use {
+            assertTrue(it.step())
+            assertEquals("sp-measured", it.getText(0))
+            assertEquals(42L, it.getLong(1))
+            assertTrue(it.step())
+            assertEquals("sp-unavailable", it.getText(0))
+            assertTrue("a never-measured score must become NULL, not 0", it.isNull(1))
+        }
+        v12.close()
     }
 }

@@ -26,8 +26,8 @@ data class SpeechResult(
     val consentAccepted: Boolean,
     val qualityStatus: QualityStatus,
     val qualityIssues: List<SpeechQualityIssue>,
-    /** Share of voiced frames (percent), 0..100: a technical share, not a score. */
-    val qualityScore: Int,
+    /** Share of voiced frames (percent), 0..100: a technical share, not a score. Null when voiced frames could not be measured. */
+    val qualityScore: Int?,
     val durationMs: Double,
     val sampleRateHz: Int,
     val requestedSampleRateHz: Int,
@@ -68,7 +68,7 @@ data class SpeechResult(
             scoringVersion: String = SpeechVersions.SCORING_VERSION,
         ): SpeechResult {
             val q = analysis.quality
-            val voiced = (analysis.metrics[SpeechMetric.VOICED_PERCENT] as? SpeechValue.Measured)?.value ?: 0.0
+            val voiced = (analysis.metrics[SpeechMetric.VOICED_PERCENT] as? SpeechValue.Measured)?.value
             return SpeechResult(
                 assessmentId = assessmentId,
                 timestampEpochMs = endEpochMs,
@@ -80,7 +80,7 @@ data class SpeechResult(
                 consentAccepted = consentAccepted,
                 qualityStatus = q.status,
                 qualityIssues = q.issues,
-                qualityScore = voiced.roundToInt().coerceIn(0, 100),
+                qualityScore = voiced?.roundToInt()?.coerceIn(0, 100),
                 durationMs = q.durationMs,
                 sampleRateHz = capture.sampleRateHz,
                 requestedSampleRateHz = capture.requestedSampleRateHz,
