@@ -81,6 +81,7 @@ class ImuGaitSession(
     private val signal: ImuSignalConfig = ImuSignalConfig(),
     private val calibrationLimits: CalibrationLimits = CalibrationLimits(),
     private val thresholds: GaitImuThresholds = GaitImuThresholds(),
+    private val featureConfig: GaitFeatureConfig = GaitFeatureConfig(),
     private val clock: () -> Long = SystemClock::elapsedRealtime,
     private val nanoClock: () -> Long = SystemClock::elapsedRealtimeNanos,
     private val wallClock: () -> Long = System::currentTimeMillis,
@@ -107,6 +108,9 @@ class ImuGaitSession(
     private var listenerSinceNs = 0L
     private var runningSinceMs = 0L
 
+    /** The still-standing calibration recording, kept for the standing tremor measure. */
+    private var standingSnapshot: List<MotionSample> = emptyList()
+
     fun start() {
         if (_state.value != ImuGaitState.Idle) return
         val found = repository.availability()
@@ -116,6 +120,7 @@ class ImuGaitSession(
             return
         }
         _calibrationIssue.value = null
+        standingSnapshot = emptyList()
         sessionId = newSessionId()
         repository.clear()
         listenerSinceNs = nanoClock()
@@ -194,6 +199,7 @@ class ImuGaitSession(
                 delay(min(config.tickMs, config.calibrationMs - elapsed))
             }
             val snapshot = repository.snapshot()
+            standingSnapshot = snapshot
             val outcome = withContext(processingDispatcher) {
                 val grid = ImuGridBuilder.build(ImuCleaning.clean(snapshot), signal)
                     ?: return@withContext CalibrationOutcome.Failed(CalibrationIssue.INSUFFICIENT_DATA)
@@ -307,6 +313,11 @@ class ImuGaitSession(
 
         val intervals = analysis.intervalsMs
         val mean = intervals.takeIf { it.isNotEmpty() }?.average()
+        val standing = ImuGridBuilder.build(ImuCleaning.clean(standingSnapshot), signal)
+        val features = GaitFeatureExtractor.extract(grid, standing, featureConfig)
+        // The thigh-swing stride counts both legs' steps, so it is preferred to the heel-strike peaks, which can
+        // miss the weaker step of the leg without the phone.
+        val cadence = features.strideCadenceStepsPerMinute ?: mean?.let { 60_000.0 / it }
         val endWall = wallClock()
         return FinalOutcome.Ready(
             ImuGaitResult(
@@ -321,7 +332,7 @@ class ImuGaitSession(
                 validWalkingMs = validMs,
                 steps = steps,
                 bouts = analysis.bouts.size,
-                cadenceStepsPerMinute = mean?.let { 60_000.0 / it },
+                cadenceStepsPerMinute = cadence,
                 meanStepIntervalMs = mean,
                 stepIntervalCvPercent = ImuStats.cv(intervals),
                 turningMs = analysis.turningMs,
@@ -331,9 +342,23 @@ class ImuGaitSession(
                 invalidIntervals = analysis.invalidIntervals,
                 data = data,
                 qualityStatus = status,
-                algorithmVersion = ImuVersions.ALGORITHM_VERSION,
-                configSummary = "${signal.summary()};${thresholds.summary()}",
-                scoringVersion = ImuVersions.SCORING_VERSION,
+                algorithmVersion = GAIT_ALGORITHM_VERSION,
+                configSummary = "${signal.summary()};${thresholds.summary()};${featureConfig.summary()}",
+                scoringVersion = GaitScoring.VERSION,
+                strides = features.strides,
+                strideTimeMs = features.strideTimeMs,
+                strideCvPercent = features.strideCvPercent,
+                stepRegularity = features.stepRegularity,
+                strideRegularity = features.strideRegularity,
+                stepAsymmetryPercent = features.stepAsymmetryPercent,
+                turnCount = features.turns.size,
+                meanTurnVelocityDegPerSec = features.meanTurnVelocityDegPerSec,
+                peakTurnVelocityDegPerSec = features.peakTurnVelocityDegPerSec,
+                meanTurnDurationMs = features.meanTurnDurationMs,
+                walkingTremorIndex = features.walkingTremorIndex,
+                walkingTremorHz = features.walkingTremorHz,
+                standingTremorIndex = features.standingTremorIndex,
+                standingTremorHz = features.standingTremorHz,
             )
         )
     }
@@ -371,6 +396,9 @@ class ImuGaitSession(
 
     companion object {
         const val PROTOCOL_ID = "timed_walk_imu"
+
+        /** Step detection 1.0 plus the stride, regularity, turn and tremor features. */
+        const val GAIT_ALGORITHM_VERSION = "imu-algo-1.0.0+gait-features-1.0"
 
         /** A result needs at least this much walking in plausible bouts (ms). */
         const val MIN_VALID_WALKING_MS = 10_000.0

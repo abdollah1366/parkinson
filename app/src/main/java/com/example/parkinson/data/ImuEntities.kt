@@ -103,6 +103,21 @@ data class ImuGaitEntity(
     val algorithmVersion: String,
     val configSummary: String,
     val scoringVersion: String,
+    // v14: stride, regularity, turn and tremor measures (nullable: older rows have none).
+    val strides: Int? = null,
+    val strideTimeMs: Double? = null,
+    val strideCvPercent: Double? = null,
+    val stepRegularity: Double? = null,
+    val strideRegularity: Double? = null,
+    val stepAsymmetryPercent: Double? = null,
+    val turnCount: Int? = null,
+    val meanTurnVelocityDegPerSec: Double? = null,
+    val peakTurnVelocityDegPerSec: Double? = null,
+    val meanTurnDurationMs: Double? = null,
+    val walkingTremorIndex: Double? = null,
+    val walkingTremorHz: Double? = null,
+    val standingTremorIndex: Double? = null,
+    val standingTremorHz: Double? = null,
 )
 
 @Dao
@@ -227,6 +242,20 @@ fun ImuGaitResult.toEntity(): ImuGaitEntity = ImuGaitEntity(
     algorithmVersion = algorithmVersion,
     configSummary = configSummary,
     scoringVersion = scoringVersion,
+    strides = strides,
+    strideTimeMs = strideTimeMs,
+    strideCvPercent = strideCvPercent,
+    stepRegularity = stepRegularity,
+    strideRegularity = strideRegularity,
+    stepAsymmetryPercent = stepAsymmetryPercent,
+    turnCount = turnCount,
+    meanTurnVelocityDegPerSec = meanTurnVelocityDegPerSec,
+    peakTurnVelocityDegPerSec = peakTurnVelocityDegPerSec,
+    meanTurnDurationMs = meanTurnDurationMs,
+    walkingTremorIndex = walkingTremorIndex,
+    walkingTremorHz = walkingTremorHz,
+    standingTremorIndex = standingTremorIndex,
+    standingTremorHz = standingTremorHz,
 )
 
 fun ImuGaitEntity.toDomain(): ImuGaitResult = ImuGaitResult(
@@ -264,5 +293,19 @@ fun ImuGaitEntity.toDomain(): ImuGaitResult = ImuGaitResult(
     algorithmVersion = algorithmVersion,
     configSummary = configSummary,
     scoringVersion = scoringVersion,
+    strides = strides,
+    strideTimeMs = strideTimeMs,
+    strideCvPercent = strideCvPercent,
+    stepRegularity = stepRegularity,
+    strideRegularity = strideRegularity,
+    stepAsymmetryPercent = stepAsymmetryPercent,
+    turnCount = turnCount,
+    meanTurnVelocityDegPerSec = meanTurnVelocityDegPerSec,
+    peakTurnVelocityDegPerSec = peakTurnVelocityDegPerSec,
+    meanTurnDurationMs = meanTurnDurationMs,
+    walkingTremorIndex = walkingTremorIndex,
+    walkingTremorHz = walkingTremorHz,
+    standingTremorIndex = standingTremorIndex,
+    standingTremorHz = standingTremorHz,
 )
 
