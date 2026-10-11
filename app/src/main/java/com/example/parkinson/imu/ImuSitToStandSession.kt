@@ -319,7 +319,7 @@ class ImuSitToStandSession(
         val ref = synchronized(lock) { reference } ?: return 0
         return withContext(processingDispatcher) {
             val grid = ImuGridBuilder.build(ImuCleaning.clean(snapshot), signal) ?: return@withContext 0
-            SitToStandImuDetector.analyze(grid, ref, thresholds).repetitions.size
+            SitToStandImuDetector.analyzeAnyPlacement(grid, ref, thresholds).repetitions.size
         }
     }
 
@@ -356,7 +356,7 @@ class ImuSitToStandSession(
         val data = ImuDataInfo.of(snapshot, clean, config.timeLimitMs)
         val grid = ImuGridBuilder.build(clean, signal)
             ?: return FinalOutcome.Failed(forced ?: ImuFailure.InvalidData(0.0, data.timestampIssuePercent))
-        val analysis = SitToStandImuDetector.analyze(grid, ref, thresholds)
+        val analysis = SitToStandImuDetector.analyzeAnyPlacement(grid, ref, thresholds)
         val usable = analysis.repetitions.size >= target
         val status = ImuQuality.status(analysis.coveragePercent, data, usable)
 
@@ -364,7 +364,7 @@ class ImuSitToStandSession(
             forced != null -> forced
             data.timestampIssuePercent > ImuQuality.MAX_TIMESTAMP_ISSUE_PERCENT ->
                 ImuFailure.InvalidData(analysis.coveragePercent, data.timestampIssuePercent)
-            !usable && (analysis.maxPostureDeg ?: 0.0) < thresholds.standDeg ->
+            !usable && analysis.repetitions.isEmpty() && (analysis.maxPostureDeg ?: 0.0) < thresholds.standDeg ->
                 ImuFailure.NoPostureChange(analysis.maxPostureDeg)
             !usable -> ImuFailure.Incomplete(analysis.repetitions.size, target)
             gapWithinSpan(analysis) -> ImuFailure.GapInsideTimedSpan
@@ -394,7 +394,7 @@ class ImuSitToStandSession(
                 endEpochMs = endWall,
                 sessionId = sessionId,
                 protocolId = PROTOCOL_ID,
-                placement = PLACEMENT_FRONT_TROUSER_POCKET,
+                placement = if (analysis.byVerticalMovement) PLACEMENT_HELD_OR_TRUNK else PLACEMENT_FRONT_TROUSER_POCKET,
                 targetRepetitions = target,
                 repetitions = relative,
                 rejections = analysis.rejections,
@@ -402,8 +402,8 @@ class ImuSitToStandSession(
                 coveragePercent = analysis.coveragePercent,
                 data = data,
                 qualityStatus = status,
-                algorithmVersion = ImuVersions.ALGORITHM_VERSION,
-                configSummary = "${signal.summary()};${thresholds.summary()}",
+                algorithmVersion = STS_ALGORITHM_VERSION,
+                configSummary = "${signal.summary()};${thresholds.summary()};${VerticalSitToStandThresholds().summary()}",
                 scoringVersion = ImuVersions.SCORING_VERSION,
             )
         )
@@ -451,6 +451,9 @@ class ImuSitToStandSession(
         const val PROTOCOL_ID = "five_times_sit_to_stand_imu"
     }
 }
+
+/** Sit-to-stand algorithm: the shared IMU pipeline plus the vertical-movement detector for a hand-held phone. */
+const val STS_ALGORITHM_VERSION = "${ImuVersions.ALGORITHM_VERSION}+sts-vertical-1.0"
 
 /** Version tags shared by both IMU assessments (see docs/imu-assessments-algorithm.md). */
 object ImuVersions {
