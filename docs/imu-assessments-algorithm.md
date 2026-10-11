@@ -63,6 +63,29 @@ the calibration is rejected and the user is asked to repeat it.
 - **Completion**: five complete repetitions are required. A 60 s time limit applies; the session is then invalid with
   the reason `TimeLimit` or `Incomplete`.
 
+### Phone held at the chest (vertical movement, `sts-vertical-1.0`)
+
+A phone held in the hand against the chest is upright both seated and standing, so the posture angle hardly changes
+and the posture detector counts nothing. `VerticalSitToStandDetector` counts the transfers from the vertical movement
+instead, for any placement that rises and falls with the trunk:
+
+- **Gravity direction**: propagated with the gyroscope (`ĝ' = ĝ × ω`) and pulled toward the accelerometer with a 2 s
+  time constant, so it follows the phone's rotation during the lean.
+- **Vertical acceleration**: `dot(a, ĝ) − median|a|`, zero-phase low-passed at 3 Hz (removes hand tremor).
+- **Speed**: the acceleration minus its 10 s moving mean (the sensor bias; a whole transfer sums to zero because the
+  phone is at rest before and after it) is integrated, and the 10 s moving mean of the speed (drift) is removed. The
+  speed is not reset at "still" moments: the accelerometer cannot tell a still phone from one moving at a steady
+  speed, and a slow sit-down looks still in its middle.
+- **Transfers**: a stretch of upward speed above 0.04 m/s that travels 0.15-1.0 m, lasts at least 300 ms and peaks at
+  0.1 m/s or more is standing up; the same downward is sitting down. A rise followed by a sit is one repetition; a gap
+  inside it rejects it (`SENSOR_GAP`), a rise followed by another rise is `PARTIAL_RISE`.
+- **Choice**: both detectors run on the same data. The vertical result is used only when it counts more repetitions
+  than the posture result, so a pocket recording keeps the posture result. The saved result then has the placement
+  `HELD_OR_TRUNK`.
+- **Limits**: lifting the phone with the arm by a similar distance can be counted as a transfer, so the instructions
+  ask to hold the phone with both hands against the chest. The edges of a transfer are where the speed falls under
+  0.04 m/s, which is less precise (about ±0.4 s per repetition on synthetic data) than the posture thresholds.
+
 ## Walking (30 s timed walk)
 
 - **Vertical acceleration**: `dot(a, ĝ) − |g|`, where ĝ is the low-pass gravity direction.

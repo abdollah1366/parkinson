@@ -14,6 +14,9 @@ import kotlin.math.sqrt
 /** The phone-placement protocol every IMU assessment uses. Stored with each result. */
 const val PLACEMENT_FRONT_TROUSER_POCKET = "FRONT_TROUSER_POCKET"
 
+/** Sit-to-stand counted from the vertical movement: the phone was held at the chest or carried on the trunk. */
+const val PLACEMENT_HELD_OR_TRUNK = "HELD_OR_TRUNK"
+
 /**
  * Facts about the sensor data of one recording, computed from the sensor timestamps: measured rates (not requested
  * ones), dropouts, events removed because they were duplicated or out of order, and events flagged unreliable.
