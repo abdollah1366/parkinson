@@ -118,6 +118,17 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "speech_result/${Uri.encode(assessmentId)}"
     }
 
+    object DualTaskIntro : Screen("dual_task_intro")
+    object DualTaskTest : Screen("dual_task_test")
+
+    object DualTaskInvalid : Screen("dual_task_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "dual_task_invalid/${Uri.encode(kind)}"
+    }
+
+    object DualTaskResult : Screen("dual_task_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "dual_task_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"

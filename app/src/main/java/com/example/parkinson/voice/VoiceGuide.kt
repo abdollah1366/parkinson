@@ -31,6 +31,13 @@ private fun VoiceClip.raw(): Int = when (this) {
     VoiceClip.TAP -> R.raw.voice_tap
     VoiceClip.OPEN_CLOSE -> R.raw.voice_open_close
     VoiceClip.ROTATE -> R.raw.voice_rotate
+    VoiceClip.DUAL_START_99 -> R.raw.voice_dual_start_99
+    VoiceClip.DUAL_START_98 -> R.raw.voice_dual_start_98
+    VoiceClip.DUAL_START_96 -> R.raw.voice_dual_start_96
+    VoiceClip.DUAL_START_94 -> R.raw.voice_dual_start_94
+    VoiceClip.DUAL_START_92 -> R.raw.voice_dual_start_92
+    VoiceClip.DUAL_START_91 -> R.raw.voice_dual_start_91
+    VoiceClip.DUAL_STOP -> R.raw.voice_dual_stop
 }
 
 /**

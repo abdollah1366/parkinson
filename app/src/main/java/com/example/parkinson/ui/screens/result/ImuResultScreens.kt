@@ -263,7 +263,7 @@ private fun tremorText(index: Double?, hz: Double?, notComputed: String): String
 }
 
 @Composable
-private fun NoteCard(text: String) {
+internal fun NoteCard(text: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)),
@@ -274,7 +274,7 @@ private fun NoteCard(text: String) {
 }
 
 @Composable
-private fun ResultCard(title: String, value: String) {
+internal fun ResultCard(title: String, value: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

@@ -14,7 +14,8 @@ enum class VoiceClip {
     DONE, STAY_STILL, PAUSED,
     GAIT_STAND, GAIT_WALK,
     STS_SIT, STS_GO,
-    HAND_HOLD, HAND_REST, TAP, OPEN_CLOSE, ROTATE;
+    HAND_HOLD, HAND_REST, TAP, OPEN_CLOSE, ROTATE,
+    DUAL_START_99, DUAL_START_98, DUAL_START_96, DUAL_START_94, DUAL_START_92, DUAL_START_91, DUAL_STOP;
 
     companion object {
         /** The spoken number 1-5, or null outside that range. */
@@ -24,6 +25,17 @@ enum class VoiceClip {
             3 -> COUNT_3
             4 -> COUNT_4
             5 -> COUNT_5
+            else -> null
+        }
+
+        /** The dual-task instruction with its start number, or null for a number without a clip. */
+        fun dualStart(startNumber: Int): VoiceClip? = when (startNumber) {
+            99 -> DUAL_START_99
+            98 -> DUAL_START_98
+            96 -> DUAL_START_96
+            94 -> DUAL_START_94
+            92 -> DUAL_START_92
+            91 -> DUAL_START_91
             else -> null
         }
     }
@@ -52,6 +64,13 @@ object VoiceCues {
         is ImuGaitState.Paused -> VoiceCue("paused", VoiceClip.PAUSED)
         ImuGaitState.Processing -> done
         else -> null
+    }
+
+    /** The walk while subtracting: the instruction with the start number when walking starts, and "stop" at the end. */
+    fun dualWalk(startNumber: Int, state: ImuGaitState): VoiceCue? = when (state) {
+        is ImuGaitState.Walking -> VoiceClip.dualStart(startNumber)?.let { VoiceCue("dual-walking-$startNumber", it) }
+        ImuGaitState.Processing -> VoiceCue("dual-stop", VoiceClip.DUAL_STOP)
+        else -> gait(state)
     }
 
     fun sitToStand(state: ImuSitToStandState): VoiceCue? = when (state) {
