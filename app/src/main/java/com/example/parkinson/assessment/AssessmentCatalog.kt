@@ -168,11 +168,21 @@ object AssessmentCatalog {
             startRoute = Screen.SpeechIntro.route,
             afterSensorCheckRoute = Screen.SpeechTaskSelection.route
         ),
-        planned(
-            AssessmentType.DUAL_TASK, R.string.test_dual_title, "Dual-Task / Cognitive-Motor",
-            R.string.test_dual_desc, R.string.test_dual_purpose,
-            listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
-            durationSeconds = null, hand = false, icon = "🧠"
+        AssessmentDefinition(
+            type = AssessmentType.DUAL_TASK,
+            title = R.string.test_dual_title,
+            englishName = "Dual-Task / Cognitive-Motor",
+            description = R.string.test_dual_desc,
+            purpose = R.string.test_dual_purpose,
+            // The microphone is optional (it only counts the answers), so it is not a requirement.
+            sensors = listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE),
+            status = AssessmentStatus.AVAILABLE,
+            // Two 30 s walks.
+            durationSeconds = 60,
+            requiresHandSelection = false,
+            icon = "🧠",
+            startRoute = Screen.DualTaskIntro.route,
+            afterSensorCheckRoute = Screen.DualTaskTest.route
         )
     )
 
@@ -189,30 +199,4 @@ object AssessmentCatalog {
         if (list.size < 2 && index >= 0) return null
         return if (index < 0) list.firstOrNull() else list[(index + 1) % list.size]
     }
-
-    private fun planned(
-        type: AssessmentType,
-        @StringRes title: Int,
-        englishName: String,
-        @StringRes description: Int,
-        @StringRes purpose: Int,
-        sensors: List<SensorRequirement>,
-        durationSeconds: Int?,
-        hand: Boolean,
-        icon: String,
-        status: AssessmentStatus = AssessmentStatus.IN_DEVELOPMENT
-    ) = AssessmentDefinition(
-        type = type,
-        title = title,
-        englishName = englishName,
-        description = description,
-        purpose = purpose,
-        sensors = sensors,
-        status = status,
-        durationSeconds = durationSeconds,
-        requiresHandSelection = hand,
-        icon = icon,
-        startRoute = null,
-        afterSensorCheckRoute = null
-    )
 }

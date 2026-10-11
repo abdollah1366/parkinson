@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
+import com.example.parkinson.dualtask.DualTaskResult
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.imu.ImuComparison
 import com.example.parkinson.imu.ImuGaitResult
@@ -84,6 +85,9 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
         combine(repository.observeImuGait(id), repository.observeAllImuGait()) { current, all ->
             current?.let { ImuComparison(it, previousImuGait(it, all)) }
         }.map { Loadable.Loaded(it) }
+
+    fun dualTask(id: String): Flow<Loadable<DualTaskResult?>> =
+        repository.observeDualTask(id).map { Loadable.Loaded(it) }
 
     /** A Sit-to-Stand result with the most recent earlier attempt, for the comparison section. */
     fun sitToStand(id: String): Flow<Loadable<SitToStandComparison?>> =

@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import com.example.parkinson.assessment.AssessmentCatalog
 import com.example.parkinson.assessment.AssessmentDefinition
+import com.example.parkinson.assessment.AssessmentStatus
 import com.example.parkinson.assessment.AssessmentType
 import com.example.parkinson.assessment.SensorCheckResult
 import com.example.parkinson.assessment.SensorRequirement
@@ -70,7 +71,7 @@ class StabilityAndCatalogUiTest {
     @Test
     fun catalogShowsEveryTestWithItsStatus() {
         setContent { AssessmentCatalogScreen(onTestSelected = {}) }
-        rule.onNodeWithText("۸ آزمون آماده انجام • ۱ آزمون در حال توسعه").assertIsDisplayed()
+        rule.onNodeWithText("۹ آزمون آماده انجام • ۰ آزمون در حال توسعه").assertIsDisplayed()
         titles.forEach { title ->
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(title))
             rule.onNodeWithText(title).assertIsDisplayed()
@@ -107,7 +108,11 @@ class StabilityAndCatalogUiTest {
 
     @Test
     fun unavailableCardsShowDevelopmentStatusNotMeasurements() {
-        setContent { AssessmentCatalogScreen(tests = listOf(AssessmentCatalog[AssessmentType.DUAL_TASK]), onTestSelected = {}) }
+        // Every test is implemented now; a planned card is built from one to check how it is shown.
+        val planned = AssessmentCatalog[AssessmentType.DUAL_TASK].copy(
+            status = AssessmentStatus.IN_DEVELOPMENT, durationSeconds = null, startRoute = null, afterSensorCheckRoute = null,
+        )
+        setContent { AssessmentCatalogScreen(tests = listOf(planned), onTestSelected = {}) }
         rule.onNodeWithText("◌ در حال توسعه").assertIsDisplayed()
         rule.onNodeWithText("مدت: پس از تعیین پروتکل").assertIsDisplayed()
         rule.onNodeWithText("● آماده انجام").assertDoesNotExist()

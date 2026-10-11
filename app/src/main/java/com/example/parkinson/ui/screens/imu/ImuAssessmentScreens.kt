@@ -1,6 +1,7 @@
 package com.example.parkinson.ui.screens.imu
 
 import com.example.parkinson.voice.SpeakCue
+import com.example.parkinson.voice.VoiceCue
 import com.example.parkinson.voice.VoiceCues
 import com.example.parkinson.voice.rememberVoiceGuide
 import android.app.Activity
@@ -215,11 +216,15 @@ fun ImuGaitScreen(
     session: ImuGaitSession,
     onCompleted: (assessmentId: String) -> Unit,
     onInvalid: (InvalidResultKind) -> Unit,
+    /** Overrides for a walk inside another test (the dual-task test): title, spoken cues and a card under the title. */
+    title: String? = null,
+    cue: (ImuGaitState) -> VoiceCue? = VoiceCues::gait,
+    header: @Composable () -> Unit = {},
 ) {
     val scroll = rememberScrollState()
     val state by session.state.collectAsState()
     val voice = rememberVoiceGuide()
-    SpeakCue(voice, VoiceCues.gait(state))
+    SpeakCue(voice, cue(state))
     val issue by session.calibrationIssue.collectAsState()
     val availability by session.availability.collectAsState()
 
@@ -250,11 +255,12 @@ fun ImuGaitScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = stringResource(R.string.test_gait_title),
+            text = title ?: stringResource(R.string.test_gait_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() },
         )
+        header()
         PlacementCard(stringResource(R.string.imu_placement_gait))
         SensorStatus(availability)
 

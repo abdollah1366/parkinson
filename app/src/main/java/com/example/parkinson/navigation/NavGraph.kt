@@ -38,6 +38,11 @@ import com.example.parkinson.ui.screens.result.PronationSupinationResultScreen
 import com.example.parkinson.ui.screens.result.GaitResultScreen
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.dualtask.DualTaskResult
+import com.example.parkinson.ui.screens.dualtask.DualTaskIntroScreen
+import com.example.parkinson.ui.screens.dualtask.DualTaskTestScreen
+import com.example.parkinson.ui.screens.result.DualTaskResultScreen
+import com.example.parkinson.viewmodel.DualTaskViewModel
 import com.example.parkinson.imu.ImuSitToStandResult
 import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.ui.screens.result.RestingTremorImuResultScreen
@@ -80,6 +85,7 @@ fun resultRouteFor(result: AssessmentResult): String = when {
     result is SitToStandResult -> Screen.SitToStandLegacyResult.createRoute(result.assessmentId)
     result is GaitResult -> Screen.GaitLegacyResult.createRoute(result.assessmentId)
     result is RestingTremorImuResult -> Screen.RestingTremorImuResult.createRoute(result.assessmentId)
+    result is DualTaskResult -> Screen.DualTaskResult.createRoute(result.assessmentId)
     else -> resultRouteByType(result)
 }
 
@@ -108,6 +114,7 @@ fun ParkinsonNavGraph(
     gaitViewModel: GaitViewModel = viewModel(factory = GaitViewModel.Factory),
     sitToStandViewModel: SitToStandViewModel = viewModel(factory = SitToStandViewModel.Factory),
     speechViewModel: SpeechViewModel = viewModel(factory = SpeechViewModel.Factory),
+    dualTaskViewModel: DualTaskViewModel = viewModel(factory = DualTaskViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -858,6 +865,70 @@ fun ParkinsonNavGraph(
                 onNextTest = { goToNextTest(AssessmentType.SPEECH) },
                 onHome = {
                     speechViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        // --- Motor-cognitive (dual-task): a usual walk, then a walk while subtracting threes ----
+
+        composable(Screen.DualTaskIntro.route) {
+            DualTaskIntroScreen { useMicrophone ->
+                // A new run never shows a previous outcome.
+                dualTaskViewModel.resetFlow()
+                dualTaskViewModel.controller.useMicrophone = useMicrophone
+                navController.navigate(Screen.SensorCheck.createRoute(AssessmentType.DUAL_TASK.id))
+            }
+        }
+
+        composable(Screen.DualTaskTest.route) {
+            DualTaskTestScreen(
+                controller = dualTaskViewModel.controller,
+                onCompleted = { id ->
+                    navController.navigate(Screen.DualTaskResult.createRoute(id)) {
+                        popUpTo(Screen.Home.route)
+                        launchSingleTop = true
+                    }
+                },
+                onInvalid = { kind ->
+                    navController.navigate(Screen.DualTaskInvalid.createRoute(kind.name)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.DualTaskInvalid.route) { entry ->
+            val kind = InvalidResultKind.fromName(entry.arguments?.getString(Screen.ARG_INVALID_KIND))
+            InvalidResultScreen(
+                kind = kind,
+                // The whole test starts again from the first walk.
+                onRetry = {
+                    dualTaskViewModel.resetFlow()
+                    if (!navController.popBackStack(Screen.DualTaskTest.route, inclusive = false)) {
+                        navController.navigate(Screen.DualTaskTest.route)
+                    }
+                },
+                onHome = {
+                    dualTaskViewModel.resetFlow()
+                    goHome()
+                }
+            )
+        }
+
+        composable(Screen.DualTaskResult.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_ASSESSMENT_ID).orEmpty()
+            val resultFlow = remember(id) { historyViewModel.dualTask(id) }
+            val result by resultFlow.collectAsState(initial = Loadable.Loading)
+            DualTaskResultScreen(
+                result = result,
+                onRepeat = {
+                    dualTaskViewModel.resetFlow()
+                    navController.navigate(Screen.DualTaskIntro.route) { popUpTo(Screen.Home.route) }
+                },
+                onNextTest = { goToNextTest(AssessmentType.DUAL_TASK) },
+                onHome = {
+                    dualTaskViewModel.resetFlow()
                     goHome()
                 }
             )

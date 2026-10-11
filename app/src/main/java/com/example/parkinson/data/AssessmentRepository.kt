@@ -1,6 +1,7 @@
 package com.example.parkinson.data
 
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.dualtask.DualTaskResult
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
@@ -62,6 +63,9 @@ interface AssessmentRepository {
     suspend fun saveImuGait(result: ImuGaitResult)
     fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?>
 
+    suspend fun saveDualTask(result: DualTaskResult)
+    fun observeDualTask(assessmentId: String): Flow<DualTaskResult?>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -78,6 +82,7 @@ class RoomAssessmentRepository(
     private val imuSitToStandDao: ImuSitToStandDao,
     private val imuGaitDao: ImuGaitDao,
     private val restingTremorImuDao: RestingTremorImuDao,
+    private val dualTaskDao: DualTaskDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -152,6 +157,11 @@ class RoomAssessmentRepository(
     override fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?> =
         imuGaitDao.observeById(assessmentId).map { it?.toDomain() }
 
+    override suspend fun saveDualTask(result: DualTaskResult) = dualTaskDao.insert(result.toEntity())
+
+    override fun observeDualTask(assessmentId: String): Flow<DualTaskResult?> =
+        dualTaskDao.observeById(assessmentId).map { it?.toDomain() }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
         combine(
             combine(
@@ -173,10 +183,12 @@ class RoomAssessmentRepository(
             }
         }.let { withSpeech ->
             combine(
-                withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll(), restingTremorImuDao.observeAll()
+                withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll(), restingTremorImuDao.observeAll(),
+                dualTaskDao.observeAll(),
             ) { others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
-                imuTremor: List<RestingTremorImuEntity> ->
-                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() } + imuTremor.map { it.toDomain() })
+                imuTremor: List<RestingTremorImuEntity>, dualTask: List<DualTaskEntity> ->
+                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() } + imuTremor.map { it.toDomain() } +
+                    dualTask.map { it.toDomain() })
                     .sortedByDescending { it.timestampEpochMs }
             }
         }
@@ -185,7 +197,7 @@ class RoomAssessmentRepository(
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
             db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao(),
-            db.restingTremorImuDao(),
+            db.restingTremorImuDao(), db.dualTaskDao(),
         )
     }
 }

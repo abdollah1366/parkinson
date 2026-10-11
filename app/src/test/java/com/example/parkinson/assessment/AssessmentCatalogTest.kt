@@ -40,7 +40,8 @@ class AssessmentCatalogTest {
                 AssessmentType.RESTING_TREMOR,
                 AssessmentType.GAIT,
                 AssessmentType.SIT_TO_STAND,
-                AssessmentType.SPEECH
+                AssessmentType.SPEECH,
+                AssessmentType.DUAL_TASK
             ),
             AssessmentCatalog.available.map { it.type }
         )
@@ -67,6 +68,9 @@ class AssessmentCatalogTest {
         assertEquals(Screen.PronationSupinationTest.route, ps.afterSensorCheckRoute)
         assertEquals(AssessmentStatus.AVAILABLE, ps.status)
         assertTrue(ps.englishName.contains("PRONATION_SUPINATION"))
+        val dual = AssessmentCatalog[AssessmentType.DUAL_TASK]
+        assertEquals(Screen.DualTaskIntro.route, dual.startRoute)
+        assertEquals(Screen.DualTaskTest.route, dual.afterSensorCheckRoute)
     }
 
     @Test
@@ -115,7 +119,8 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.GAIT, AssessmentCatalog.nextAvailableAfter(AssessmentType.RESTING_TREMOR)?.type)
         assertEquals(AssessmentType.SIT_TO_STAND, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
         assertEquals(AssessmentType.SPEECH, AssessmentCatalog.nextAvailableAfter(AssessmentType.SIT_TO_STAND)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.SPEECH)?.type)
+        assertEquals(AssessmentType.DUAL_TASK, AssessmentCatalog.nextAvailableAfter(AssessmentType.SPEECH)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.DUAL_TASK)?.type)
     }
 
     @Test
