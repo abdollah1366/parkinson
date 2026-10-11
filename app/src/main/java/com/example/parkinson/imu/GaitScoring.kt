@@ -9,10 +9,14 @@ import kotlin.math.roundToInt
  */
 object GaitReference {
     /**
-     * Cadence (steps/min) at a comfortable pace. Healthy adults usually walk at 100-120 steps/min
-     * (Tudor-Locke et al., IJBNPA 2019, 16:8). Bounds: full score at or above 100, zero at or below 70.
+     * Cadence (steps/min) at the usual pace. Healthy adults aged 70 and over: 109 (SD 13), men 103, women 112
+     * (Hollman et al., Gait Posture 2011, 34:111, 294 people). Full score at or above 100, a sign below 90 (about the
+     * mean - 1.5 SD, so a healthy older man at 103 gets no sign), zero at or below 70 (the mean - 3 SD).
+     * Cadence alone separates PD poorly: meta-analyses found it slightly lower (Bonacina et al., Clin Biomech 2024)
+     * or even higher on medication (Zanardi et al., Sci Rep 2021).
      */
     const val CADENCE_HEALTHY = 100.0
+    const val CADENCE_SIGN = 90.0
     const val CADENCE_ZERO = 70.0
 
     /**
@@ -25,9 +29,10 @@ object GaitReference {
     const val STRIDE_CV_ZERO = 8.0
 
     /**
-     * Step timing asymmetry (%). Healthy older adults walk with left/right swing-time asymmetry of a few percent;
-     * it is higher in PD and in elderly fallers (Yogev et al., Exp Brain Res 2007, 177:336). An antalgic (limping)
-     * gait shortens one step. Full score at or below 5 %, a sign above 10 %, zero at or above 20 % (engineering bounds).
+     * Step timing asymmetry (%). Swing-time asymmetry, 100 x |ln(right/left)|, is higher in PD and in elderly fallers
+     * than in healthy older adults (Yogev et al., Exp Brain Res 2007, 177:336). For small differences this app's
+     * step-timing measure is about half that log-ratio. An antalgic (limping) gait shortens one step.
+     * Full score at or below 5 %, a sign above 10 %, zero at or above 20 % (engineering bounds aimed at a limp).
      */
     const val ASYMMETRY_HEALTHY = 5.0
     const val ASYMMETRY_SIGN = 10.0
@@ -97,7 +102,7 @@ object GaitScoring {
             }
         }
         val signs = buildList {
-            if (cadence != null && cadence < r.CADENCE_HEALTHY) add(GaitSign.LOW_CADENCE)
+            if (cadence != null && cadence < r.CADENCE_SIGN) add(GaitSign.LOW_CADENCE)
             if (strideCvPercent != null && strideCvPercent > r.STRIDE_CV_SIGN) add(GaitSign.HIGH_VARIABILITY)
             if (stepAsymmetryPercent != null && stepAsymmetryPercent > r.ASYMMETRY_SIGN) add(GaitSign.ASYMMETRY)
             if (meanTurnVelocityDegPerSec != null && meanTurnVelocityDegPerSec < r.TURN_VELOCITY_SIGN) add(GaitSign.SLOW_TURNING)
