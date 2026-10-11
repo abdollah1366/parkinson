@@ -35,6 +35,15 @@ class GaitScoringTest {
     }
 
     @Test
+    fun aCadenceWithinTheOlderAdultRangeIsNotASign() {
+        // Healthy men aged 70+ average 103 steps/min (SD 13); 95 is inside that range.
+        val s = GaitScoring.score(cadence = 95.0, strideCvPercent = 2.0, stepAsymmetryPercent = null,
+            meanTurnVelocityDegPerSec = null, walkingTremorIndex = null, standingTremorIndex = null)
+        assertFalse(GaitSign.LOW_CADENCE in s.signs)
+        assertEquals(92, s.overall)
+    }
+
+    @Test
     fun aLimpAloneIsAnAsymmetrySignNotAParkinsonianPattern() {
         val s = GaitScoring.score(cadence = 105.0, strideCvPercent = 2.0, stepAsymmetryPercent = 15.0,
             meanTurnVelocityDegPerSec = 80.0, walkingTremorIndex = null, standingTremorIndex = null)
