@@ -1,10 +1,16 @@
 package com.example.parkinson.data
 
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
+import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.imu.ImuSitToStandResult
+import com.example.parkinson.speech.SpeechResult
+import com.example.parkinson.sts.SitToStandResult
 import com.example.parkinson.stability.HandStabilityResult
 import com.example.parkinson.tapping.result.FingerTappingAssessment
+import com.example.parkinson.tremor.RestingTremorResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -24,6 +30,34 @@ interface AssessmentRepository {
     suspend fun saveHandOpenClose(result: HandOpenCloseResult)
     fun observeHandOpenClose(assessmentId: String): Flow<HandOpenCloseResult?>
 
+    suspend fun saveRestingTremor(result: RestingTremorResult)
+    fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?>
+
+    suspend fun saveGait(result: GaitResult)
+    fun observeGait(assessmentId: String): Flow<GaitResult?>
+
+    suspend fun saveSitToStand(result: SitToStandResult)
+    fun observeSitToStand(assessmentId: String): Flow<SitToStandResult?>
+
+    /** Every stored Sit-to-Stand result, newest first (for comparison with earlier sessions). */
+    fun observeAllSitToStand(): Flow<List<SitToStandResult>>
+
+    suspend fun saveSpeech(result: SpeechResult)
+    fun observeSpeech(assessmentId: String): Flow<SpeechResult?>
+
+    /** Every stored speech result, newest first (for comparison with earlier sessions of the same task). */
+    fun observeAllSpeech(): Flow<List<SpeechResult>>
+
+    fun observeAllImuSitToStand(): Flow<List<ImuSitToStandResult>>
+
+    suspend fun saveImuSitToStand(result: ImuSitToStandResult)
+    fun observeImuSitToStand(assessmentId: String): Flow<ImuSitToStandResult?>
+
+    fun observeAllImuGait(): Flow<List<ImuGaitResult>>
+
+    suspend fun saveImuGait(result: ImuGaitResult)
+    fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?>
+
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
 }
@@ -32,7 +66,13 @@ class RoomAssessmentRepository(
     private val dao: AssessmentDao,
     private val stabilityDao: HandStabilityDao,
     private val pronationDao: PronationSupinationDao,
-    private val openCloseDao: HandOpenCloseDao
+    private val openCloseDao: HandOpenCloseDao,
+    private val restingTremorDao: RestingTremorDao,
+    private val gaitDao: GaitDao,
+    private val sitToStandDao: SitToStandDao,
+    private val speechDao: SpeechDao,
+    private val imuSitToStandDao: ImuSitToStandDao,
+    private val imuGaitDao: ImuGaitDao,
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) = dao.insert(assessment.toEntity())
@@ -60,17 +100,80 @@ class RoomAssessmentRepository(
     override fun observeHandOpenClose(assessmentId: String): Flow<HandOpenCloseResult?> =
         openCloseDao.observeById(assessmentId).map { it?.toDomain() }
 
+    override suspend fun saveRestingTremor(result: RestingTremorResult) = restingTremorDao.insert(result.toEntity())
+
+    override fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?> =
+        restingTremorDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override suspend fun saveGait(result: GaitResult) = gaitDao.insert(result.toEntity())
+
+    override fun observeGait(assessmentId: String): Flow<GaitResult?> =
+        gaitDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override suspend fun saveSitToStand(result: SitToStandResult) = sitToStandDao.insert(result.toEntity())
+
+    override fun observeSitToStand(assessmentId: String): Flow<SitToStandResult?> =
+        sitToStandDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllSitToStand(): Flow<List<SitToStandResult>> =
+        sitToStandDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveSpeech(result: SpeechResult) = speechDao.insert(result.toEntity())
+
+    override fun observeSpeech(assessmentId: String): Flow<SpeechResult?> =
+        speechDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllSpeech(): Flow<List<SpeechResult>> =
+        speechDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override fun observeAllImuSitToStand(): Flow<List<ImuSitToStandResult>> =
+        imuSitToStandDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveImuSitToStand(result: ImuSitToStandResult) = imuSitToStandDao.insert(result.toEntity())
+
+    override fun observeImuSitToStand(assessmentId: String): Flow<ImuSitToStandResult?> =
+        imuSitToStandDao.observeById(assessmentId).map { it?.toDomain() }
+
+    override fun observeAllImuGait(): Flow<List<ImuGaitResult>> =
+        imuGaitDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun saveImuGait(result: ImuGaitResult) = imuGaitDao.insert(result.toEntity())
+
+    override fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?> =
+        imuGaitDao.observeById(assessmentId).map { it?.toDomain() }
+
     override fun observeHistory(): Flow<List<AssessmentResult>> =
-        combine(dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll(), openCloseDao.observeAll()) {
-            tapping, stability, pronation, openClose ->
-            (tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
-                pronation.map { it.toDomain() } + openClose.map { it.toDomain() })
-                .sortedByDescending { it.timestampEpochMs }
+        combine(
+            combine(
+                dao.observeAll(), stabilityDao.observeAll(), pronationDao.observeAll(),
+                openCloseDao.observeAll(), restingTremorDao.observeAll()
+            ) { tapping, stability, pronation, openClose, tremor ->
+                val all: List<AssessmentResult> = tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
+                    pronation.map { it.toDomain() } + openClose.map { it.toDomain() } + tremor.map { it.toDomain() }
+                all
+            },
+            gaitDao.observeAll()
+        ) { others: List<AssessmentResult>, gait: List<GaitEntity> ->
+            others + gait.map { it.toDomain() }
+        }.let { withGait ->
+            combine(withGait, sitToStandDao.observeAll(), speechDao.observeAll()) {
+                    others: List<AssessmentResult>, sts: List<SitToStandEntity>, speech: List<SpeechEntity>,
+                ->
+                others + sts.map { it.toDomain() } + speech.map { it.toDomain() }
+            }
+        }.let { withSpeech ->
+            combine(withSpeech, imuSitToStandDao.observeAll(), imuGaitDao.observeAll()) {
+                    others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
+                ->
+                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() })
+                    .sortedByDescending { it.timestampEpochMs }
+            }
         }
 
     companion object {
         fun from(db: AssessmentDatabase) = RoomAssessmentRepository(
-            db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao()
+            db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
+            db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao()
         )
     }
 }

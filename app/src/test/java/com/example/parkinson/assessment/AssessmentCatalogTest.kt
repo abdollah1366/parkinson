@@ -17,7 +17,7 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.entries.toSet(), all.map { it.type }.toSet())
         assertEquals(AssessmentType.entries.size, all.size)
         assertEquals(all.size, all.map { it.id }.toSet().size)
-        assertEquals(10, all.size)
+        assertEquals(9, all.size)
     }
 
     @Test
@@ -36,7 +36,11 @@ class AssessmentCatalogTest {
                 AssessmentType.FINGER_TAPPING,
                 AssessmentType.HAND_STABILITY,
                 AssessmentType.PRONATION_SUPINATION,
-                AssessmentType.HAND_OPEN_CLOSE
+                AssessmentType.HAND_OPEN_CLOSE,
+                AssessmentType.RESTING_TREMOR,
+                AssessmentType.GAIT,
+                AssessmentType.SIT_TO_STAND,
+                AssessmentType.SPEECH
             ),
             AssessmentCatalog.available.map { it.type }
         )
@@ -84,8 +88,13 @@ class AssessmentCatalogTest {
     }
 
     @Test
-    fun restingTremorIsMarkedResearch() {
-        assertEquals(AssessmentStatus.RESEARCH, AssessmentCatalog[AssessmentType.RESTING_TREMOR].status)
+    fun restingTremorIsAvailableWithAFullFlow() {
+        val rt = AssessmentCatalog[AssessmentType.RESTING_TREMOR]
+        assertEquals(AssessmentStatus.AVAILABLE, rt.status)
+        assertEquals(Screen.RestingTremorIntro.route, rt.startRoute)
+        assertEquals(Screen.RestingTremorTest.route, rt.afterSensorCheckRoute)
+        assertEquals(15, rt.durationSeconds)
+        assertEquals(listOf(SensorRequirement.CAMERA, SensorRequirement.HAND_LANDMARK_MODEL), rt.sensors)
     }
 
     @Test
@@ -102,8 +111,36 @@ class AssessmentCatalogTest {
         assertEquals(AssessmentType.HAND_STABILITY, AssessmentCatalog.nextAvailableAfter(AssessmentType.FINGER_TAPPING)?.type)
         assertEquals(AssessmentType.PRONATION_SUPINATION, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_STABILITY)?.type)
         assertEquals(AssessmentType.HAND_OPEN_CLOSE, AssessmentCatalog.nextAvailableAfter(AssessmentType.PRONATION_SUPINATION)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
-        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
+        assertEquals(AssessmentType.RESTING_TREMOR, AssessmentCatalog.nextAvailableAfter(AssessmentType.HAND_OPEN_CLOSE)?.type)
+        assertEquals(AssessmentType.GAIT, AssessmentCatalog.nextAvailableAfter(AssessmentType.RESTING_TREMOR)?.type)
+        assertEquals(AssessmentType.SIT_TO_STAND, AssessmentCatalog.nextAvailableAfter(AssessmentType.GAIT)?.type)
+        assertEquals(AssessmentType.SPEECH, AssessmentCatalog.nextAvailableAfter(AssessmentType.SIT_TO_STAND)?.type)
+        assertEquals(AssessmentType.FINGER_TAPPING, AssessmentCatalog.nextAvailableAfter(AssessmentType.SPEECH)?.type)
+    }
+
+    @Test
+    fun sitToStandIsAvailableWithAFiveRepetitionFlowAndPhoneSensorsOnly() {
+        val sts = AssessmentCatalog[AssessmentType.SIT_TO_STAND]
+        assertEquals(AssessmentStatus.AVAILABLE, sts.status)
+        assertEquals(Screen.SitToStandIntro.route, sts.startRoute)
+        assertEquals(Screen.SitToStandTest.route, sts.afterSensorCheckRoute)
+        assertFalse(sts.requiresHandSelection)
+        // Phone sensors only, phone in the trouser pocket; no camera or pose model.
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), sts.sensors)
+        assertTrue(sts.optionalSensors.isEmpty())
+    }
+
+    @Test
+    fun gaitIsAvailableWithAWalkingFlowAndPhoneSensorsOnly() {
+        val gait = AssessmentCatalog[AssessmentType.GAIT]
+        assertEquals(AssessmentStatus.AVAILABLE, gait.status)
+        assertEquals(Screen.GaitIntro.route, gait.startRoute)
+        assertEquals(Screen.GaitTest.route, gait.afterSensorCheckRoute)
+        assertEquals(30, gait.durationSeconds)
+        assertFalse(gait.requiresHandSelection)
+        // Phone sensors only, phone in the trouser pocket; no camera or pose model.
+        assertEquals(listOf(SensorRequirement.ACCELEROMETER, SensorRequirement.GYROSCOPE), gait.sensors)
+        assertTrue(gait.optionalSensors.isEmpty())
     }
 
     @Test

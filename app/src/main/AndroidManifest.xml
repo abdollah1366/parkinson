@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Speech assessment: microphone for in-memory recording; audio is never written to storage or uploaded. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />

@@ -87,7 +87,9 @@ class HandLandmarkerManager(
     @Volatile private var closed = false
     @Volatile private var hadHand = false
     @Volatile private var consecutiveMisses = 0
-    private var lastTimestampMs = 0L
+
+    /** Timestamp of the last frame submitted to MediaPipe (monotonic, written on the analysis thread). */
+    @Volatile private var lastTimestampMs = 0L
 
     /** Geometry and frame facts of a submitted frame, until its result arrives. */
     private class Pending(val info: FrameInfo, val width: Int, val height: Int, val rotation: Int)
@@ -184,12 +186,20 @@ class HandLandmarkerManager(
             Log.e(TAG, "detect failed", e)
             publish(
                 HandTrackingResult.Error(
-                    SystemClock.uptimeMillis(),
+                    errorTimestampMs(),
                     e.message ?: "Unknown detection error"
                 )
             )
         }
     }
+
+    /**
+     * Timestamp for an error result. Frames submitted earlier still have older timestamps and their
+     * results arrive later, so an error stamped with the wall clock would make the timeline go
+     * backwards (the resting-tremor recording would then be rejected as non-monotonic). Stamping it
+     * with the last submitted timestamp keeps the timeline non-decreasing.
+     */
+    private fun errorTimestampMs(): Long = maxOf(lastTimestampMs, 0L)
 
     /** Called by the camera pipeline for every frame. The caller closes the ImageProxy. */
     override fun analyze(imageProxy: ImageProxy) = detect(imageProxy)
@@ -314,7 +324,7 @@ class HandLandmarkerManager(
         Log.e(TAG, "MediaPipe error", e)
         publish(
             HandTrackingResult.Error(
-                SystemClock.uptimeMillis(),
+                errorTimestampMs(),
                 e.message ?: "MediaPipe error"
             )
         )

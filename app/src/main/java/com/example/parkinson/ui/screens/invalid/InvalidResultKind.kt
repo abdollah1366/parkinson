@@ -12,7 +12,20 @@ import com.example.parkinson.tapping.SessionError
 import com.example.parkinson.tapping.SessionInvalidReason
 import com.example.parkinson.tapping.SessionState
 import com.example.parkinson.tapping.quality.QualityIssue
+import com.example.parkinson.imu.ImuError
+import com.example.parkinson.imu.ImuFailure
+import com.example.parkinson.imu.ImuGaitFailure
+import com.example.parkinson.speech.SpeechError
+import com.example.parkinson.speech.SpeechFailure
+import com.example.parkinson.speech.SpeechQualityIssue
+import com.example.parkinson.speech.SpeechQualityReport
+import com.example.parkinson.speech.SpeechState
 import com.example.parkinson.tapping.quality.QualityReport
+import com.example.parkinson.tremor.RestingTremorError
+import com.example.parkinson.tremor.RestingTremorInvalidReason
+import com.example.parkinson.tremor.RestingTremorQualityIssue
+import com.example.parkinson.tremor.RestingTremorQualityReport
+import com.example.parkinson.tremor.RestingTremorState
 
 /**
  * Patient-facing reason why a test produced no result. Passed as a navigation argument
@@ -46,7 +59,28 @@ enum class InvalidResultKind(
     CAMERA_ERROR(R.string.invalid_camera_error, R.string.invalid_tip_camera, null),
     TRACKING_ERROR(R.string.invalid_tracking_error, R.string.invalid_tip_camera, null),
     STORAGE_ERROR(R.string.invalid_storage_error, R.string.invalid_tip_storage, null),
-    UNEXPECTED_ERROR(R.string.invalid_unexpected_error, R.string.invalid_tip_camera, null);
+    UNEXPECTED_ERROR(R.string.invalid_unexpected_error, R.string.invalid_tip_camera, null),
+    GROSS_MOVEMENT(R.string.invalid_gross_movement, R.string.invalid_tip_rest, R.string.invalid_headline_unreliable),
+    GAIT_BODY_NOT_VISIBLE(R.string.invalid_gait_body, R.string.invalid_tip_gait, R.string.invalid_headline_insufficient),
+    GAIT_TOO_FEW_STEPS(R.string.invalid_gait_steps, R.string.invalid_tip_gait, R.string.invalid_headline_insufficient),
+    STS_INCOMPLETE(R.string.invalid_sts_incomplete, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
+    STS_TRACKING_LOST(R.string.invalid_sts_tracking, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
+    STS_LOW_VALID(R.string.invalid_sts_low_valid, R.string.invalid_tip_sts, R.string.invalid_headline_insufficient),
+    SPEECH_TOO_QUIET(R.string.invalid_speech_quiet, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_CLIPPED(R.string.invalid_speech_clipped, R.string.invalid_tip_speech, R.string.invalid_headline_unreliable),
+    SPEECH_NOISY(R.string.invalid_speech_noisy, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_INCOMPLETE(R.string.invalid_speech_incomplete, R.string.invalid_tip_speech, R.string.invalid_headline_insufficient),
+    SPEECH_PERMISSION(R.string.invalid_speech_permission, R.string.invalid_tip_speech_permission, null),
+    SPEECH_MIC_UNAVAILABLE(R.string.invalid_speech_mic_unavailable, R.string.invalid_tip_mic, null),
+    SPEECH_CONSENT(R.string.invalid_speech_consent, R.string.invalid_tip_consent, null),
+    IMU_NO_TRANSFER(R.string.invalid_imu_no_transfer, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_INCOMPLETE(R.string.invalid_imu_incomplete, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_TIME_LIMIT(R.string.invalid_imu_time_limit, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_GAP(R.string.invalid_imu_gap, R.string.invalid_tip_imu, R.string.invalid_headline_unreliable),
+    IMU_INVALID_DATA(R.string.invalid_imu_data, R.string.invalid_tip_imu_sensor, R.string.invalid_headline_unreliable),
+    IMU_TOO_FEW_STEPS(R.string.invalid_imu_steps, R.string.invalid_tip_imu, R.string.invalid_headline_insufficient),
+    IMU_SENSOR_UNAVAILABLE(R.string.invalid_imu_sensor_missing, R.string.invalid_tip_imu_sensor, null),
+    IMU_SENSOR_LOST(R.string.invalid_imu_sensor_lost, R.string.invalid_tip_imu_sensor, null);
 
     companion object {
         fun from(state: SessionState): InvalidResultKind? = when (state) {
@@ -80,6 +114,86 @@ enum class InvalidResultKind(
             }
 
             else -> null
+        }
+
+        /** Resting Hand Tremor: data-quality findings mapped to the same categories, plus gross movement. */
+        fun fromRestingTremor(state: RestingTremorState): InvalidResultKind? = when (state) {
+            is RestingTremorState.Invalid -> when (val reason = state.reason) {
+                RestingTremorInvalidReason.Interrupted -> INTERRUPTED
+                is RestingTremorInvalidReason.QualityRejected -> fromRestingTremorQuality(reason.report)
+            }
+
+            is RestingTremorState.Error -> when (state.error) {
+                RestingTremorError.CAMERA_FAILURE, RestingTremorError.FRAME_STARVATION -> CAMERA_ERROR
+                RestingTremorError.TRACKING_FAILURE -> TRACKING_ERROR
+                RestingTremorError.STORAGE_FAILURE -> STORAGE_ERROR
+                RestingTremorError.UNEXPECTED -> UNEXPECTED_ERROR
+            }
+
+            else -> null
+        }
+
+        /** Sensor-based sit-to-stand: the sensor failures and the attempt rules. */
+        fun fromImuSitToStand(reason: ImuFailure): InvalidResultKind = when (reason) {
+            ImuFailure.Interrupted -> INTERRUPTED
+            is ImuFailure.NoPostureChange -> IMU_NO_TRANSFER
+            is ImuFailure.TimeLimit -> IMU_TIME_LIMIT
+            is ImuFailure.Incomplete -> IMU_INCOMPLETE
+            ImuFailure.GapInsideTimedSpan -> IMU_GAP
+            is ImuFailure.InvalidData -> IMU_INVALID_DATA
+        }
+
+        /** Sensor-based walking. */
+        fun fromImuGait(reason: ImuGaitFailure): InvalidResultKind = when (reason) {
+            ImuGaitFailure.Interrupted -> INTERRUPTED
+            is ImuGaitFailure.TooFewSteps -> IMU_TOO_FEW_STEPS
+            is ImuGaitFailure.InvalidData -> IMU_INVALID_DATA
+        }
+
+        fun fromImuError(error: ImuError): InvalidResultKind = when (error) {
+            ImuError.SENSOR_UNAVAILABLE, ImuError.SENSOR_START_FAILED -> IMU_SENSOR_UNAVAILABLE
+            ImuError.SENSOR_STARVED -> IMU_SENSOR_LOST
+            ImuError.STORAGE_FAILURE -> STORAGE_ERROR
+            ImuError.UNEXPECTED -> UNEXPECTED_ERROR
+        }
+
+        /** Speech: quality findings and microphone errors. Only failures produce this screen; warnings do not. */
+        fun fromSpeech(state: SpeechState): InvalidResultKind? = when (state) {
+            is SpeechState.Invalid -> when (val reason = state.reason) {
+                SpeechFailure.Interrupted -> INTERRUPTED
+                is SpeechFailure.Quality -> fromSpeechQuality(reason.report)
+            }
+
+            is SpeechState.Error -> when (state.error) {
+                SpeechError.CONSENT_NOT_GIVEN -> SPEECH_CONSENT
+                SpeechError.MICROPHONE_PERMISSION_DENIED -> SPEECH_PERMISSION
+                SpeechError.MICROPHONE_UNAVAILABLE -> SPEECH_MIC_UNAVAILABLE
+                SpeechError.RECORDING_INTERRUPTED -> INTERRUPTED
+                SpeechError.STORAGE_FAILURE -> STORAGE_ERROR
+                SpeechError.UNEXPECTED -> UNEXPECTED_ERROR
+            }
+
+            else -> null
+        }
+
+        fun fromSpeechQuality(report: SpeechQualityReport): InvalidResultKind = when {
+            SpeechQualityIssue.CLIPPING in report.issues -> SPEECH_CLIPPED
+            SpeechQualityIssue.SILENCE in report.issues -> SPEECH_TOO_QUIET
+            SpeechQualityIssue.UNUSABLE_SNR in report.issues -> SPEECH_NOISY
+            else -> SPEECH_INCOMPLETE
+        }
+
+        fun fromRestingTremorQuality(report: RestingTremorQualityReport): InvalidResultKind = when (report.primaryIssue) {
+            RestingTremorQualityIssue.GROSS_MOVEMENT -> GROSS_MOVEMENT
+            RestingTremorQualityIssue.MULTIPLE_HANDS -> MULTIPLE_HANDS
+            RestingTremorQualityIssue.WRONG_HAND -> WRONG_HAND
+            RestingTremorQualityIssue.TOO_FEW_FRAMES, RestingTremorQualityIssue.LOW_VALID_FRAMES -> INSUFFICIENT_FRAMES
+            RestingTremorQualityIssue.RECORDING_TOO_SHORT -> RECORDING_TOO_SHORT
+            RestingTremorQualityIssue.LONG_INTERRUPTION, RestingTremorQualityIssue.FREQUENT_INTERRUPTIONS -> EXCESSIVE_DROPOUT
+            RestingTremorQualityIssue.LOW_FRAME_RATE -> INSUFFICIENT_FPS
+            RestingTremorQualityIssue.NON_MONOTONIC_TIMESTAMPS,
+            RestingTremorQualityIssue.IRREGULAR_SAMPLING,
+            RestingTremorQualityIssue.REDUCED_VALID_FRAMES, null -> UNSTABLE_TRACKING
         }
 
         fun fromOpenCloseQuality(report: OpenCloseQualityReport): InvalidResultKind = when (report.primaryIssue) {

@@ -43,6 +43,7 @@ class AndroidDeviceCapabilities(context: Context) : DeviceCapabilities {
             appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
 
         SensorRequirement.HAND_LANDMARK_MODEL -> assetExists(HAND_MODEL_ASSET)
+        SensorRequirement.POSE_LANDMARK_MODEL -> assetExists(POSE_MODEL_ASSET)
         SensorRequirement.ACCELEROMETER -> hasSensor(Sensor.TYPE_ACCELEROMETER)
         SensorRequirement.GYROSCOPE -> hasSensor(Sensor.TYPE_GYROSCOPE)
         SensorRequirement.MICROPHONE ->
@@ -63,5 +64,6 @@ class AndroidDeviceCapabilities(context: Context) : DeviceCapabilities {
 
     companion object {
         const val HAND_MODEL_ASSET = "hand_landmarker.task"
+        const val POSE_MODEL_ASSET = "pose_landmarker_lite.task"
     }
 }

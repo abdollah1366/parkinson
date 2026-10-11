@@ -57,6 +57,62 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "hand_open_close_result/${Uri.encode(assessmentId)}"
     }
 
+    object RestingTremorIntro : Screen("resting_tremor_intro")
+    object RestingTremorHandSelection : Screen("resting_tremor_hand_selection")
+    object RestingTremorTest : Screen("resting_tremor_test")
+
+    object RestingTremorInvalid : Screen("resting_tremor_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "resting_tremor_invalid/${Uri.encode(kind)}"
+    }
+
+    object RestingTremorResult : Screen("resting_tremor_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "resting_tremor_result/${Uri.encode(assessmentId)}"
+    }
+
+    object GaitIntro : Screen("gait_intro")
+    object GaitTest : Screen("gait_test")
+
+    object GaitInvalid : Screen("gait_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "gait_invalid/${Uri.encode(kind)}"
+    }
+
+    object GaitResult : Screen("gait_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "gait_result/${Uri.encode(assessmentId)}"
+    }
+
+    /** Read-only result of the earlier camera-based walking test. */
+    object GaitLegacyResult : Screen("gait_legacy_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "gait_legacy_result/${Uri.encode(assessmentId)}"
+    }
+
+    object SitToStandIntro : Screen("sit_to_stand_intro")
+    object SitToStandTest : Screen("sit_to_stand_test")
+
+    object SitToStandInvalid : Screen("sit_to_stand_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "sit_to_stand_invalid/${Uri.encode(kind)}"
+    }
+
+    object SitToStandResult : Screen("sit_to_stand_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "sit_to_stand_result/${Uri.encode(assessmentId)}"
+    }
+
+    /** Read-only result of the earlier camera-based sit-to-stand test. */
+    object SitToStandLegacyResult : Screen("sit_to_stand_legacy_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "sit_to_stand_legacy_result/${Uri.encode(assessmentId)}"
+    }
+
+    object SpeechIntro : Screen("speech_intro")
+    object SpeechTaskSelection : Screen("speech_task_selection")
+    object SpeechTest : Screen("speech_test")
+
+    object SpeechInvalid : Screen("speech_invalid/{$ARG_INVALID_KIND}") {
+        fun createRoute(kind: String) = "speech_invalid/${Uri.encode(kind)}"
+    }
+
+    object SpeechResult : Screen("speech_result/{$ARG_ASSESSMENT_ID}") {
+        fun createRoute(assessmentId: String) = "speech_result/${Uri.encode(assessmentId)}"
+    }
+
     companion object {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
