@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +46,9 @@ sealed interface ImuGaitState {
     data class Paused(val steps: Int, val walkedMs: Long, val plannedMs: Long) : ImuGaitState
 
     data object Processing : ImuGaitState
+
+    /** The analysis passed; the result is being written. Not interruptible: the write always finishes. */
+    data object Saving : ImuGaitState
 
     data class Done(val result: ImuGaitResult) : ImuGaitState
 
@@ -119,7 +123,10 @@ class ImuGaitSession(
             _state.value = ImuGaitState.Error(ImuError.SENSOR_START_FAILED)
             return
         }
-        val id = synchronized(lock) { ++runId }
+        val id = synchronized(lock) {
+            outcomeClaimed = false
+            ++runId
+        }
         job = scope.launch { calibrate(id) }
     }
 
@@ -147,9 +154,20 @@ class ImuGaitSession(
         job = scope.launch { walkLoop(id) }
     }
 
+    /** Ignored once the result is being written ([ImuGaitState.Saving]): a finished walk is never cut half-way. */
     fun abort() {
-        if (!_state.value.isRunning()) return
+        val current = _state.value
+        if (!current.isRunning() || current == ImuGaitState.Saving) return
         stop(ImuGaitState.Invalid(ImuGaitFailure.Interrupted))
+    }
+
+    private var outcomeClaimed = false
+
+    /** True exactly once per finished walk; a recreated screen uses it so it does not navigate twice. */
+    fun claimOutcome(): Boolean = synchronized(lock) {
+        if (outcomeClaimed) return false
+        outcomeClaimed = true
+        true
     }
 
     fun reset() = stop(ImuGaitState.Idle)
@@ -253,15 +271,17 @@ class ImuGaitSession(
         when (outcome) {
             is FinalOutcome.Failed -> publish(id, ImuGaitState.Invalid(outcome.reason))
             is FinalOutcome.Ready -> {
-                try {
-                    onCompleted(outcome.result)
-                } catch (e: CancellationException) {
-                    throw e
+                // SAVING is published first: abort() is refused from here on, and the write is never started for a
+                // run that was already stopped.
+                if (!publish(id, ImuGaitState.Saving)) return
+                val saved = try {
+                    withContext(NonCancellable) { onCompleted(outcome.result) }
+                    true
                 } catch (e: Exception) {
-                    publish(id, ImuGaitState.Error(ImuError.STORAGE_FAILURE))
-                    return
+                    false
                 }
-                publish(id, ImuGaitState.Done(outcome.result))
+                if (saved) publish(id, ImuGaitState.Done(outcome.result))
+                else publish(id, ImuGaitState.Error(ImuError.STORAGE_FAILURE))
             }
         }
     }
@@ -346,7 +366,8 @@ class ImuGaitSession(
 
     private fun ImuGaitState.isRunning(): Boolean =
         this is ImuGaitState.Calibrating || this is ImuGaitState.Countdown ||
-            this is ImuGaitState.Walking || this is ImuGaitState.Paused || this is ImuGaitState.Processing
+            this is ImuGaitState.Walking || this is ImuGaitState.Paused || this is ImuGaitState.Processing ||
+            this == ImuGaitState.Saving
 
     companion object {
         const val PROTOCOL_ID = "timed_walk_imu"
