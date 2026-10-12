@@ -4,6 +4,8 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.SQLException
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.time.Instant
@@ -22,6 +24,24 @@ object Database {
                 isAutoCommit = true
             },
         )
+
+    /**
+     * Creates the database named in [url] when it does not exist yet (a fresh PostgreSQL on a test computer), by
+     * connecting to the server's default "postgres" database. [user] needs the right to create databases.
+     */
+    fun createIfMissing(url: String, user: String, password: String) {
+        val name = url.substringAfterLast('/').substringBefore('?')
+        require(Regex("[A-Za-z_][A-Za-z0-9_]*").matches(name)) { "unexpected database name in DATABASE_URL" }
+        try {
+            DriverManager.getConnection(url, user, password).close()
+        } catch (e: SQLException) {
+            if (e.sqlState != "3D000") throw e // 3D000: the database does not exist.
+            val admin = url.substringBeforeLast('/') + "/postgres"
+            DriverManager.getConnection(admin, user, password).use { c ->
+                c.createStatement().use { it.execute("CREATE DATABASE $name") }
+            }
+        }
+    }
 
     /** Brings the schema up to date (src/main/resources/db/migration). */
     fun migrate(dataSource: DataSource) {

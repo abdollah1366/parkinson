@@ -20,6 +20,7 @@ private val log = LoggerFactory.getLogger("parkinson-server")
 
 fun main() {
     val config = Config.fromEnv()
+    if (config.createDatabase) Database.createIfMissing(config.databaseUrl, config.databaseUser, config.databasePassword)
     val dataSource = Database.connect(config.databaseUrl, config.databaseUser, config.databasePassword)
     Database.migrate(dataSource)
     val services = Services(dataSource, config)

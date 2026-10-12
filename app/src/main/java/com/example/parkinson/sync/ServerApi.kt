@@ -94,15 +94,32 @@ class HttpServerApi : ServerApi {
         }
 }
 
-/** What a person may type as the server address, made into https://host[:port][/path] without a trailing slash. */
+/**
+ * What a person may type as the server address, made into https://host[:port][/path] without a trailing slash.
+ * With [allowLocalHttp] (debug builds), http:// is also accepted for a private network address such as a test server
+ * on the home network (192.168.x.x, 10.x.x.x, 172.16-31.x.x); health data never goes over plain HTTP otherwise.
+ */
 object ServerAddress {
-    fun normalize(input: String): String? {
+    fun normalize(input: String, allowLocalHttp: Boolean = false): String? {
         val text = input.trim().trimEnd('/')
         if (text.isEmpty() || text.any { it.isWhitespace() }) return null
-        if (text.startsWith("http://", ignoreCase = true)) return null // Health data only over HTTPS.
-        val rest = if (text.startsWith("https://", ignoreCase = true)) text.substring(8) else text
+        val http = text.startsWith("http://", ignoreCase = true)
+        val rest = when {
+            http -> text.substring(7)
+            text.startsWith("https://", ignoreCase = true) -> text.substring(8)
+            else -> text
+        }
         val host = rest.substringBefore('/').substringBefore(':')
         if (host.isEmpty() || !host.contains('.') || host.startsWith('.') || host.endsWith('.')) return null
+        if (http) return if (allowLocalHttp && isPrivateAddress(host)) "http://$rest" else null
         return "https://$rest"
+    }
+
+    private fun isPrivateAddress(host: String): Boolean {
+        val parts = host.split('.').map { it.toIntOrNull() ?: return false }
+        if (parts.size != 4 || parts.any { it !in 0..255 }) return false
+        return parts[0] == 10 ||
+            (parts[0] == 192 && parts[1] == 168) ||
+            (parts[0] == 172 && parts[1] in 16..31)
     }
 }

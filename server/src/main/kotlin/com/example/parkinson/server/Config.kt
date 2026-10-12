@@ -16,6 +16,8 @@ data class Config(
     val adminName: String,
     /** Behind a reverse proxy (Caddy): take the client address from X-Forwarded-For. */
     val trustProxy: Boolean,
+    /** Create the database on start if it is missing (test computers; Docker creates it by itself). */
+    val createDatabase: Boolean = false,
 ) {
     init {
         require(jwtSecret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
@@ -38,6 +40,7 @@ data class Config(
                 adminPassword = env["ADMIN_PASSWORD"]?.takeIf { it.isNotBlank() },
                 adminName = env["ADMIN_NAME"]?.takeIf { it.isNotBlank() } ?: "مدیر سامانه",
                 trustProxy = env["TRUST_PROXY"] == "true",
+                createDatabase = env["CREATE_DATABASE"] == "true",
             )
         }
     }

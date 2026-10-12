@@ -22,4 +22,14 @@ class ServerAddressTest {
         assertNull(ServerAddress.normalize("panel example.ir"))
         assertNull(ServerAddress.normalize("https://"))
     }
+
+    @Test
+    fun debugBuildsMayUsePlainHttpOnlyOnTheLocalNetwork() {
+        assertEquals("http://192.168.1.20:8090", ServerAddress.normalize("http://192.168.1.20:8090/", allowLocalHttp = true))
+        assertEquals("http://10.0.0.5:8090", ServerAddress.normalize("http://10.0.0.5:8090", allowLocalHttp = true))
+        assertNull(ServerAddress.normalize("http://192.168.1.20:8090", allowLocalHttp = false))
+        assertNull(ServerAddress.normalize("http://panel.example.ir", allowLocalHttp = true))
+        assertNull(ServerAddress.normalize("http://8.8.8.8", allowLocalHttp = true))
+        assertNull(ServerAddress.normalize("http://172.32.0.1", allowLocalHttp = true))
+    }
 }

@@ -1,5 +1,6 @@
 package com.example.parkinson.viewmodel
 
+import android.content.pm.ApplicationInfo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -47,6 +48,8 @@ class ServerLinkViewModel(
     private val sync: ResultSync,
     private val activeProfile: Flow<UserProfile?>,
     private val history: Flow<List<StoredResult>>,
+    /** Debug builds: also accept http:// to a test server on the local network. */
+    private val allowLocalHttp: Boolean = false,
 ) : ViewModel() {
 
     val state: StateFlow<ServerLinkState?> =
@@ -67,7 +70,7 @@ class ServerLinkViewModel(
 
     /** Connects the active person with the doctor's [inviteCode], then sends their results. */
     fun link(serverAddress: String, inviteCode: String) {
-        val url = ServerAddress.normalize(serverAddress) ?: run {
+        val url = ServerAddress.normalize(serverAddress, allowLocalHttp) ?: run {
             _action.value = LinkAction.Failed(INVALID_ADDRESS)
             return
         }
@@ -113,7 +116,10 @@ class ServerLinkViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as ParkinsonApplication
-                ServerLinkViewModel(app.resultSync, app.activePatient.profile, app.assessmentRepository.observeStoredHistory())
+                val debuggable = (app.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                ServerLinkViewModel(
+                    app.resultSync, app.activePatient.profile, app.assessmentRepository.observeStoredHistory(), debuggable,
+                )
             }
         }
     }
