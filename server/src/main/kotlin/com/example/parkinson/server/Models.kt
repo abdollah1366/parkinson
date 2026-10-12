@@ -3,7 +3,8 @@ package com.example.parkinson.server
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-enum class Role { ADMIN, DOCTOR }
+/** ADMIN and DOCTOR are staff accounts (users table); PATIENT logs in to their own panel (patients table). */
+enum class Role { ADMIN, DOCTOR, PATIENT }
 
 /** A refusal the client can act on; [code] is stable and the web panel and the app translate it. */
 class ApiException(val status: Int, val code: String) : RuntimeException(code)
@@ -70,6 +71,8 @@ data class PatientSummary(
     val linkedAtEpochMs: Long,
     val resultCount: Int,
     val lastResultEpochMs: Long? = null,
+    /** Some test has dropped clearly since the first results (see [Analysis]). */
+    val attention: Boolean = false,
 )
 
 @Serializable
@@ -153,3 +156,30 @@ data class UploadResponse(val stored: List<String>)
 
 @Serializable
 data class DeviceStatus(val patientId: Long, val doctors: List<String>, val resultCount: Int)
+
+// --- Notes and the patient's panel ---
+
+@Serializable
+data class NoteIn(val text: String, val sharedWithPatient: Boolean = false)
+
+@Serializable
+data class NoteDto(
+    val id: Long,
+    val doctorName: String,
+    val text: String,
+    val sharedWithPatient: Boolean,
+    val createdAtEpochMs: Long,
+)
+
+@Serializable
+data class PatientLoginRequest(val nationalId: String, val password: String)
+
+@Serializable
+data class PatientMe(val id: Long, val firstName: String, val lastName: String, val doctors: List<String>)
+
+@Serializable
+data class PatientLoginResponse(val token: String, val patient: PatientMe)
+
+/** Sent by the phone (with its token) to let the patient log in to their panel. */
+@Serializable
+data class WebPasswordRequest(val password: String)

@@ -1,6 +1,10 @@
 package com.example.parkinson.server
 
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.withCharset
+import io.ktor.server.response.header
 import io.ktor.server.application.Application
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
@@ -37,6 +41,9 @@ fun Application.routes(services: Services) {
                 route("/admin") { adminRoutes(services) }
                 route("/doctor") { doctorRoutes(services) }
             }
+            authenticate(PATIENT) {
+                route("/patient") { patientRoutes(services) }
+            }
             route("/device") { deviceRoutes(services) }
         }
     }
@@ -53,6 +60,15 @@ private fun Route.authRoutes(services: Services) {
             if (account == null || !ok) throw ApiException(401, "invalid_credentials")
             if (!account.user.active) forbidden("account_disabled")
             call.respond(LoginResponse(services.tokens.issue(account.user.id, account.user.role), account.user))
+        }
+        post("/auth/patient-login") {
+            val request = call.receive<PatientLoginRequest>()
+            val nationalId = Text.asciiDigits(request.nationalId).filter { it.isDigit() }.padStart(10, '0')
+            val found = if (Text.isValidNationalId(nationalId)) io { services.patients.forLogin(nationalId) } else null
+            val ok = io { Passwords.matches(request.password, found?.second ?: Passwords.DUMMY_HASH) }
+            if (found == null || found.second == null || !ok) throw ApiException(401, "invalid_credentials")
+            val me = io { services.patients.me(found.first) } ?: throw ApiException(401, "invalid_credentials")
+            call.respond(PatientLoginResponse(services.tokens.issue(found.first, Role.PATIENT), me))
         }
     }
 }
@@ -111,7 +127,9 @@ private fun Route.doctorRoutes(services: Services) {
     }
     get("/patients") {
         val doctor = call.staff(Role.DOCTOR)
-        call.respond(io { services.patients.ofDoctor(doctor.id) })
+        val patients = io { services.patients.ofDoctor(doctor.id) }
+        val scores = io { services.scores.ofDoctor(doctor.id) }
+        call.respond(patients.map { p -> p.copy(attention = Analysis.summarize(scores[p.id].orEmpty()).any { it.attention }) })
     }
     get("/patients/{id}") {
         val doctor = call.staff(Role.DOCTOR)
@@ -128,6 +146,66 @@ private fun Route.doctorRoutes(services: Services) {
         val type = call.request.queryParameters["type"]?.takeIf { it.isNotBlank() }
         io { services.accessLog.record(doctor.id, id, "view_results") }
         call.respond(io { services.results.ofPatient(id, type) })
+    }
+    get("/patients/{id}/analysis") {
+        val doctor = call.staff(Role.DOCTOR)
+        val id = linkedPatient(services, doctor.id)
+        call.respond(Analysis.summarize(io { services.scores.ofPatient(id) }))
+    }
+    get("/patients/{id}/results.csv") {
+        val doctor = call.staff(Role.DOCTOR)
+        val id = linkedPatient(services, doctor.id)
+        io { services.accessLog.record(doctor.id, id, "export_results") }
+        call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"patient-$id-results.csv\"")
+        call.respondText(Csv.results(io { services.results.ofPatient(id) }), ContentType.Text.CSV.withCharset(Charsets.UTF_8))
+    }
+    get("/patients/{id}/notes") {
+        val doctor = call.staff(Role.DOCTOR)
+        val id = linkedPatient(services, doctor.id)
+        call.respond(io { services.notes.ofDoctor(doctor.id, id) })
+    }
+    post("/patients/{id}/notes") {
+        val doctor = call.staff(Role.DOCTOR)
+        val id = linkedPatient(services, doctor.id)
+        val note = call.receive<NoteIn>()
+        val text = note.text.trim().takeIf { it.length in 1..4000 } ?: badRequest("invalid_note")
+        call.respond(HttpStatusCode.Created, io { services.notes.add(doctor.id, id, note.copy(text = text)) })
+    }
+    delete("/notes/{noteId}") {
+        val doctor = call.staff(Role.DOCTOR)
+        val noteId = call.parameters["noteId"]?.toLongOrNull() ?: notFound()
+        if (!io { services.notes.delete(doctor.id, noteId) }) notFound()
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+/** The {id} patient when linked to [doctorId]; otherwise 404, exactly like a missing patient. */
+private suspend fun io.ktor.server.routing.RoutingContext.linkedPatient(services: Services, doctorId: Long): Long {
+    val id = call.parameters["id"]?.toLongOrNull() ?: notFound()
+    if (!io { services.patients.isLinked(doctorId, id) }) notFound()
+    return id
+}
+
+private fun Route.patientRoutes(services: Services) {
+    get("/me") {
+        call.respond(io { services.patients.me(call.patient()) } ?: notFound())
+    }
+    get("/results") {
+        call.respond(io { services.results.ofPatient(call.patient()) })
+    }
+    get("/analysis") {
+        call.respond(Analysis.summarize(io { services.scores.ofPatient(call.patient()) }))
+    }
+    get("/notes") {
+        call.respond(io { services.notes.sharedWith(call.patient()) })
+    }
+    post("/password") {
+        val id = call.patient()
+        val request = call.receive<ChangePasswordRequest>()
+        val hash = io { services.patients.passwordHash(id) } ?: notFound()
+        if (!io { Passwords.matches(request.currentPassword, hash) }) badRequest("wrong_password")
+        io { services.patients.setPassword(id, Validation.password(request.newPassword)) }
+        call.respond(HttpStatusCode.NoContent)
     }
 }
 
@@ -157,6 +235,12 @@ private fun Route.deviceRoutes(services: Services) {
             if (r.results.size > Validation.MAX_RESULTS_PER_UPLOAD) throw ApiException(413, "too_many_results")
             val results = r.results.map { Validation.result(it) }
             call.respond(UploadResponse(io { services.results.store(device.patientId, results) }))
+        }
+        put("/web-password") {
+            val device = call.device()
+            val password = Validation.password(call.receive<WebPasswordRequest>().password)
+            io { services.patients.setPassword(device.patientId, password) }
+            call.respond(HttpStatusCode.NoContent)
         }
         delete("/token") {
             io { services.patients.revoke(call.device().token) }

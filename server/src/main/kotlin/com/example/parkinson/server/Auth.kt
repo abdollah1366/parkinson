@@ -18,6 +18,7 @@ import kotlin.time.Duration.Companion.minutes
 
 const val STAFF = "staff"
 const val DEVICE = "device"
+const val PATIENT = "patient"
 val LOGIN_LIMIT = RateLimitName("login")
 val LINK_LIMIT = RateLimitName("link")
 
@@ -27,6 +28,9 @@ data class StaffPrincipal(val user: UserDto)
 /** A phone sending for one patient. */
 data class DevicePrincipal(val patientId: Long, val token: String)
 
+/** A patient logged in to their own panel. */
+data class PatientPrincipal(val patientId: Long)
+
 /** JDBC blocks; keep it off the request threads. */
 suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
@@ -35,9 +39,21 @@ fun Application.installSecurity(services: Services) {
         jwt(STAFF) {
             verifier(services.tokens.verifier)
             validate { credential ->
+                // Patient and staff ids come from different tables: never let one pass as the other.
+                if (credential.payload.getClaim("role").asString() == Role.PATIENT.name) return@validate null
                 val id = credential.payload.subject?.toLongOrNull() ?: return@validate null
                 val account = io { services.users.byId(id) } ?: return@validate null
                 account.user.takeIf { it.active }?.let(::StaffPrincipal)
+            }
+            challenge { _, _ -> call.respond(HttpStatusCode.Unauthorized, ErrorDto("unauthorized")) }
+        }
+        jwt(PATIENT) {
+            verifier(services.tokens.verifier)
+            validate { credential ->
+                if (credential.payload.getClaim("role").asString() != Role.PATIENT.name) return@validate null
+                val id = credential.payload.subject?.toLongOrNull() ?: return@validate null
+                // A patient whose panel password was removed (or who no longer exists) is logged out.
+                io { services.patients.passwordHash(id) }?.let { PatientPrincipal(id) }
             }
             challenge { _, _ -> call.respond(HttpStatusCode.Unauthorized, ErrorDto("unauthorized")) }
         }
@@ -65,5 +81,7 @@ fun ApplicationCall.staff(role: Role): UserDto {
     if (user.role != role) forbidden()
     return user
 }
+
+fun ApplicationCall.patient(): Long = principal<PatientPrincipal>()?.patientId ?: throw ApiException(401, "unauthorized")
 
 fun ApplicationCall.device(): DevicePrincipal = principal<DevicePrincipal>() ?: throw ApiException(401, "unauthorized")

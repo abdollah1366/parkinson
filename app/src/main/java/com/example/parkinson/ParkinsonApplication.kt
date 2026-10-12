@@ -77,6 +77,8 @@ class ParkinsonApplication : Application() {
             override suspend fun updateProfile(serverUrl: String, token: String, patient: JSONObject) =
                 serverApi.updateProfile(serverUrl, token, patient)
             override suspend fun revoke(serverUrl: String, token: String) = serverApi.revoke(serverUrl, token)
+            override suspend fun setWebPassword(serverUrl: String, token: String, password: String) =
+                serverApi.setWebPassword(serverUrl, token, password)
         }
         val rows = ResultRowReader(database)
         ResultSync(api, serverLinks, rows::rows)

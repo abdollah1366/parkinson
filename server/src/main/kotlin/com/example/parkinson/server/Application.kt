@@ -38,6 +38,8 @@ class Services(dataSource: DataSource, config: Config) {
     val patients = PatientStore(db, config.nationalIdPepper)
     val results = ResultStore(db)
     val accessLog = AccessLog(db)
+    val scores = ScoreStore(db)
+    val notes = NoteStore(db)
     val tokens = JwtTokens(config.jwtSecret)
 }
 

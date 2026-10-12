@@ -1192,6 +1192,14 @@
     <string name="link_err_network">به سرور وصل نشد. اینترنت را بررسی کنید و دوباره امتحان کنید.</string>
     <string name="link_err_unauthorized">سرور این گوشی را دیگر نمی‌شناسد. اتصال را قطع کنید و با کد تازه دوباره وصل شوید.</string>
     <string name="link_err_other">کار انجام نشد. کمی بعد دوباره امتحان کنید.</string>
+    <string name="panel_title">پنل شخصی در وب</string>
+    <string name="panel_text">نتیجه‌ها، روند و پیام‌های پزشک را در مرورگر هم می‌توانید ببینید: %1$s را باز کنید، «بیمار» را بزنید و با کد ملی و رمز پنل وارد شوید.</string>
+    <string name="panel_set_password">گذاشتن یا تغییر رمز پنل</string>
+    <string name="panel_password">رمز پنل (دست‌کم ۸ نویسه)</string>
+    <string name="panel_password_repeat">تکرار رمز</string>
+    <string name="panel_save_password">ذخیره‌ی رمز</string>
+    <string name="panel_password_set">رمز پنل ذخیره شد.</string>
+    <string name="panel_err_weak">رمز باید دست‌کم ۸ نویسه باشد.</string>
     <string name="home_link_doctor">اتصال به پزشک</string>
     <string name="home_link_line">نتیجه‌ها برای %1$s فرستاده می‌شود</string>
     <string name="home_link_pending">ارسال به پزشک (%1$s مانده)</string>

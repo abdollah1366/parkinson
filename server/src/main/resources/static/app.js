@@ -1,6 +1,6 @@
 "use strict";
 
-// Doctor and admin panel. Plain DOM building (no innerHTML with data), so patient text can never run as code.
+// Doctor, admin and patient panel. Plain DOM building (no innerHTML with data), so patient text can never run as code.
 
 const TYPES = {
     finger_tapping: "ضربه زدن با انگشتان",
@@ -30,7 +30,9 @@ const ERRORS = {
     not_found: "پیدا نشد.",
     server_error: "خطای سرور. دوباره امتحان کنید.",
     network: "ارتباط با سرور برقرار نشد.",
+    invalid_note: "متن یادداشت را بنویسید.",
 };
+const PATIENT_LOGIN_ERROR = "کد ملی یا رمز درست نیست. رمز پنل را باید اول در برنامه‌ی گوشی، بخش «اتصال به پزشک»، بگذارید.";
 
 const fa = (n) => (n == null ? "—" : Number(n).toLocaleString("fa-IR"));
 const dateFmt = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "medium", timeStyle: "short" });
@@ -61,7 +63,7 @@ async function api(method, path, body) {
     } catch (e) {
         throw new ApiError("network", 0);
     }
-    if (response.status === 401 && path !== "/auth/login") {
+    if (response.status === 401 && !path.startsWith("/auth/")) {
         session.clear();
         location.hash = "#login";
         throw new ApiError("unauthorized", 401);
@@ -72,7 +74,7 @@ async function api(method, path, body) {
     return data;
 }
 
-const message = (e) => ERRORS[e.code] || ERRORS.server_error;
+const message = (e) => e.text || ERRORS[e.code] || ERRORS.server_error;
 
 // --- DOM helpers ---
 
@@ -122,19 +124,36 @@ function form(fields, submitLabel, onSubmit) {
 
 // --- Views ---
 
-function loginView() {
-    show(h("section", { class: "card narrow" },
-        h("h1", {}, "ورود"),
-        form([
-            field("شماره‌ی موبایل", h("input", { name: "mobile", inputmode: "tel", autocomplete: "username", required: true })),
-            field("رمز", h("input", { name: "password", type: "password", autocomplete: "current-password", required: true })),
-        ], "ورود", async (data) => {
-            const r = await api("POST", "/auth/login", { mobile: data.get("mobile"), password: data.get("password") });
-            session.save(r.token, r.user);
-            location.hash = r.user.role === "ADMIN" ? "#doctors" : "#patients";
-            route();
-        }),
-    ));
+function loginView(asPatient = location.hash === "#patient-login") {
+    const tabs = h("div", { class: "chips" },
+        h("a", { class: "chip" + (asPatient ? "" : " on"), href: "#login" }, "پزشک یا مدیر"),
+        h("a", { class: "chip" + (asPatient ? " on" : ""), href: "#patient-login" }, "بیمار"),
+    );
+    const staffForm = form([
+        field("شماره‌ی موبایل", h("input", { name: "mobile", inputmode: "tel", autocomplete: "username", required: true })),
+        field("رمز", h("input", { name: "password", type: "password", autocomplete: "current-password", required: true })),
+    ], "ورود", async (data) => {
+        const r = await api("POST", "/auth/login", { mobile: data.get("mobile"), password: data.get("password") });
+        session.save(r.token, r.user);
+        location.hash = r.user.role === "ADMIN" ? "#doctors" : "#patients";
+        route();
+    });
+    const patientForm = form([
+        field("کد ملی", h("input", { name: "nationalId", inputmode: "numeric", autocomplete: "username", required: true })),
+        field("رمز پنل (همان که در برنامه‌ی گوشی گذاشتید)", h("input", { name: "password", type: "password", autocomplete: "current-password", required: true })),
+    ], "ورود", async (data) => {
+        let r;
+        try {
+            r = await api("POST", "/auth/patient-login", { nationalId: data.get("nationalId"), password: data.get("password") });
+        } catch (e) {
+            if (e.code === "invalid_credentials") throw Object.assign(new ApiError("patient_login"), { text: PATIENT_LOGIN_ERROR });
+            throw e;
+        }
+        session.save(r.token, { role: "PATIENT", fullName: r.patient.firstName + " " + r.patient.lastName });
+        location.hash = "#me";
+        route();
+    });
+    show(h("section", { class: "card narrow" }, h("h1", {}, "ورود"), tabs, asPatient ? patientForm : staffForm));
 }
 
 function passwordView() {
@@ -144,7 +163,8 @@ function passwordView() {
             field("رمز فعلی", h("input", { name: "current", type: "password", autocomplete: "current-password", required: true })),
             field("رمز تازه (دست‌کم ۸ نویسه)", h("input", { name: "next", type: "password", autocomplete: "new-password", minlength: 8, required: true })),
         ], "ذخیره", async (data) => {
-            await api("POST", "/me/password", { currentPassword: data.get("current"), newPassword: data.get("next") });
+            const path = session.user.role === "PATIENT" ? "/patient/password" : "/me/password";
+            await api("POST", path, { currentPassword: data.get("current"), newPassword: data.get("next") });
             show(h("section", { class: "card narrow" }, h("p", {}, "رمز تغییر کرد."), h("a", { href: "#" }, "بازگشت")));
         }),
     ));
@@ -214,7 +234,7 @@ async function patientsView() {
         tbody.replaceChildren(...patients
             .filter((p) => !q || p.fullName.includes(q) || p.nationalIdLast4.includes(digits))
             .map((p) => h("tr", { class: "clickable", onclick: () => { location.hash = "#patient/" + p.id; } },
-                h("td", {}, h("a", { href: "#patient/" + p.id }, p.fullName)),
+                h("td", {}, h("a", { href: "#patient/" + p.id }, p.fullName), p.attention ? [" ", h("span", { class: "badge", title: "نمره‌ی یکی از آزمون‌ها نسبت به ابتدا دست‌کم ۱۰ واحد پایین آمده است." }, "نیاز به توجه")] : null),
                 h("td", {}, fa(p.age)),
                 h("td", {}, GENDER[p.gender] || p.gender),
                 h("td", { class: "ltr" }, "••••••" + p.nationalIdLast4),
@@ -266,28 +286,22 @@ async function patientsView() {
 
 async function patientView(id) {
     loading();
-    let p, results;
+    let p, results, analysis, notes;
     try {
-        [p, results] = await Promise.all([api("GET", "/doctor/patients/" + id), api("GET", "/doctor/patients/" + id + "/results")]);
+        [p, results, analysis, notes] = await Promise.all([
+            api("GET", "/doctor/patients/" + id), api("GET", "/doctor/patients/" + id + "/results"),
+            api("GET", "/doctor/patients/" + id + "/analysis"), api("GET", "/doctor/patients/" + id + "/notes"),
+        ]);
     } catch (e) { return failure(e); }
 
-    const types = [...new Set(results.map((r) => r.type))];
-    const content = h("div");
-    const chips = h("div", { class: "chips" });
-    let selected = types[0] || null;
-
-    const render = () => {
-        chips.replaceChildren(...types.map((t) => h("button", {
-            type: "button", class: "chip" + (t === selected ? " on" : ""), onclick: () => { selected = t; render(); },
-        }, typeName(t) + " (" + fa(results.filter((r) => r.type === t).length) + ")")));
-        const list = results.filter((r) => r.type === selected);
-        content.replaceChildren(trendCard(list), resultsTable(list));
-    };
+    const csv = h("button", { type: "button", class: "secondary", onclick: async () => {
+        try { await download("/doctor/patients/" + id + "/results.csv", "patient-" + id + "-results.csv"); } catch (e) { alert(message(e)); }
+    } }, "دریافت CSV نتایج");
 
     show(
         h("p", {}, h("a", { href: "#patients" }, "→ بیماران من")),
         h("section", { class: "card" },
-            h("h1", {}, p.firstName + " " + p.lastName),
+            h("div", { class: "row" }, h("h1", {}, p.firstName + " " + p.lastName), results.length ? csv : null),
             h("dl", { class: "facts" },
                 fact("سن", fa(p.age)),
                 fact("جنس", GENDER[p.gender] || p.gender),
@@ -300,11 +314,120 @@ async function patientView(id) {
                 fact("اتصال به شما", when(p.linkedAtEpochMs)),
             ),
         ),
-        results.length === 0
-            ? h("section", { class: "card" }, h("p", { class: "muted" }, "هنوز نتیجه‌ای از این بیمار نرسیده است."))
-            : h("section", { class: "card" }, h("h2", {}, "نتایج"), chips, content),
+        analysisSection(analysis),
+        notesSection(id, notes),
+        resultsSection(results, "هنوز نتیجه‌ای از این بیمار نرسیده است."),
     );
-    if (selected) render();
+}
+
+/** One card per test (and hand): first vs latest results, ON vs OFF, and the trend. */
+function analysisSection(analysis, forPatient = false) {
+    if (analysis.length === 0) return null;
+    const signed = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fa(Math.abs(v)));
+    return h("section", { class: "card" },
+        h("h2", {}, "خلاصه‌ی روند"),
+        h("p", { class: "muted" }, "بر پایه‌ی نمره‌ی عملکرد (۰ تا ۱۰۰، بیشتر بهتر). «ابتدا» میانگین نخستین نتایج و «اخیر» میانگین آخرین نتایج است. این خلاصه کمکی برای خواندن نتایج است، نه تشخیص."),
+        h("div", { class: "grid" }, analysis.map((a) => h("div", { class: "stat" + (a.attention && !forPatient ? " warn" : "") },
+            h("h3", {}, typeName(a.type) + (a.hand ? " — دست " + HAND[a.hand] : "")),
+            a.attention && !forPatient ? h("p", { class: "badge" }, "نیاز به توجه") : null,
+            h("dl", {},
+                fact("تعداد", fa(a.count) + (a.scoredCount !== a.count ? " (" + fa(a.scoredCount) + " با نمره)" : "")),
+                fact("ابتدا ← اخیر", a.change == null ? "نتیجه‌ی کافی نیست" : fa(a.baseline) + " ← " + fa(a.recent) + " (" + signed(a.change) + ")"),
+                fact("روند در ۳۰ روز", signed(a.slopePer30Days)),
+                fact(h("span", {}, "میانگین ", h("bdi", {}, "ON")), a.onCount ? fa(a.onMean) + " (" + fa(a.onCount) + " بار)" : "—"),
+                fact(h("span", {}, "میانگین ", h("bdi", {}, "OFF")), a.offCount ? fa(a.offMean) + " (" + fa(a.offCount) + " بار)" : "—"),
+                fact("بازه", when(a.firstEpochMs) + " تا " + when(a.lastEpochMs)),
+            ),
+        ))),
+    );
+}
+
+function notesSection(patientId, notes) {
+    const list = h("div", { class: "notes" });
+    const fill = () => list.replaceChildren(...(notes.length === 0
+        ? [h("p", { class: "muted" }, "هنوز یادداشتی ننوشته‌اید.")]
+        : notes.map((n) => h("div", { class: "note" },
+            h("p", { class: "note-text" }, n.text),
+            h("p", { class: "muted small" }, when(n.createdAtEpochMs), " — ", n.sharedWithPatient ? "بیمار هم می‌بیند" : "فقط شما می‌بینید", " ",
+                h("button", { type: "button", class: "link", onclick: async () => {
+                    if (!confirm("این یادداشت پاک شود؟")) return;
+                    try { await api("DELETE", "/doctor/notes/" + n.id); notes = notes.filter((x) => x.id !== n.id); fill(); }
+                    catch (e) { alert(message(e)); }
+                } }, "پاک کردن")),
+        ))));
+    fill();
+    const text = h("textarea", { name: "text", rows: 3, maxlength: 4000, required: true });
+    const shared = h("input", { type: "checkbox", name: "shared" });
+    const add = form([
+        field("یادداشت تازه", text),
+        h("label", { class: "check" }, shared, " بیمار هم در پنل خودش ببیند"),
+    ], "افزودن یادداشت", async (data) => {
+        const note = await api("POST", "/doctor/patients/" + patientId + "/notes", { text: data.get("text"), sharedWithPatient: shared.checked });
+        notes = [note, ...notes];
+        text.value = "";
+        shared.checked = false;
+        fill();
+    });
+    return h("section", { class: "card" }, h("h2", {}, "یادداشت‌ها"), add, list);
+}
+
+/** Results by test: chips to pick the test, the trend chart and the table. */
+function resultsSection(results, emptyText) {
+    if (results.length === 0) return h("section", { class: "card" }, h("p", { class: "muted" }, emptyText));
+    const types = [...new Set(results.map((r) => r.type))];
+    const content = h("div");
+    const chips = h("div", { class: "chips" });
+    let selected = types[0];
+    const render = () => {
+        chips.replaceChildren(...types.map((t) => h("button", {
+            type: "button", class: "chip" + (t === selected ? " on" : ""), onclick: () => { selected = t; render(); },
+        }, typeName(t) + " (" + fa(results.filter((r) => r.type === t).length) + ")")));
+        const list = results.filter((r) => r.type === selected);
+        content.replaceChildren(trendCard(list), resultsTable(list));
+    };
+    render();
+    return h("section", { class: "card" }, h("h2", {}, "نتایج"), chips, content);
+}
+
+/** Downloads an authenticated file (a plain link cannot send the login token). */
+async function download(path, filename) {
+    const response = await fetch("/api" + path, { headers: { Authorization: "Bearer " + session.token } });
+    if (!response.ok) throw new ApiError(response.status === 401 ? "unauthorized" : "server_error", response.status);
+    const url = URL.createObjectURL(await response.blob());
+    const a = h("a", { href: url, download: filename });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// --- The patient's own panel ---
+
+async function myView() {
+    loading();
+    let me, results, analysis, notes;
+    try {
+        [me, results, analysis, notes] = await Promise.all([
+            api("GET", "/patient/me"), api("GET", "/patient/results"), api("GET", "/patient/analysis"), api("GET", "/patient/notes"),
+        ]);
+    } catch (e) { return failure(e); }
+    show(
+        h("section", { class: "card" },
+            h("h1", {}, me.firstName + " " + me.lastName),
+            h("p", {}, me.doctors.length ? "پزشک شما: " + me.doctors.join("، ") : "هنوز به پزشکی وصل نیستید."),
+            h("p", { class: "muted" }, "نتایج آزمون‌هایی که با برنامه‌ی گوشی انجام داده‌اید اینجا دیده می‌شود."),
+        ),
+        h("section", { class: "card" },
+            h("h2", {}, "پیام‌های پزشک"),
+            notes.length === 0 ? h("p", { class: "muted" }, "پیامی نیست.") :
+                h("div", { class: "notes" }, notes.map((n) => h("div", { class: "note" },
+                    h("p", { class: "note-text" }, n.text),
+                    h("p", { class: "muted small" }, n.doctorName + " — " + when(n.createdAtEpochMs)),
+                ))),
+        ),
+        analysisSection(analysis, true),
+        resultsSection(results, "هنوز نتیجه‌ای فرستاده نشده است."),
+    );
 }
 
 function fact(label, value) { return h("div", {}, h("dt", {}, label), h("dd", {}, value)); }
@@ -379,6 +502,7 @@ function route() {
     const hash = location.hash.replace(/^#/, "");
     if (!user) return loginView();
     if (hash === "password") return passwordView();
+    if (user.role === "PATIENT") return myView();
     if (user.role === "ADMIN") return doctorsView();
     const m = hash.match(/^patient\/(\d+)$/);
     if (m) return patientView(m[1]);

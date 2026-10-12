@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
@@ -54,6 +55,7 @@ fun ServerLinkScreen(
     onLink: (serverAddress: String, inviteCode: String) -> Unit,
     onSendNow: () -> Unit,
     onUnlink: () -> Unit,
+    onSetWebPassword: (String) -> Unit = {},
 ) {
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -70,7 +72,7 @@ fun ServerLinkScreen(
         if (state.link == null) {
             LinkForm(name, action, lastServerUrl, onLink)
         } else {
-            Linked(state, action, onSendNow, onUnlink)
+            Linked(state, action, onSendNow, onUnlink, onSetWebPassword)
         }
     }
 }
@@ -127,7 +129,13 @@ private fun LinkForm(name: String, action: LinkAction, lastServerUrl: String?, o
 }
 
 @Composable
-private fun Linked(state: ServerLinkState, action: LinkAction, onSendNow: () -> Unit, onUnlink: () -> Unit) {
+private fun Linked(
+    state: ServerLinkState,
+    action: LinkAction,
+    onSendNow: () -> Unit,
+    onUnlink: () -> Unit,
+    onSetWebPassword: (String) -> Unit,
+) {
     val link = state.link ?: return
     var confirm by rememberSaveable { mutableStateOf(false) }
     Card(
@@ -162,6 +170,7 @@ private fun Linked(state: ServerLinkState, action: LinkAction, onSendNow: () -> 
         Text(stringResource(if (busy) R.string.link_sending else R.string.link_send_now))
     }
     Text(stringResource(R.string.link_auto), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    WebPanelCard(link.serverUrl, busy, onSetWebPassword)
     TextButton(onClick = { confirm = true }, enabled = !busy) { Text(stringResource(R.string.link_unlink)) }
 
     if (confirm) {
@@ -177,10 +186,63 @@ private fun Linked(state: ServerLinkState, action: LinkAction, onSendNow: () -> 
     }
 }
 
+/** The patient's own web panel: where it is, and a password to log in with (with the national ID). */
+@Composable
+private fun WebPanelCard(serverUrl: String, busy: Boolean, onSetWebPassword: (String) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var repeat by rememberSaveable { mutableStateOf("") }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.panel_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.panel_text, serverUrl), style = MaterialTheme.typography.bodyMedium)
+            if (!open) {
+                TextButton(onClick = { open = true }, enabled = !busy) { Text(stringResource(R.string.panel_set_password)) }
+            } else {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.panel_password)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = repeat,
+                    onValueChange = { repeat = it },
+                    label = { Text(stringResource(R.string.panel_password_repeat)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = repeat.isNotEmpty() && repeat != password,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        onSetWebPassword(password)
+                        open = false
+                        password = ""
+                        repeat = ""
+                    },
+                    enabled = !busy && password.isNotEmpty() && password == repeat,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.panel_save_password)) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ActionMessage(action: LinkAction) {
     when (action) {
         is LinkAction.Failed -> Text(errorText(action.code), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        LinkAction.WebPasswordSet -> Text(stringResource(R.string.panel_password_set), style = MaterialTheme.typography.bodyMedium)
         is LinkAction.Sent -> Text(
             if (action.count == 0) stringResource(R.string.link_sent_none) else stringResource(R.string.link_sent, action.count.toPersianDigits()),
             style = MaterialTheme.typography.bodyMedium
@@ -198,6 +260,7 @@ private fun errorText(code: String): String = stringResource(
         "invite_expired" -> R.string.link_err_expired
         "network" -> R.string.link_err_network
         "unauthorized" -> R.string.link_err_unauthorized
+        "weak_password" -> R.string.panel_err_weak
         else -> R.string.link_err_other
     }
 )

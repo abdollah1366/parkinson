@@ -42,6 +42,9 @@ sealed interface LinkAction {
 
     /** A send finished; [count] results went out. */
     data class Sent(val count: Int) : LinkAction
+
+    /** The password of the person's web panel was set. */
+    data object WebPasswordSet : LinkAction
 }
 
 class ServerLinkViewModel(
@@ -87,6 +90,19 @@ class ServerLinkViewModel(
         LinkAction.Sent(sync.sync(profile, history.first()))
     }
 
+    /** Sets the active person's web panel password; [password] must be at least [MIN_PASSWORD] characters. */
+    fun setWebPassword(password: String) {
+        if (password.length < MIN_PASSWORD) {
+            _action.value = LinkAction.Failed("weak_password")
+            return
+        }
+        perform {
+            val profile = activeProfile.first() ?: return@perform LinkAction.Idle
+            sync.setWebPassword(profile.id, password)
+            LinkAction.WebPasswordSet
+        }
+    }
+
     fun unlink() = perform {
         activeProfile.first()?.let { sync.unlink(it.id) }
         LinkAction.Idle
@@ -112,6 +128,9 @@ class ServerLinkViewModel(
 
     companion object {
         const val INVALID_ADDRESS = "invalid_address"
+
+        /** Same rule as the server (Passwords.MIN_LENGTH). */
+        const val MIN_PASSWORD = 8
 
         val Factory = viewModelFactory {
             initializer {

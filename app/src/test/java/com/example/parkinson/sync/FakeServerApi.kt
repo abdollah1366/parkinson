@@ -8,6 +8,7 @@ class FakeServerApi(private val doctorName: String = "دکتر آزمایشی") 
     val uploads = mutableListOf<List<JSONObject>>()
     val profiles = mutableListOf<JSONObject>()
     val revoked = mutableListOf<String>()
+    val webPasswords = mutableListOf<String>()
     var failWith: String? = null
 
     private fun maybeFail() {
@@ -34,6 +35,11 @@ class FakeServerApi(private val doctorName: String = "دکتر آزمایشی") 
     override suspend fun revoke(serverUrl: String, token: String) {
         maybeFail()
         revoked += token
+    }
+
+    override suspend fun setWebPassword(serverUrl: String, token: String, password: String) {
+        maybeFail()
+        webPasswords += password
     }
 
     val uploadedIds: List<String> get() = uploads.flatten().map { it.getString("assessmentId") }

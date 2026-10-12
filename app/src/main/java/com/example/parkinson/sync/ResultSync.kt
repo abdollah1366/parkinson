@@ -96,6 +96,12 @@ class ResultSync(
         }
     }
 
+    /** Sets the password [profileId] uses to log in to their own panel on the doctor's server. */
+    suspend fun setWebPassword(profileId: Int, password: String) {
+        val link = store.links.value[profileId] ?: throw ServerException("not_linked")
+        api.setWebPassword(link.serverUrl, link.token, password)
+    }
+
     /** Disconnects [profileId] from the doctor's server: tells the server (if it can be reached) and forgets the link. */
     suspend fun unlink(profileId: Int) {
         val link = store.links.value[profileId] ?: return

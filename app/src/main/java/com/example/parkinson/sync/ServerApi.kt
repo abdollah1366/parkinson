@@ -29,6 +29,9 @@ interface ServerApi {
     suspend fun updateProfile(serverUrl: String, token: String, patient: JSONObject)
 
     suspend fun revoke(serverUrl: String, token: String)
+
+    /** Lets the patient log in to their own web panel with their national ID and [password]. */
+    suspend fun setWebPassword(serverUrl: String, token: String, password: String)
 }
 
 class HttpServerApi : ServerApi {
@@ -56,6 +59,10 @@ class HttpServerApi : ServerApi {
 
     override suspend fun revoke(serverUrl: String, token: String) {
         call("DELETE", "$serverUrl/api/device/token", token, null)
+    }
+
+    override suspend fun setWebPassword(serverUrl: String, token: String, password: String) {
+        call("PUT", "$serverUrl/api/device/web-password", token, JSONObject().put("password", password))
     }
 
     private suspend fun call(method: String, url: String, token: String?, body: JSONObject?): JSONObject? =

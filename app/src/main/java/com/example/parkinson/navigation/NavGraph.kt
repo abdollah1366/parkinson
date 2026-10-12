@@ -310,6 +310,7 @@ fun ParkinsonNavGraph(
                     onLink = serverLinkViewModel::link,
                     onSendNow = serverLinkViewModel::sendNow,
                     onUnlink = serverLinkViewModel::unlink,
+                    onSetWebPassword = serverLinkViewModel::setWebPassword,
                 )
             }
         }

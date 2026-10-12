@@ -202,6 +202,32 @@ class PatientStore(private val db: Db, private val pepper: String) {
         }
     }
 
+    fun setPassword(patientId: Long, password: String) {
+        db.tx { update("UPDATE patients SET password_hash = ? WHERE id = ?", Passwords.hash(password), patientId) }
+    }
+
+    /** The patient with this national ID and their password hash (null when no panel password was set). */
+    fun forLogin(nationalId: String): Pair<Long, String?>? = db.tx {
+        single("SELECT id, password_hash FROM patients WHERE national_id_hash = ?", Secrets.hmacSha256(pepper, nationalId)) {
+            it.getLong("id") to it.getString("password_hash")
+        }
+    }
+
+    fun passwordHash(patientId: Long): String? = db.tx {
+        single("SELECT password_hash FROM patients WHERE id = ?", patientId) { it.getString("password_hash") }
+    }
+
+    fun me(patientId: Long): PatientMe? = db.tx {
+        single("SELECT id, first_name, last_name FROM patients WHERE id = ?", patientId) {
+            PatientMe(it.getLong("id"), it.getString("first_name"), it.getString("last_name"), emptyList())
+        }?.copy(
+            doctors = query(
+                "SELECT u.full_name FROM doctor_patients dp JOIN users u ON u.id = dp.doctor_id WHERE dp.patient_id = ? ORDER BY dp.linked_at",
+                patientId,
+            ) { it.getString("full_name") },
+        )
+    }
+
     fun isLinked(doctorId: Long, patientId: Long): Boolean = db.tx {
         single("SELECT 1 FROM doctor_patients WHERE doctor_id = ? AND patient_id = ?", doctorId, patientId) { 1 } != null
     }
@@ -267,6 +293,73 @@ class ResultStore(private val db: Db) {
             )
         }
     }
+}
+
+/** The fields [Analysis] needs, for one patient or for every patient of a doctor. */
+class ScoreStore(private val db: Db) {
+    fun ofPatient(patientId: Long): List<ScorePoint> = db.tx {
+        query("SELECT type, hand, taken_at, performance_index, medication_state FROM results WHERE patient_id = ?", patientId) { it.toPoint() }
+    }
+
+    fun ofDoctor(doctorId: Long): Map<Long, List<ScorePoint>> = db.tx {
+        query(
+            """
+            SELECT r.patient_id, r.type, r.hand, r.taken_at, r.performance_index, r.medication_state
+            FROM results r JOIN doctor_patients dp ON dp.patient_id = r.patient_id
+            WHERE dp.doctor_id = ?
+            """.trimIndent(),
+            doctorId,
+        ) { it.getLong("patient_id") to it.toPoint() }
+    }.groupBy({ it.first }, { it.second })
+
+    private fun ResultSet.toPoint() = ScorePoint(
+        type = getString("type"),
+        hand = getString("hand"),
+        epochMs = epochMs("taken_at")!!,
+        performanceIndex = intOrNull("performance_index"),
+        medicationState = getString("medication_state"),
+    )
+}
+
+class NoteStore(private val db: Db) {
+    fun add(doctorId: Long, patientId: Long, note: NoteIn): NoteDto = db.tx {
+        single(
+            """
+            WITH n AS (INSERT INTO doctor_notes (doctor_id, patient_id, text, shared_with_patient) VALUES (?, ?, ?, ?) RETURNING *)
+            SELECT n.*, u.full_name FROM n JOIN users u ON u.id = n.doctor_id
+            """.trimIndent(),
+            doctorId, patientId, note.text, note.sharedWithPatient,
+        ) { it.toNote() }!!
+    }
+
+    /** The doctor's own notes on the patient, newest first. */
+    fun ofDoctor(doctorId: Long, patientId: Long): List<NoteDto> = db.tx {
+        query(
+            "SELECT n.*, u.full_name FROM doctor_notes n JOIN users u ON u.id = n.doctor_id WHERE n.doctor_id = ? AND n.patient_id = ? ORDER BY n.created_at DESC, n.id DESC",
+            doctorId, patientId,
+        ) { it.toNote() }
+    }
+
+    /** Notes any of the patient's doctors shared with them, newest first. */
+    fun sharedWith(patientId: Long): List<NoteDto> = db.tx {
+        query(
+            "SELECT n.*, u.full_name FROM doctor_notes n JOIN users u ON u.id = n.doctor_id WHERE n.patient_id = ? AND n.shared_with_patient ORDER BY n.created_at DESC, n.id DESC",
+            patientId,
+        ) { it.toNote() }
+    }
+
+    /** Deletes one of the doctor's own notes; false when there is none with that id. */
+    fun delete(doctorId: Long, noteId: Long): Boolean = db.tx {
+        update("DELETE FROM doctor_notes WHERE id = ? AND doctor_id = ?", noteId, doctorId) == 1
+    }
+
+    private fun ResultSet.toNote() = NoteDto(
+        id = getLong("id"),
+        doctorName = getString("full_name"),
+        text = getString("text"),
+        sharedWithPatient = getBoolean("shared_with_patient"),
+        createdAtEpochMs = epochMs("created_at")!!,
+    )
 }
 
 class AccessLog(private val db: Db) {

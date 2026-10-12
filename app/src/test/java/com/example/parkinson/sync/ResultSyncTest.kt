@@ -171,4 +171,18 @@ class ResultSyncTest {
         sync.unlink(ali.id)
         assertNull(store.links.value[ali.id])
     }
+
+    @Test
+    fun theWebPanelPasswordGoesToTheLinkedServerOnly() = runBlocking {
+        val ali = person()
+        try {
+            sync.setWebPassword(ali.id, "patient-pass")
+            fail("not linked yet")
+        } catch (e: ServerException) {
+            assertEquals("not_linked", e.code)
+        }
+        sync.link("https://panel.example.ir", "ABCD2345", ali)
+        sync.setWebPassword(ali.id, "patient-pass")
+        assertEquals(listOf("patient-pass"), api.webPasswords)
+    }
 }
