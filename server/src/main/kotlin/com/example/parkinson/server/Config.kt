@@ -18,6 +18,8 @@ data class Config(
     val trustProxy: Boolean,
     /** Create the database on start if it is missing (test computers; Docker creates it by itself). */
     val createDatabase: Boolean = false,
+    /** Folder of a PostgreSQL the server starts itself (local testing); null to use [databaseUrl]. */
+    val embeddedDataDir: String? = null,
 ) {
     init {
         require(jwtSecret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
@@ -29,11 +31,12 @@ data class Config(
     companion object {
         fun fromEnv(env: Map<String, String> = System.getenv()): Config {
             fun required(name: String) = env[name]?.takeIf { it.isNotBlank() } ?: error("$name is not set")
+            val embedded = env["EMBEDDED_DB_DIR"]?.takeIf { it.isNotBlank() }
             return Config(
                 port = env["PORT"]?.toIntOrNull() ?: 8080,
-                databaseUrl = required("DATABASE_URL"),
-                databaseUser = required("DATABASE_USER"),
-                databasePassword = required("DATABASE_PASSWORD"),
+                databaseUrl = if (embedded != null) "" else required("DATABASE_URL"),
+                databaseUser = if (embedded != null) "" else required("DATABASE_USER"),
+                databasePassword = if (embedded != null) "" else required("DATABASE_PASSWORD"),
                 jwtSecret = required("JWT_SECRET"),
                 nationalIdPepper = required("NATIONAL_ID_PEPPER"),
                 adminMobile = env["ADMIN_MOBILE"]?.takeIf { it.isNotBlank() },
@@ -41,6 +44,7 @@ data class Config(
                 adminName = env["ADMIN_NAME"]?.takeIf { it.isNotBlank() } ?: "مدیر سامانه",
                 trustProxy = env["TRUST_PROXY"] == "true",
                 createDatabase = env["CREATE_DATABASE"] == "true",
+                embeddedDataDir = embedded,
             )
         }
     }

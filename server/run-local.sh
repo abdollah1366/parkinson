@@ -1,12 +1,9 @@
 #!/bin/sh
-# Runs the server on this computer (Linux or macOS), for testing on the local network. Needs Java 21 and PostgreSQL.
+# Runs the server on this computer (Linux or macOS), for testing on the local network. Needs Java 21; the database is built in (local-data folder).
 # The values below are for testing only. A real server uses docker-compose.yml with its own secrets.
 cd "$(dirname "$0")"
 export PORT=8090
-export DATABASE_URL=jdbc:postgresql://127.0.0.1:5432/parkinson
-export DATABASE_USER="${DATABASE_USER:-postgres}"
-export DATABASE_PASSWORD="${DATABASE_PASSWORD:-postgres}"
-export CREATE_DATABASE=true
+export EMBEDDED_DB_DIR=local-data
 export JWT_SECRET=local-test-only-local-test-only-local-test-only
 export NATIONAL_ID_PEPPER=local-test-only-pepper-local-test-only-pepper
 export ADMIN_MOBILE=09120000000

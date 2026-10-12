@@ -36,6 +36,11 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql:11.10.0")
     implementation("org.mindrot:jbcrypt:0.4")
     implementation("ch.qos.logback:logback-classic:1.5.18")
+    // A PostgreSQL started by the server itself (EMBEDDED_DB=true, run-local.bat): testing on a PC with nothing to install.
+    implementation("io.zonky.test:embedded-postgres:2.1.0") {
+        exclude(group = "io.zonky.test.postgres", module = "embedded-postgres-binaries-darwin-amd64")
+        exclude(group = "io.zonky.test.postgres", module = "embedded-postgres-binaries-linux-amd64-alpine")
+    }
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:$ktor")
