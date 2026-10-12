@@ -1,5 +1,5 @@
 # Builds and runs the server. Used by docker-compose.yml.
-FROM gradle:8.14.3-jdk21 AS build
+FROM gradle:9.8.1-jdk21 AS build
 WORKDIR /src
 COPY settings.gradle.kts build.gradle.kts ./
 COPY src ./src

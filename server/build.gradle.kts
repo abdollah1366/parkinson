@@ -1,14 +1,22 @@
 plugins {
-    kotlin("jvm") version "2.2.10"
-    kotlin("plugin.serialization") version "2.2.10"
+    kotlin("jvm") version "2.4.21"
+    kotlin("plugin.serialization") version "2.4.21"
     application
 }
 
 group = "com.example.parkinson"
 version = "0.1.0"
 
+// Builds Java 21 bytecode with whatever JDK runs Gradle (21 or newer), so a newer Java on a test PC still works.
 kotlin {
-    jvmToolchain(21)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 application {
@@ -36,7 +44,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql:11.10.0")
     implementation("org.mindrot:jbcrypt:0.4")
     implementation("ch.qos.logback:logback-classic:1.5.18")
-    // A PostgreSQL started by the server itself (EMBEDDED_DB=true, run-local.bat): testing on a PC with nothing to install.
+    // A PostgreSQL started by the server itself (EMBEDDED_DB_DIR, run-local.bat): testing on a PC with nothing to install.
     implementation("io.zonky.test:embedded-postgres:2.1.0") {
         exclude(group = "io.zonky.test.postgres", module = "embedded-postgres-binaries-darwin-amd64")
         exclude(group = "io.zonky.test.postgres", module = "embedded-postgres-binaries-linux-amd64-alpine")
