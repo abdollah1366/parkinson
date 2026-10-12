@@ -62,7 +62,9 @@ data class HandStabilityEntity(
     val indexRotation: Int?,
     val indexAcceleration: Int?,
     val algorithmVersion: String,
-    val scoringVersion: String
+    val scoringVersion: String,
+    /** The registered person this result belongs to; null for a result saved while nobody was registered. */
+    val profileId: Int? = null,
 )
 
 @Dao

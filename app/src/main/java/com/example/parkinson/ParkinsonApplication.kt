@@ -15,6 +15,8 @@ import com.example.parkinson.sensors.AndroidMotionSensorSource
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.gait.GaitDiagnostics
 import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.profile.ActivePatient
+import com.example.parkinson.profile.PrefsActiveProfileStore
 import com.example.parkinson.norms.ReferenceNorms
 import com.example.parkinson.tremor.RestingTremorDiagnostics
 
@@ -23,9 +25,12 @@ class ParkinsonApplication : Application() {
 
     private val database: AssessmentDatabase by lazy { AssessmentDatabase.build(this) }
 
-    val assessmentRepository: AssessmentRepository by lazy { RoomAssessmentRepository.from(database) }
-
     val profileRepository: ProfileRepository by lazy { RoomProfileRepository.from(database) }
+
+    /** Who the tests are for; several people can be registered on one phone. */
+    val activePatient: ActivePatient by lazy { ActivePatient(profileRepository, PrefsActiveProfileStore(this)) }
+
+    val assessmentRepository: AssessmentRepository by lazy { RoomAssessmentRepository.from(database, activePatient.id) }
 
     val motionSensorSource: MotionSensorSource by lazy { AndroidMotionSensorSource(this) }
 

@@ -1034,7 +1034,7 @@
 
     <!-- Registration -->
     <string name="reg_title">ثبت‌نام</string>
-    <string name="reg_edit_title">اطلاعات من</string>
+    <string name="reg_edit_title">اطلاعات بیمار</string>
     <string name="reg_intro">پیش از شروع آزمون‌ها، اطلاعات زیر را وارد کنید. همه‌ی بخش‌ها لازم است.</string>
     <string name="reg_first_name">نام</string>
     <string name="reg_last_name">نام خانوادگی</string>
@@ -1066,9 +1066,9 @@
     <string name="reg_save">ذخیره</string>
     <string name="reg_saving">در حال ذخیره…</string>
     <string name="reg_save_failed">ذخیره انجام نشد. دوباره تلاش کنید.</string>
-    <string name="reg_delete">حذف اطلاعات ثبت‌نام</string>
-    <string name="reg_delete_title">حذف اطلاعات؟</string>
-    <string name="reg_delete_text">نام، تلفن، کد ملی و سایر اطلاعات ثبت‌نام از این گوشی پاک می‌شود. نتیجه‌ی آزمون‌ها باقی می‌ماند.</string>
+    <string name="reg_delete">حذف این بیمار</string>
+    <string name="reg_delete_title">حذف بیمار؟</string>
+    <string name="reg_delete_text">اطلاعات ثبت‌نام این شخص و همه‌ی نتیجه‌های آزمون او از این گوشی پاک می‌شود. این کار برگشت‌پذیر نیست.</string>
     <string name="reg_delete_confirm">حذف</string>
     <string name="reg_delete_cancel">انصراف</string>
     <string name="home_profile_missing_title">ثبت‌نام نکرده‌اید</string>
@@ -1076,6 +1076,17 @@
     <string name="home_profile_register">ثبت‌نام</string>
     <string name="home_profile_line">%1$s سال • %2$s • کد ملی %3$s</string>
     <string name="home_profile_edit">ویرایش اطلاعات</string>
+    <string name="reg_duplicate_national_id">این کد ملی قبلاً برای شخص دیگری روی این گوشی ثبت شده است.</string>
+    <string name="home_profile_switch">تغییر بیمار</string>
+    <string name="home_profile_choose_title">بیمار را انتخاب کنید</string>
+    <string name="home_profile_choose_text">چند نفر روی این گوشی ثبت‌نام کرده‌اند. پیش از آزمون، شخصی را که آزمون می‌دهد انتخاب کنید.</string>
+    <string name="home_profile_choose">انتخاب بیمار</string>
+    <string name="patients_title">بیماران این گوشی</string>
+    <string name="patients_intro">شخصی را که آزمون می‌دهد انتخاب کنید. نتیجه‌ها برای همان شخص ذخیره و نمایش داده می‌شود.</string>
+    <string name="patients_add">افزودن بیمار جدید</string>
+    <string name="patients_active">انتخاب‌شده</string>
+    <string name="patients_select">انتخاب</string>
+    <string name="patients_edit">ویرایش</string>
     <!-- Comparison with published reference values (norms/reference_norms.csv) -->
     <string name="norms_title">مقایسه با اعداد مرجع منتشرشده</string>
     <string name="norms_person_unknown">سن و جنس ثبت نشده است؛ فقط اعدادی آمده که به سن بستگی ندارند. برای مقایسه با هم‌سن‌ها و هم‌جنس‌ها، ثبت‌نام را کامل کنید.</string>

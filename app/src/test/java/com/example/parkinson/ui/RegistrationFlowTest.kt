@@ -66,8 +66,8 @@ class RegistrationFlowTest {
 
         waitFor("علی رضایی")
         val saved = runBlocking {
-            (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.observe().first()
-        }!!
+            (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.observeAll().first()
+        }.single()
         assertEquals(10, saved.age)
         assertEquals(Gender.MALE, saved.gender)
         assertEquals("0013542419", saved.nationalId)

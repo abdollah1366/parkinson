@@ -7,11 +7,14 @@ sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
     object Home : Screen("home")
 
-    /** First registration, before Home. */
+    /** Registering a new person: the first one before Home, later ones from the patient list. */
     object Registration : Screen("registration")
 
-    /** Editing (or deleting) the registration from Home. */
+    /** Editing (or deleting) the person the tests are for. */
     object ProfileEdit : Screen("profile_edit")
+
+    /** Everyone registered on this phone: choose who the tests are for, or add someone. */
+    object Patients : Screen("patients")
     object FingerTappingIntro : Screen("finger_tapping_intro")
     object FingerTappingHandSelection : Screen("finger_tapping_hand_selection")
     object FingerTappingPreparation : Screen("finger_tapping_preparation")

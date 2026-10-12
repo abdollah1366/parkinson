@@ -55,8 +55,10 @@ class AppNavigationTest {
 
     /** These walks start as a registered person; the first registration is covered by RegistrationFlowTest. */
     @Before
-    fun registered() = runBlocking {
-        (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.save(ProfileValidationTest.sample())
+    fun registered() {
+        runBlocking {
+            (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.save(ProfileValidationTest.sample())
+        }
     }
 
     @Before

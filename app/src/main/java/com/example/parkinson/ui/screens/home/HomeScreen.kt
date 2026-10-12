@@ -56,10 +56,14 @@ fun HomeScreen(
     tests: List<AssessmentDefinition> = AssessmentCatalog.all,
     onOpenAssessment: (AssessmentResult) -> Unit = {},
     onOpenHistory: () -> Unit = {},
-    /** The registration; nothing is shown while it is loading. */
+    /** The person the tests are for; nothing is shown while it is loading. */
     profile: Loadable<UserProfile?> = Loadable.Loading,
+    /** How many people are registered on this phone. */
+    registeredCount: Int = 0,
     /** Opens the registration screen (new or edit). */
     onOpenProfile: () -> Unit = {},
+    /** Opens the list of registered people, to choose or add one. */
+    onSwitchPatient: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -88,7 +92,7 @@ fun HomeScreen(
             )
         }
 
-        if (profile is Loadable.Loaded) ProfileCard(profile.value, onOpenProfile)
+        if (profile is Loadable.Loaded) ProfileCard(profile.value, registeredCount, onOpenProfile, onSwitchPatient)
 
         MotorAssessmentsCard(tests, onStartAssessmentClicked)
 
@@ -295,9 +299,12 @@ private fun LatestAssessmentCard(
     }
 }
 
-/** Who is registered (name, age, gender, masked national ID), or an invitation to register. */
+/**
+ * The person the tests are for (name, age, gender, masked national ID) with ways to edit or switch person; an
+ * invitation to register when nobody is; a request to choose when several people are and none is chosen.
+ */
 @Composable
-private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
+private fun ProfileCard(profile: UserProfile?, registeredCount: Int, onOpen: () -> Unit, onSwitch: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -307,10 +314,14 @@ private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
         shape = MaterialTheme.shapes.large
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (profile == null) {
+            if (profile == null && registeredCount == 0) {
                 Text(stringResource(R.string.home_profile_missing_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.home_profile_missing_text), style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.home_profile_register)) }
+            } else if (profile == null) {
+                Text(stringResource(R.string.home_profile_choose_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.home_profile_choose_text), style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = onSwitch, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.home_profile_choose)) }
             } else {
                 Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
@@ -323,7 +334,10 @@ private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
+                    TextButton(onClick = onSwitch) { Text(stringResource(R.string.home_profile_switch)) }
+                }
             }
         }
     }

@@ -129,7 +129,9 @@ data class PronationSupinationEntity(
     /** Comma-separated deg/s values (one decimal). */
     @ColumnInfo(defaultValue = "") val velocityTrace: String = "",
     @ColumnInfo(defaultValue = "0") val traceHz: Double = 0.0,
-    @ColumnInfo(defaultValue = "") val referenceName: String = ""
+    @ColumnInfo(defaultValue = "") val referenceName: String = "",
+    /** The registered person this result belongs to; null for a result saved while nobody was registered. */
+    val profileId: Int? = null,
 )
 
 @Dao

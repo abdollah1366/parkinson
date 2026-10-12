@@ -187,6 +187,9 @@ fun RegistrationScreen(
         if (write == ProfileWrite.Failed) {
             Text(stringResource(R.string.reg_save_failed), color = MaterialTheme.colorScheme.error)
         }
+        if (write == ProfileWrite.DuplicateNationalId) {
+            Text(stringResource(R.string.reg_duplicate_national_id), color = MaterialTheme.colorScheme.error)
+        }
         PrimaryButton(
             text = stringResource(if (saving) R.string.reg_saving else R.string.reg_save),
             enabled = !saving,

@@ -76,6 +76,7 @@ import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.ProfileViewModel
+import com.example.parkinson.ui.screens.patients.PatientsScreen
 import com.example.parkinson.ui.screens.profile.RegistrationScreen
 import com.example.parkinson.ui.screens.result.CenteredMessage
 import com.example.parkinson.R
@@ -133,10 +134,13 @@ fun ParkinsonNavGraph(
     val registeredProfile by profileViewModel.profile.collectAsState()
     val normPerson = (registeredProfile as? Loadable.Loaded)?.value.toNormPerson()
 
-    /** Back to Home, keeping Home itself (creates it if it is not on the back stack). */
+    /** Back to Home, keeping Home itself (creates it, with nothing below it, if it is not on the back stack). */
     fun goHome() {
         if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
-            navController.navigate(Screen.Home.route) { launchSingleTop = true }
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 
@@ -181,10 +185,17 @@ fun ParkinsonNavGraph(
 
         composable(Screen.Welcome.route) {
             WelcomeScreen {
-                // Nobody registered yet: the registration comes first. While the profile is still loading, Home
-                // opens and its profile card offers the registration.
-                val unregistered = profileViewModel.profile.value == Loadable.Loaded(null)
-                navController.navigate(if (unregistered) Screen.Registration.route else Screen.Home.route) {
+                // Nobody registered yet: the registration comes first. Several people and none chosen: the patient
+                // list. While the profiles are still loading, Home opens and its profile card offers the next step.
+                val people = (profileViewModel.profiles.value as? Loadable.Loaded)?.value
+                val active = (profileViewModel.profile.value as? Loadable.Loaded)?.value
+                val next = when {
+                    people == null -> Screen.Home.route
+                    people.isEmpty() -> Screen.Registration.route
+                    active == null -> Screen.Patients.route
+                    else -> Screen.Home.route
+                }
+                navController.navigate(next) {
                     popUpTo(Screen.Welcome.route) { inclusive = true }
                 }
             }
@@ -195,13 +206,8 @@ fun ParkinsonNavGraph(
             RegistrationScreen(
                 existing = null,
                 write = write,
-                onSave = { form ->
-                    profileViewModel.save(form) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Registration.route) { inclusive = true }
-                        }
-                    }
-                }
+                // The new person becomes the person the tests are for.
+                onSave = { form -> profileViewModel.save(form, existing = null) { goHome() } }
             )
         }
 
@@ -213,24 +219,62 @@ fun ParkinsonNavGraph(
                 is Loadable.Loaded -> RegistrationScreen(
                     existing = p.value,
                     write = write,
-                    onSave = { form -> profileViewModel.save(form) { navController.popBackStack() } },
-                    onDelete = p.value?.let { { profileViewModel.delete { navController.popBackStack() } } },
+                    onSave = { form -> profileViewModel.save(form, existing = p.value) { navController.popBackStack() } },
+                    onDelete = p.value?.let { person -> { profileViewModel.delete(person) { goHome() } } },
+                )
+            }
+        }
+
+        composable(Screen.Patients.route) {
+            val people by profileViewModel.profiles.collectAsState()
+            val active by profileViewModel.profile.collectAsState()
+            when (val p = people) {
+                Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
+                is Loadable.Loaded -> PatientsScreen(
+                    profiles = p.value,
+                    activeId = (active as? Loadable.Loaded)?.value?.id,
+                    onSelect = { person ->
+                        profileViewModel.select(person.id)
+                        goHome()
+                    },
+                    onEdit = { person ->
+                        profileViewModel.select(person.id)
+                        profileViewModel.clearError()
+                        navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
+                    },
+                    onAdd = {
+                        profileViewModel.clearError()
+                        navController.navigate(Screen.Registration.route) { launchSingleTop = true }
+                    },
                 )
             }
         }
 
         composable(Screen.Home.route) {
             val latest by historyViewModel.latest.collectAsState()
+            val profile by profileViewModel.profile.collectAsState()
+            val people by profileViewModel.profiles.collectAsState()
+            val registeredCount = (people as? Loadable.Loaded)?.value?.size ?: 0
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
                 onOpenHistory = { navController.navigate(Screen.History.route) },
-                profile = profileViewModel.profile.collectAsState().value,
+                profile = profile,
+                registeredCount = registeredCount,
                 onOpenProfile = {
                     profileViewModel.clearError()
                     navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
                 },
-                onStartAssessmentClicked = { navController.navigate(Screen.AssessmentCatalog.route) }
+                onSwitchPatient = { navController.navigate(Screen.Patients.route) { launchSingleTop = true } },
+                onStartAssessmentClicked = {
+                    // Results must belong to someone: with several people and none chosen, choose first.
+                    val chosen = (profile as? Loadable.Loaded)?.value != null
+                    if (!chosen && registeredCount > 0) {
+                        navController.navigate(Screen.Patients.route) { launchSingleTop = true }
+                    } else {
+                        navController.navigate(Screen.AssessmentCatalog.route)
+                    }
+                }
             )
         }
 

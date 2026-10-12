@@ -19,8 +19,8 @@ enum class DominantHand(val id: String) {
 }
 
 /**
- * The person using the app, entered once on the registration screen and editable later. Kept only in the app's
- * private database on this phone (no server, no cloud backup). The national ID is sensitive: screens show it masked
+ * A person using the app, entered on the registration screen and editable later; several people can share one
+ * phone. Kept only in the app's private database on this phone (no server, no cloud backup). The national ID is sensitive: screens show it masked
  * and it is never logged.
  */
 data class UserProfile(
@@ -41,6 +41,8 @@ data class UserProfile(
     /** When the person agreed that the data is kept on this phone. */
     val consentEpochMs: Long,
     val updatedEpochMs: Long,
+    /** 0 until the person is saved; then the id their results are stored under. */
+    val id: Int = 0,
 ) {
     val fullName: String get() = "$firstName $lastName"
 
@@ -48,5 +50,5 @@ data class UserProfile(
     val maskedNationalId: String get() = "••••••" + nationalId.takeLast(4)
 
     /** Never print the national ID or the phone number (logs, crash reports). */
-    override fun toString(): String = "UserProfile(age=$age, gender=$gender, diagnosed=$parkinsonDiagnosed)"
+    override fun toString(): String = "UserProfile(id=$id, age=$age, gender=$gender, diagnosed=$parkinsonDiagnosed)"
 }

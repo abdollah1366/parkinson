@@ -63,6 +63,8 @@ data class SitToStandEntity(
     val algorithmVersion: String,
     val configSummary: String,
     val scoringVersion: String,
+    /** The registered person this result belongs to; null for a result saved while nobody was registered. */
+    val profileId: Int? = null,
 )
 
 @Dao
