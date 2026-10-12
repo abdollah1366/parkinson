@@ -1,0 +1,72 @@
+package com.example.parkinson.server
+
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import org.flywaydb.core.Flyway
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import javax.sql.DataSource
+
+object Database {
+    fun connect(url: String, user: String, password: String, poolSize: Int = 10): HikariDataSource =
+        HikariDataSource(
+            HikariConfig().apply {
+                jdbcUrl = url
+                username = user
+                this.password = password
+                maximumPoolSize = poolSize
+                isAutoCommit = true
+            },
+        )
+
+    /** Brings the schema up to date (src/main/resources/db/migration). */
+    fun migrate(dataSource: DataSource) {
+        Flyway.configure().dataSource(dataSource).load().migrate()
+    }
+}
+
+/** Plain JDBC with one transaction per call. */
+class Db(private val dataSource: DataSource) {
+    fun <T> tx(block: Connection.() -> T): T = dataSource.connection.use { c ->
+        c.autoCommit = false
+        try {
+            c.block().also { c.commit() }
+        } catch (e: Throwable) {
+            c.rollback()
+            throw e
+        }
+    }
+}
+
+fun Connection.update(sql: String, vararg args: Any?): Int =
+    prepareStatement(sql).use { it.bind(args); it.executeUpdate() }
+
+fun <T> Connection.query(sql: String, vararg args: Any?, map: (ResultSet) -> T): List<T> =
+    prepareStatement(sql).use { st ->
+        st.bind(args)
+        st.executeQuery().use { rs -> buildList { while (rs.next()) add(map(rs)) } }
+    }
+
+fun <T> Connection.single(sql: String, vararg args: Any?, map: (ResultSet) -> T): T? =
+    query(sql, *args, map = map).firstOrNull()
+
+private fun PreparedStatement.bind(args: Array<out Any?>) {
+    args.forEachIndexed { i, a ->
+        when (a) {
+            is Instant -> setObject(i + 1, OffsetDateTime.ofInstant(a, ZoneOffset.UTC))
+            else -> setObject(i + 1, a)
+        }
+    }
+}
+
+fun ResultSet.instant(column: String): Instant? = getObject(column, OffsetDateTime::class.java)?.toInstant()
+
+fun ResultSet.epochMs(column: String): Long? = instant(column)?.toEpochMilli()
+
+fun ResultSet.intOrNull(column: String): Int? = getInt(column).takeUnless { wasNull() }
+
+fun ResultSet.booleanOrNull(column: String): Boolean? = getBoolean(column).takeUnless { wasNull() }
