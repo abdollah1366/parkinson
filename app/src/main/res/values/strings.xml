@@ -1161,4 +1161,38 @@
     <string name="norms_metric_tap_cv">نامنظمی ریتم ضربه‌ها</string>
     <string name="norms_metric_ps_rate">سرعت چرخاندن دست</string>
     <string name="norms_metric_tremor_frequency">بسامد لرزش</string>
+
+    <!-- Connection to the doctor's server -->
+    <string name="link_title">اتصال به پزشک</string>
+    <string name="link_intro">کدی را که پزشک به %1$s داده وارد کنید. پس از اتصال، نتیجه‌ی آزمون‌ها برای همان پزشک فرستاده می‌شود.</string>
+    <string name="link_server">نشانی سرور پزشک</string>
+    <string name="link_code">کد دعوت</string>
+    <string name="link_what_is_sent">این‌ها برای پزشک فرستاده می‌شود: مشخصات %1$s (نام، سن، جنس، موبایل، کد ملی، وضعیت بیماری و دارو) و همه‌ی نتیجه‌های آزمون او، از امروز و پیش از آن.</string>
+    <string name="link_consent">موافقم که این اطلاعات برای پزشکم فرستاده و روی سرور او نگه‌داری شود.</string>
+    <string name="link_connect">اتصال</string>
+    <string name="link_working">در حال اتصال…</string>
+    <string name="link_connected">%1$s به %2$s وصل است</string>
+    <string name="link_all_sent">همه‌ی نتیجه‌ها فرستاده شده است.</string>
+    <string name="link_pending">%1$s نتیجه هنوز فرستاده نشده است.</string>
+    <string name="link_last_sync">آخرین ارسال: %1$s</string>
+    <string name="link_send_now">ارسال الان</string>
+    <string name="link_sending">در حال ارسال…</string>
+    <string name="link_auto">هر آزمون تازه وقتی اینترنت وصل باشد خودکار فرستاده می‌شود.</string>
+    <string name="link_unlink">قطع اتصال</string>
+    <string name="link_unlink_title">اتصال قطع شود؟</string>
+    <string name="link_unlink_text">از این پس نتیجه‌ای برای %1$s فرستاده نمی‌شود. نتیجه‌هایی که قبلاً فرستاده شده نزد پزشک می‌ماند.</string>
+    <string name="link_unlink_confirm">بله، قطع شود</string>
+    <string name="link_keep">بماند</string>
+    <string name="link_sent">%1$s نتیجه فرستاده شد.</string>
+    <string name="link_sent_none">چیز تازه‌ای برای فرستادن نبود.</string>
+    <string name="link_err_address">نشانی سرور درست نیست. نشانی را همان‌طور که پزشک داده بنویسید، مثلاً panel.example.ir</string>
+    <string name="link_err_invite">این کد دعوت پیدا نشد. آن را دوباره بررسی کنید.</string>
+    <string name="link_err_used">این کد قبلاً استفاده شده است. از پزشک کد تازه بخواهید.</string>
+    <string name="link_err_expired">اعتبار این کد تمام شده است. از پزشک کد تازه بخواهید.</string>
+    <string name="link_err_network">به سرور وصل نشد. اینترنت را بررسی کنید و دوباره امتحان کنید.</string>
+    <string name="link_err_unauthorized">سرور این گوشی را دیگر نمی‌شناسد. اتصال را قطع کنید و با کد تازه دوباره وصل شوید.</string>
+    <string name="link_err_other">کار انجام نشد. کمی بعد دوباره امتحان کنید.</string>
+    <string name="home_link_doctor">اتصال به پزشک</string>
+    <string name="home_link_line">نتیجه‌ها برای %1$s فرستاده می‌شود</string>
+    <string name="home_link_pending">ارسال به پزشک (%1$s مانده)</string>
 </resources>

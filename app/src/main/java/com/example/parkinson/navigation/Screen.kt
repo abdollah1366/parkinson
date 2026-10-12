@@ -136,6 +136,9 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "speech_result/${Uri.encode(assessmentId)}"
     }
 
+    /** The active person's connection to their doctor's server. */
+    object ServerLink : Screen("server_link")
+
     object DualTaskIntro : Screen("dual_task_intro")
     object DualTaskTest : Screen("dual_task_test")
 

@@ -20,8 +20,9 @@ enum class DominantHand(val id: String) {
 
 /**
  * A person using the app, entered on the registration screen and editable later; several people can share one
- * phone. Kept only in the app's private database on this phone (no server, no cloud backup). The national ID is sensitive: screens show it masked
- * and it is never logged.
+ * phone. Kept in the app's private database (no cloud backup); sent to a doctor's server only after the person connects
+ * with the doctor's invite code (see [com.example.parkinson.sync.ResultSync]). The national ID is sensitive: screens show it
+ * masked and it is never logged.
  */
 data class UserProfile(
     val firstName: String,

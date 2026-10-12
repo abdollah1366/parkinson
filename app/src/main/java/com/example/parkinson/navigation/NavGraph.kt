@@ -78,6 +78,8 @@ import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.ProfileViewModel
+import com.example.parkinson.viewmodel.ServerLinkViewModel
+import com.example.parkinson.ui.screens.link.ServerLinkScreen
 import com.example.parkinson.ui.screens.patients.PatientsScreen
 import com.example.parkinson.ui.screens.profile.RegistrationScreen
 import com.example.parkinson.ui.screens.result.CenteredMessage
@@ -126,6 +128,7 @@ fun ParkinsonNavGraph(
     dualTaskViewModel: DualTaskViewModel = viewModel(factory = DualTaskViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory),
+    serverLinkViewModel: ServerLinkViewModel = viewModel(factory = ServerLinkViewModel.Factory),
 ) {
     val context = LocalContext.current
     val capabilities: DeviceCapabilities = remember {
@@ -258,6 +261,7 @@ fun ParkinsonNavGraph(
             val people by profileViewModel.profiles.collectAsState()
             val registeredCount = (people as? Loadable.Loaded)?.value?.size ?: 0
             val medication by profileViewModel.medication.collectAsState()
+            val doctor by serverLinkViewModel.state.collectAsState()
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
@@ -273,6 +277,12 @@ fun ParkinsonNavGraph(
                 onChangeMedication = {
                     navController.navigate(Screen.MedicationCheckChange.route) { launchSingleTop = true }
                 },
+                doctorName = doctor?.link?.doctorName,
+                pendingToDoctor = doctor?.pending ?: 0,
+                onOpenServerLink = {
+                    serverLinkViewModel.clearAction()
+                    navController.navigate(Screen.ServerLink.route) { launchSingleTop = true }
+                },
                 onStartAssessmentClicked = {
                     // Results must belong to someone: with several people and none chosen, choose first. Someone who
                     // takes medication is asked how it is working, unless they answered in the last two hours.
@@ -286,6 +296,22 @@ fun ParkinsonNavGraph(
                     }
                 }
             )
+        }
+
+        composable(Screen.ServerLink.route) {
+            val state by serverLinkViewModel.state.collectAsState()
+            val action by serverLinkViewModel.action.collectAsState()
+            when (val s = state) {
+                null -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
+                else -> ServerLinkScreen(
+                    state = s,
+                    action = action,
+                    lastServerUrl = serverLinkViewModel.lastServerUrl,
+                    onLink = serverLinkViewModel::link,
+                    onSendNow = serverLinkViewModel::sendNow,
+                    onUnlink = serverLinkViewModel::unlink,
+                )
+            }
         }
 
         composable(Screen.AssessmentCatalog.route) {

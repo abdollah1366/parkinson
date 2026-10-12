@@ -33,7 +33,7 @@ object Validation {
 
     /** The profile fields that may change after linking (everything but the national ID). */
     fun checked(p: PatientIn, now: Instant = Instant.now()): PatientIn {
-        if (p.age !in 18..110) badRequest("invalid_age")
+        if (p.age !in 10..110) badRequest("invalid_age") // Same range as the app (ProfileRules).
         if (p.gender !in GENDERS) badRequest("invalid_gender")
         if (p.dominantHand !in HANDS) badRequest("invalid_hand")
         if (!p.parkinsonDiagnosed && p.takesParkinsonMedication != null) badRequest("invalid_medication")

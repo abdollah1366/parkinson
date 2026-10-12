@@ -70,6 +70,12 @@ fun HomeScreen(
     medication: MedicationCheck? = null,
     /** Opens the medication question to record or change the state. */
     onChangeMedication: () -> Unit = {},
+    /** The doctor the active person's results go to, or null when not connected. */
+    doctorName: String? = null,
+    /** Results of the active person their doctor does not have yet. */
+    pendingToDoctor: Int = 0,
+    /** Opens the connection to the doctor (connect, or send and disconnect). */
+    onOpenServerLink: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -99,7 +105,10 @@ fun HomeScreen(
         }
 
         if (profile is Loadable.Loaded) {
-            ProfileCard(profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication)
+            ProfileCard(
+                profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication,
+                doctorName, pendingToDoctor, onOpenServerLink,
+            )
         }
 
         MotorAssessmentsCard(tests, onStartAssessmentClicked)
@@ -319,6 +328,9 @@ private fun ProfileCard(
     onSwitch: () -> Unit,
     medication: MedicationCheck?,
     onChangeMedication: () -> Unit,
+    doctorName: String?,
+    pendingToDoctor: Int,
+    onOpenServerLink: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -367,6 +379,18 @@ private fun ProfileCard(
                 }
                 if (profile.takesParkinsonMedication == true) {
                     TextButton(onClick = onChangeMedication) { Text(stringResource(R.string.home_med_change)) }
+                }
+                if (doctorName != null) {
+                    Text(stringResource(R.string.home_link_line, doctorName), style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(onClick = onOpenServerLink) {
+                    Text(
+                        when {
+                            doctorName == null -> stringResource(R.string.home_link_doctor)
+                            pendingToDoctor > 0 -> stringResource(R.string.home_link_pending, pendingToDoctor.toPersianDigits())
+                            else -> stringResource(R.string.link_title)
+                        }
+                    )
                 }
             }
         }

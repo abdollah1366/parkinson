@@ -42,6 +42,8 @@ class ProfileViewModel(
     private val activePatient: ActivePatient,
     private val medicationChecks: MedicationCheckStore = InMemoryMedicationCheckStore(),
     private val wallClock: () -> Long = System::currentTimeMillis,
+    /** Disconnects a deleted person from their doctor's server, if connected. */
+    private val forgetServerLink: suspend (profileId: Int) -> Unit = {},
 ) : ViewModel() {
 
     /** Everyone registered on this phone. Loaded eagerly so the start of the app can tell at once who is there. */
@@ -102,6 +104,7 @@ class ProfileViewModel(
 
     /** Removes [person] and all of their results. */
     fun delete(person: UserProfile, onDeleted: () -> Unit) = perform(onDeleted) {
+        forgetServerLink(person.id)
         repository.delete(person.id)
         if (activePatient.selectedId.value == person.id) activePatient.select(null)
     }
@@ -131,7 +134,7 @@ class ProfileViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as ParkinsonApplication
-                ProfileViewModel(app.profileRepository, app.activePatient, app.medicationChecks)
+                ProfileViewModel(app.profileRepository, app.activePatient, app.medicationChecks, forgetServerLink = app.resultSync::unlink)
             }
         }
     }

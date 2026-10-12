@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Only to send results to the doctor of a person who connected with an invite code. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Speech assessment: microphone for in-memory recording; audio is never written to storage or uploaded. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature
