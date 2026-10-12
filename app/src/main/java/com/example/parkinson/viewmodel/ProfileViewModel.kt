@@ -7,6 +7,10 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.data.ProfileRepository
+import com.example.parkinson.medication.InMemoryMedicationCheckStore
+import com.example.parkinson.medication.MedicationCheck
+import com.example.parkinson.medication.MedicationCheckStore
+import com.example.parkinson.medication.MedicationState
 import com.example.parkinson.profile.ActivePatient
 import com.example.parkinson.profile.ProfileForm
 import com.example.parkinson.profile.ProfileValidation
@@ -36,6 +40,7 @@ sealed interface ProfileWrite {
 class ProfileViewModel(
     private val repository: ProfileRepository,
     private val activePatient: ActivePatient,
+    private val medicationChecks: MedicationCheckStore = InMemoryMedicationCheckStore(),
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
@@ -52,11 +57,31 @@ class ProfileViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, Loadable.Loading)
 
+    /** The medication state the active person reported, while it still applies (see [MedicationCheck.VALID_MS]). */
+    val medication: StateFlow<MedicationCheck?> = combine(profile, medicationChecks.checks) { p, checks ->
+        (p as? Loadable.Loaded)?.value?.let { checks[it.id] }?.takeIf { it.isCurrent(wallClock()) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val _write = MutableStateFlow<ProfileWrite>(ProfileWrite.Idle)
     val write: StateFlow<ProfileWrite> = _write.asStateFlow()
 
     /** Makes [id] the person the tests are for. */
     fun select(id: Int) = activePatient.select(id)
+
+    /**
+     * Whether to ask about medication before the tests: the active person takes Parkinson's medication and has no
+     * report that still applies.
+     */
+    fun needsMedicationCheck(): Boolean {
+        val person = (profile.value as? Loadable.Loaded)?.value ?: return false
+        return person.takesParkinsonMedication == true && medicationChecks.current(person.id, wallClock()) == null
+    }
+
+    /** Records the active person's medication state for the tests that follow. */
+    fun recordMedication(state: MedicationState) {
+        val person = (profile.value as? Loadable.Loaded)?.value ?: return
+        medicationChecks.record(MedicationCheck(person.id, state, wallClock()))
+    }
 
     /**
      * Saves a valid form and calls [onSaved]; does nothing while the form has errors. [existing] is the person being
@@ -106,7 +131,7 @@ class ProfileViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as ParkinsonApplication
-                ProfileViewModel(app.profileRepository, app.activePatient)
+                ProfileViewModel(app.profileRepository, app.activePatient, app.medicationChecks)
             }
         }
     }

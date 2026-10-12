@@ -21,6 +21,8 @@ import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.ui.screens.camera.FingerTappingCameraScreen
 import com.example.parkinson.ui.screens.catalog.AssessmentCatalogScreen
 import com.example.parkinson.ui.screens.history.AssessmentHistoryScreen
+import com.example.parkinson.ui.screens.history.TrendScreen
+import com.example.parkinson.ui.screens.medication.MedicationCheckScreen
 import com.example.parkinson.ui.screens.home.HomeScreen
 import com.example.parkinson.ui.screens.intro.FingerTappingIntroScreen
 import com.example.parkinson.ui.screens.invalid.InvalidResultKind
@@ -255,6 +257,7 @@ fun ParkinsonNavGraph(
             val profile by profileViewModel.profile.collectAsState()
             val people by profileViewModel.profiles.collectAsState()
             val registeredCount = (people as? Loadable.Loaded)?.value?.size ?: 0
+            val medication by profileViewModel.medication.collectAsState()
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
@@ -266,13 +269,20 @@ fun ParkinsonNavGraph(
                     navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
                 },
                 onSwitchPatient = { navController.navigate(Screen.Patients.route) { launchSingleTop = true } },
+                medication = medication,
+                onChangeMedication = {
+                    navController.navigate(Screen.MedicationCheckChange.route) { launchSingleTop = true }
+                },
                 onStartAssessmentClicked = {
-                    // Results must belong to someone: with several people and none chosen, choose first.
+                    // Results must belong to someone: with several people and none chosen, choose first. Someone who
+                    // takes medication is asked how it is working, unless they answered in the last two hours.
                     val chosen = (profile as? Loadable.Loaded)?.value != null
-                    if (!chosen && registeredCount > 0) {
-                        navController.navigate(Screen.Patients.route) { launchSingleTop = true }
-                    } else {
-                        navController.navigate(Screen.AssessmentCatalog.route)
+                    when {
+                        !chosen && registeredCount > 0 ->
+                            navController.navigate(Screen.Patients.route) { launchSingleTop = true }
+                        profileViewModel.needsMedicationCheck() ->
+                            navController.navigate(Screen.MedicationCheckBeforeTests.route) { launchSingleTop = true }
+                        else -> navController.navigate(Screen.AssessmentCatalog.route)
                     }
                 }
             )
@@ -1042,8 +1052,30 @@ fun ParkinsonNavGraph(
             val history by historyViewModel.all.collectAsState()
             AssessmentHistoryScreen(
                 history = history,
-                onOpen = { result -> navController.navigate(resultRouteFor(result)) }
+                onOpen = { result -> navController.navigate(resultRouteFor(result)) },
+                onOpenTrends = { navController.navigate(Screen.Trends.route) { launchSingleTop = true } },
             )
+        }
+
+        composable(Screen.Trends.route) {
+            val stored by historyViewModel.stored.collectAsState()
+            TrendScreen(history = stored)
+        }
+
+        composable(Screen.MedicationCheckBeforeTests.route) {
+            MedicationCheckScreen { state ->
+                profileViewModel.recordMedication(state)
+                navController.navigate(Screen.AssessmentCatalog.route) {
+                    popUpTo(Screen.MedicationCheckBeforeTests.route) { inclusive = true }
+                }
+            }
+        }
+
+        composable(Screen.MedicationCheckChange.route) {
+            MedicationCheckScreen { state ->
+                profileViewModel.recordMedication(state)
+                navController.popBackStack()
+            }
         }
     }
 }

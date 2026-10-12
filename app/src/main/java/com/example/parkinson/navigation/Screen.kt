@@ -31,6 +31,15 @@ sealed class Screen(val route: String) {
 
     object History : Screen("history")
 
+    /** The performance index of each test over time, coloured by medication state. */
+    object Trends : Screen("trends")
+
+    /** The medication question before the tests; continues to the test selection. */
+    object MedicationCheckBeforeTests : Screen("medication_check_tests")
+
+    /** The medication question opened from Home to change the state; returns to Home. */
+    object MedicationCheckChange : Screen("medication_check_change")
+
     /** Test selection: every test in AssessmentCatalog, available or not. */
     object AssessmentCatalog : Screen("assessment_catalog")
 

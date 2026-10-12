@@ -6,6 +6,7 @@ import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.openclose.HandOpenCloseResult
 import com.example.parkinson.pronation.PronationSupinationResult
 import com.example.parkinson.imu.ImuGaitResult
+import com.example.parkinson.medication.MedicationState
 import com.example.parkinson.imu.ImuSitToStandResult
 import com.example.parkinson.speech.SpeechResult
 import com.example.parkinson.sts.SitToStandResult
@@ -70,7 +71,13 @@ interface AssessmentRepository {
 
     /** Results of every assessment type, newest first. */
     fun observeHistory(): Flow<List<AssessmentResult>>
+
+    /** [observeHistory] with the medication state reported before each test. */
+    fun observeStoredHistory(): Flow<List<StoredResult>>
 }
+
+/** A stored result with the medication state reported before the test (null when it was not asked). */
+data class StoredResult(val result: AssessmentResult, val medicationState: MedicationState?)
 
 class RoomAssessmentRepository(
     private val dao: AssessmentDao,
@@ -87,144 +94,159 @@ class RoomAssessmentRepository(
     private val dualTaskDao: DualTaskDao,
     /** The person whose results are shown and to whom new results belong (the app's active patient). */
     private val activeProfileId: Flow<Int?> = flowOf(null),
+    /** The medication state the person reported for the test being saved, or null when not known. */
+    private val medicationStateNow: suspend (profileId: Int?) -> MedicationState? = { null },
 ) : AssessmentRepository {
 
     override suspend fun save(assessment: FingerTappingAssessment) =
-        dao.insert(assessment.toEntity().copy(profileId = currentProfileId()))
+        dao.insert(stamp { pid, med -> assessment.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeLatest(): Flow<FingerTappingAssessment?> =
-        dao.observeAll().mine { it.profileId }.map { it.firstOrNull()?.toDomain() }
+        dao.observeAll().mine().map { it.firstOrNull()?.toDomain() }
 
     override fun observeAll(): Flow<List<FingerTappingAssessment>> =
-        dao.observeAll().mine { it.profileId }.map { list -> list.map { it.toDomain() } }
+        dao.observeAll().mine().map { list -> list.map { it.toDomain() } }
 
     override fun observe(assessmentId: String): Flow<FingerTappingAssessment?> =
         dao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveHandStability(result: HandStabilityResult) =
-        stabilityDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        stabilityDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeHandStability(assessmentId: String): Flow<HandStabilityResult?> =
         stabilityDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun savePronationSupination(result: PronationSupinationResult) =
-        pronationDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        pronationDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observePronationSupination(assessmentId: String): Flow<PronationSupinationResult?> =
         pronationDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveHandOpenClose(result: HandOpenCloseResult) =
-        openCloseDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        openCloseDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeHandOpenClose(assessmentId: String): Flow<HandOpenCloseResult?> =
         openCloseDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveRestingTremor(result: RestingTremorResult) =
-        restingTremorDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        restingTremorDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeRestingTremor(assessmentId: String): Flow<RestingTremorResult?> =
         restingTremorDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveRestingTremorImu(result: RestingTremorImuResult) =
-        restingTremorImuDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        restingTremorImuDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeRestingTremorImu(assessmentId: String): Flow<RestingTremorImuResult?> =
         restingTremorImuDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveGait(result: GaitResult) =
-        gaitDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        gaitDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeGait(assessmentId: String): Flow<GaitResult?> =
         gaitDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveSitToStand(result: SitToStandResult) =
-        sitToStandDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        sitToStandDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeSitToStand(assessmentId: String): Flow<SitToStandResult?> =
         sitToStandDao.observeById(assessmentId).map { it?.toDomain() }
 
     override fun observeAllSitToStand(): Flow<List<SitToStandResult>> =
-        sitToStandDao.observeAll().mine { it.profileId }.map { list -> list.map { it.toDomain() } }
+        sitToStandDao.observeAll().mine().map { list -> list.map { it.toDomain() } }
 
     override suspend fun saveSpeech(result: SpeechResult) =
-        speechDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        speechDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeSpeech(assessmentId: String): Flow<SpeechResult?> =
         speechDao.observeById(assessmentId).map { it?.toDomain() }
 
     override fun observeAllSpeech(): Flow<List<SpeechResult>> =
-        speechDao.observeAll().mine { it.profileId }.map { list -> list.map { it.toDomain() } }
+        speechDao.observeAll().mine().map { list -> list.map { it.toDomain() } }
 
     override fun observeAllImuSitToStand(): Flow<List<ImuSitToStandResult>> =
-        imuSitToStandDao.observeAll().mine { it.profileId }.map { list -> list.map { it.toDomain() } }
+        imuSitToStandDao.observeAll().mine().map { list -> list.map { it.toDomain() } }
 
     override suspend fun saveImuSitToStand(result: ImuSitToStandResult) =
-        imuSitToStandDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        imuSitToStandDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeImuSitToStand(assessmentId: String): Flow<ImuSitToStandResult?> =
         imuSitToStandDao.observeById(assessmentId).map { it?.toDomain() }
 
     override fun observeAllImuGait(): Flow<List<ImuGaitResult>> =
-        imuGaitDao.observeAll().mine { it.profileId }.map { list -> list.map { it.toDomain() } }
+        imuGaitDao.observeAll().mine().map { list -> list.map { it.toDomain() } }
 
     override suspend fun saveImuGait(result: ImuGaitResult) =
-        imuGaitDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        imuGaitDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeImuGait(assessmentId: String): Flow<ImuGaitResult?> =
         imuGaitDao.observeById(assessmentId).map { it?.toDomain() }
 
     override suspend fun saveDualTask(result: DualTaskResult) =
-        dualTaskDao.insert(result.toEntity().copy(profileId = currentProfileId()))
+        dualTaskDao.insert(stamp { pid, med -> result.toEntity().copy(profileId = pid, medicationState = med) })
 
     override fun observeDualTask(assessmentId: String): Flow<DualTaskResult?> =
         dualTaskDao.observeById(assessmentId).map { it?.toDomain() }
 
     override fun observeHistory(): Flow<List<AssessmentResult>> =
+        observeStoredHistory().map { list -> list.map { it.result } }
+
+    override fun observeStoredHistory(): Flow<List<StoredResult>> =
         combine(
             combine(
-                dao.observeAll().mine { it.profileId }, stabilityDao.observeAll().mine { it.profileId },
-                pronationDao.observeAll().mine { it.profileId }, openCloseDao.observeAll().mine { it.profileId },
-                restingTremorDao.observeAll().mine { it.profileId },
+                dao.observeAll().mine(), stabilityDao.observeAll().mine(),
+                pronationDao.observeAll().mine(), openCloseDao.observeAll().mine(),
+                restingTremorDao.observeAll().mine(),
             ) { tapping, stability, pronation, openClose, tremor ->
-                val all: List<AssessmentResult> = tapping.map { it.toDomain() } + stability.map { it.toDomain() } +
-                    pronation.map { it.toDomain() } + openClose.map { it.toDomain() } + tremor.map { it.toDomain() }
+                val all: List<StoredResult> = tapping.stored { it.toDomain() } + stability.stored { it.toDomain() } +
+                    pronation.stored { it.toDomain() } + openClose.stored { it.toDomain() } + tremor.stored { it.toDomain() }
                 all
             },
-            gaitDao.observeAll().mine { it.profileId }
-        ) { others: List<AssessmentResult>, gait: List<GaitEntity> ->
-            others + gait.map { it.toDomain() }
+            gaitDao.observeAll().mine()
+        ) { others: List<StoredResult>, gait: List<GaitEntity> ->
+            others + gait.stored { it.toDomain() }
         }.let { withGait ->
             combine(
-                withGait, sitToStandDao.observeAll().mine { it.profileId }, speechDao.observeAll().mine { it.profileId },
-            ) { others: List<AssessmentResult>, sts: List<SitToStandEntity>, speech: List<SpeechEntity>,
+                withGait, sitToStandDao.observeAll().mine(), speechDao.observeAll().mine(),
+            ) { others: List<StoredResult>, sts: List<SitToStandEntity>, speech: List<SpeechEntity>,
                 ->
-                others + sts.map { it.toDomain() } + speech.map { it.toDomain() }
+                others + sts.stored { it.toDomain() } + speech.stored { it.toDomain() }
             }
         }.let { withSpeech ->
             combine(
-                withSpeech, imuSitToStandDao.observeAll().mine { it.profileId },
-                imuGaitDao.observeAll().mine { it.profileId }, restingTremorImuDao.observeAll().mine { it.profileId },
-                dualTaskDao.observeAll().mine { it.profileId },
-            ) { others: List<AssessmentResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
+                withSpeech, imuSitToStandDao.observeAll().mine(),
+                imuGaitDao.observeAll().mine(), restingTremorImuDao.observeAll().mine(),
+                dualTaskDao.observeAll().mine(),
+            ) { others: List<StoredResult>, imuSts: List<ImuSitToStandEntity>, imuGait: List<ImuGaitEntity>,
                 imuTremor: List<RestingTremorImuEntity>, dualTask: List<DualTaskEntity> ->
-                (others + imuSts.map { it.toDomain() } + imuGait.map { it.toDomain() } + imuTremor.map { it.toDomain() } +
-                    dualTask.map { it.toDomain() })
-                    .sortedByDescending { it.timestampEpochMs }
+                (others + imuSts.stored { it.toDomain() } + imuGait.stored { it.toDomain() } +
+                    imuTremor.stored { it.toDomain() } + dualTask.stored { it.toDomain() })
+                    .sortedByDescending { it.result.timestampEpochMs }
             }
         }
 
-    /** The person new results are saved for (null while nobody is registered). */
-    private suspend fun currentProfileId(): Int? = activeProfileId.first()
+    /** Builds the entity to save for the active person, with the medication state they reported (if any). */
+    private suspend fun <E> stamp(build: (profileId: Int?, medicationState: String?) -> E): E {
+        val profileId = activeProfileId.first()
+        return build(profileId, medicationStateNow(profileId)?.id)
+    }
+
+    private fun <E : OwnedResultRow> List<E>.stored(toDomain: (E) -> AssessmentResult): List<StoredResult> =
+        map { StoredResult(toDomain(it), MedicationState.fromId(it.medicationState)) }
 
     /** Only the rows of the active person, so one person's results are never shown or compared as another's. */
-    private fun <E> Flow<List<E>>.mine(profileOf: (E) -> Int?): Flow<List<E>> =
-        combine(this, activeProfileId) { rows, active -> rows.filter { profileOf(it) == active } }
+    private fun <E : OwnedResultRow> Flow<List<E>>.mine(): Flow<List<E>> =
+        combine(this, activeProfileId) { rows, active -> rows.filter { it.profileId == active } }
 
     companion object {
-        fun from(db: AssessmentDatabase, activeProfileId: Flow<Int?> = flowOf(null)) = RoomAssessmentRepository(
+        fun from(
+            db: AssessmentDatabase,
+            activeProfileId: Flow<Int?> = flowOf(null),
+            medicationStateNow: suspend (profileId: Int?) -> MedicationState? = { null },
+        ) = RoomAssessmentRepository(
             db.assessmentDao(), db.handStabilityDao(), db.pronationSupinationDao(), db.handOpenCloseDao(),
             db.restingTremorDao(), db.gaitDao(), db.sitToStandDao(), db.speechDao(), db.imuSitToStandDao(), db.imuGaitDao(),
-            db.restingTremorImuDao(), db.dualTaskDao(), activeProfileId,
+            db.restingTremorImuDao(), db.dualTaskDao(), activeProfileId, medicationStateNow,
         )
     }
 }

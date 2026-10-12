@@ -14,6 +14,8 @@ import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.sensors.AndroidMotionSensorSource
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.gait.GaitDiagnostics
+import com.example.parkinson.medication.MedicationCheckStore
+import com.example.parkinson.medication.PrefsMedicationCheckStore
 import com.example.parkinson.norms.NormComparator
 import com.example.parkinson.profile.ActivePatient
 import com.example.parkinson.profile.PrefsActiveProfileStore
@@ -30,7 +32,14 @@ class ParkinsonApplication : Application() {
     /** Who the tests are for; several people can be registered on one phone. */
     val activePatient: ActivePatient by lazy { ActivePatient(profileRepository, PrefsActiveProfileStore(this)) }
 
-    val assessmentRepository: AssessmentRepository by lazy { RoomAssessmentRepository.from(database, activePatient.id) }
+    /** The medication state each person reported before their tests (only the last report per person). */
+    val medicationChecks: MedicationCheckStore by lazy { PrefsMedicationCheckStore(this) }
+
+    val assessmentRepository: AssessmentRepository by lazy {
+        RoomAssessmentRepository.from(database, activePatient.id) { profileId ->
+            profileId?.let { medicationChecks.current(it, System.currentTimeMillis())?.state }
+        }
+    }
 
     val motionSensorSource: MotionSensorSource by lazy { AndroidMotionSensorSource(this) }
 

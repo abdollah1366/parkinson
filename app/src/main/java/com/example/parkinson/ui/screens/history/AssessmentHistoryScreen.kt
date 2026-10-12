@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ import com.example.parkinson.viewmodel.Loadable
 fun AssessmentHistoryScreen(
     history: Loadable<List<AssessmentResult>>,
     onOpen: (AssessmentResult) -> Unit,
+    /** Opens the trend chart; offered once there is at least one result. */
+    onOpenTrends: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -70,6 +73,10 @@ fun AssessmentHistoryScreen(
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
             } else {
+                OutlinedButton(
+                    onClick = onOpenTrends,
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+                ) { Text(stringResource(R.string.trend_open)) }
                 LazyColumn(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)

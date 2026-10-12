@@ -37,6 +37,7 @@ import com.example.parkinson.R
 import com.example.parkinson.assessment.AssessmentCatalog
 import com.example.parkinson.assessment.AssessmentDefinition
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.medication.MedicationCheck
 import com.example.parkinson.profile.Gender
 import com.example.parkinson.profile.UserProfile
 import com.example.parkinson.ui.components.QualityChip
@@ -47,6 +48,7 @@ import com.example.parkinson.ui.components.keyMetricsLine
 import com.example.parkinson.ui.components.statusLabel
 import com.example.parkinson.ui.format.PersianFormat
 import com.example.parkinson.ui.format.toPersianDigits
+import com.example.parkinson.ui.screens.medication.medicationLabel
 import com.example.parkinson.ui.screens.splash.MedicalLogoIcon
 import com.example.parkinson.viewmodel.Loadable
 
@@ -64,6 +66,10 @@ fun HomeScreen(
     onOpenProfile: () -> Unit = {},
     /** Opens the list of registered people, to choose or add one. */
     onSwitchPatient: () -> Unit = {},
+    /** The medication state the active person reported, while it still applies. */
+    medication: MedicationCheck? = null,
+    /** Opens the medication question to record or change the state. */
+    onChangeMedication: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -92,7 +98,9 @@ fun HomeScreen(
             )
         }
 
-        if (profile is Loadable.Loaded) ProfileCard(profile.value, registeredCount, onOpenProfile, onSwitchPatient)
+        if (profile is Loadable.Loaded) {
+            ProfileCard(profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication)
+        }
 
         MotorAssessmentsCard(tests, onStartAssessmentClicked)
 
@@ -304,7 +312,14 @@ private fun LatestAssessmentCard(
  * invitation to register when nobody is; a request to choose when several people are and none is chosen.
  */
 @Composable
-private fun ProfileCard(profile: UserProfile?, registeredCount: Int, onOpen: () -> Unit, onSwitch: () -> Unit) {
+private fun ProfileCard(
+    profile: UserProfile?,
+    registeredCount: Int,
+    onOpen: () -> Unit,
+    onSwitch: () -> Unit,
+    medication: MedicationCheck?,
+    onChangeMedication: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -334,9 +349,24 @@ private fun ProfileCard(profile: UserProfile?, registeredCount: Int, onOpen: () 
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (profile.takesParkinsonMedication == true) {
+                    Text(
+                        if (medication == null) {
+                            stringResource(R.string.home_med_missing)
+                        } else {
+                            stringResource(
+                                R.string.home_med_line, medicationLabel(medication.state), PersianFormat.time(medication.epochMs)
+                            )
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
                     TextButton(onClick = onSwitch) { Text(stringResource(R.string.home_profile_switch)) }
+                }
+                if (profile.takesParkinsonMedication == true) {
+                    TextButton(onClick = onChangeMedication) { Text(stringResource(R.string.home_med_change)) }
                 }
             }
         }

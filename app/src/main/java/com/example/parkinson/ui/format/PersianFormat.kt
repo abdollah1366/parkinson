@@ -32,6 +32,14 @@ object PersianFormat {
     @SuppressLint("SimpleDateFormat") // The locale is explicit: fa_IR with the Persian calendar.
     fun dateTime(epochMs: Long): String =
         SimpleDateFormat("yyyy/MM/dd - HH:mm", ULocale("fa_IR@calendar=persian")).format(Date(epochMs))
+
+    /** e.g. ۱۴:۳۰ */
+    @SuppressLint("SimpleDateFormat")
+    fun time(epochMs: Long): String = SimpleDateFormat("HH:mm", ULocale("fa_IR@calendar=persian")).format(Date(epochMs))
+
+    /** e.g. ۰۷/۱۵ (month/day, Solar Hijri), for short chart labels. */
+    @SuppressLint("SimpleDateFormat")
+    fun shortDate(epochMs: Long): String = SimpleDateFormat("MM/dd", ULocale("fa_IR@calendar=persian")).format(Date(epochMs))
 }
 
 fun Int.toPersianDigits(): String = PersianFormat.integer(this)

@@ -25,7 +25,9 @@ internal object ResultTables {
     /** Gives [profileId] every result that belongs to nobody. Call inside a transaction. */
     fun assignUnowned(db: AssessmentDatabase, profileId: Int) {
         val sql = db.openHelper.writableDatabase
-        for (table in NAMES) sql.execSQL("UPDATE `$table` SET profileId = ? WHERE profileId IS NULL", arrayOf<Any>(profileId))
+        for (table in NAMES) {
+            sql.execSQL("UPDATE `$table` SET profileId = ? WHERE profileId IS NULL", arrayOf<Any>(profileId))
+        }
     }
 
     /** Deletes every result of [profileId]. Call inside a transaction. */
@@ -47,4 +49,23 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
             connection.execSQL("UPDATE `$table` SET profileId = (SELECT MIN(id) FROM user_profile)")
         }
     }
+}
+
+/**
+ * Version 17 -> 18: each result table gets a nullable `medicationState`, the medication state reported before the
+ * test (see [com.example.parkinson.medication.MedicationState]). Earlier results stay NULL: it was never asked.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        for (table in ResultTables.NAMES) connection.execSQL("ALTER TABLE `$table` ADD COLUMN `medicationState` TEXT")
+    }
+}
+
+/** What every stored result row carries besides its measurements. */
+interface OwnedResultRow {
+    /** The registered person this result belongs to; null for a result saved while nobody was registered. */
+    val profileId: Int?
+
+    /** [com.example.parkinson.medication.MedicationState] id reported before the test; null when not asked. */
+    val medicationState: String?
 }
