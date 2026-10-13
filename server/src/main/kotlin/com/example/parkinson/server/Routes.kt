@@ -22,6 +22,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.webSocket
 
 /** Largest upload body a phone may send in one request. */
 private const val MAX_UPLOAD_BYTES = 8L * 1024 * 1024
@@ -45,6 +46,8 @@ fun Application.routes(services: Services) {
                 route("/patient") { patientRoutes(services) }
             }
             route("/device") { deviceRoutes(services) }
+            // Calls: logs in with the first message (browsers cannot send headers on a WebSocket).
+            webSocket("/calls/ws") { services.calls.serve(this) }
         }
     }
 }
@@ -266,6 +269,14 @@ private fun Route.deviceRoutes(services: Services) {
         }
         route("/doctors/{doctorId}") {
             conversationRoutes(services, fromDoctor = false) { patientConversation(services, device().patientId) }
+        }
+        get("/calls") {
+            call.respond(services.calls.ringingFor(call.device().patientId))
+        }
+        post("/calls/{callId}/decline") {
+            val callId = call.parameters["callId"] ?: notFound()
+            if (!services.calls.declineFor(call.device().patientId, callId)) notFound()
+            call.respond(HttpStatusCode.NoContent)
         }
         delete("/token") {
             io { services.patients.revoke(call.device().token) }

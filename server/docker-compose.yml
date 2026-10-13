@@ -31,6 +31,13 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
       TRUST_PROXY: "true"
+      # Calls: the built-in TURN relay, on the server's public IPv4 address (leave empty to turn it off).
+      TURN_PUBLIC_IP: ${TURN_PUBLIC_IP:-}
+      TURN_RELAY_PORTS: 49160-49200
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
 
   caddy:
     image: caddy:2-alpine

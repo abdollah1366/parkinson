@@ -2,6 +2,11 @@ package com.example.parkinson.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.example.parkinson.ui.screens.call.IncomingCallDialog
+import com.example.parkinson.ui.screens.call.CallScreen
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -268,6 +273,7 @@ fun ParkinsonNavGraph(
             val unreadFromDoctor by chatViewModel.unread.collectAsState()
             // Checks for new messages from the doctor while Home is shown (only when this person is connected).
             LaunchedEffect(doctor?.profile?.id, doctor?.link) { chatViewModel.watchUnread() }
+            RingWatcher(chatViewModel) { navController.navigate(Screen.Call.route) { launchSingleTop = true } }
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
@@ -308,7 +314,20 @@ fun ParkinsonNavGraph(
 
         composable(Screen.Chat.route) {
             val state by chatViewModel.state.collectAsState()
-            ChatScreen(chatViewModel, state)
+            val scope = rememberCoroutineScope()
+            RingWatcher(chatViewModel) { navController.navigate(Screen.Call.route) { launchSingleTop = true } }
+            ChatScreen(chatViewModel, state, onCall = { video ->
+                scope.launch { if (chatViewModel.startCall(video)) navController.navigate(Screen.Call.route) { launchSingleTop = true } }
+            })
+        }
+
+        composable(Screen.Call.route) {
+            val page by chatViewModel.callPage.collectAsState()
+            DisposableEffect(Unit) { onDispose { chatViewModel.callClosed() } }
+            when (val p = page) {
+                null -> LaunchedEffect(Unit) { navController.popBackStack() }
+                else -> CallScreen(p.url, p.video, onClose = { navController.popBackStack() })
+            }
         }
 
         composable(Screen.ServerLink.route) {
@@ -1117,5 +1136,20 @@ fun ParkinsonNavGraph(
                 navController.popBackStack()
             }
         }
+    }
+}
+
+/** While Home or the chat is shown: checks for a doctor's call and offers to answer it. */
+@Composable
+private fun RingWatcher(chatViewModel: ChatViewModel, onAnswered: () -> Unit) {
+    LaunchedEffect(chatViewModel) { chatViewModel.watchRings() }
+    val incoming by chatViewModel.incoming.collectAsState()
+    val scope = rememberCoroutineScope()
+    incoming?.let { call ->
+        IncomingCallDialog(
+            call,
+            onAnswer = { scope.launch { if (chatViewModel.answerIncoming()) onAnswered() } },
+            onDecline = chatViewModel::declineIncoming,
+        )
     }
 }

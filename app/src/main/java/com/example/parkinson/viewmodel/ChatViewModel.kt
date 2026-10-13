@@ -13,6 +13,7 @@ import com.example.parkinson.messages.VoiceRecorder
 import com.example.parkinson.profile.UserProfile
 import com.example.parkinson.sync.ChatMessage
 import com.example.parkinson.sync.Conversation
+import com.example.parkinson.sync.IncomingCall
 import com.example.parkinson.sync.MessagesApi
 import com.example.parkinson.sync.ServerException
 import com.example.parkinson.sync.ServerLink
@@ -43,6 +44,11 @@ data class ChatState(
     val doctor: Conversation? get() = conversations?.firstOrNull { it.doctorId == doctorId }
 }
 
+/** The page of one call; [url] holds the phone token, so it is never logged. */
+data class CallPage(val url: String, val video: Boolean) {
+    override fun toString() = "CallPage(video=$video)"
+}
+
 class ChatViewModel(
     private val api: MessagesApi,
     private val links: StateFlow<Map<Int, ServerLink>>,
@@ -53,6 +59,14 @@ class ChatViewModel(
 
     private val _state = MutableStateFlow(ChatState())
     val state: StateFlow<ChatState> = _state.asStateFlow()
+
+    /** A doctor's call ringing for the active person, offered on Home and the chat screen. */
+    private val _incoming = MutableStateFlow<IncomingCall?>(null)
+    val incoming: StateFlow<IncomingCall?> = _incoming.asStateFlow()
+
+    /** The call the call screen opens: its page address carries this person's phone token. */
+    private val _callPage = MutableStateFlow<CallPage?>(null)
+    val callPage: StateFlow<CallPage?> = _callPage.asStateFlow()
 
     /** Unread messages of the active person from all their doctors, for Home. */
     private val _unread = MutableStateFlow(0)
@@ -192,6 +206,55 @@ class ChatViewModel(
         }
     }
 
+    /** Checks every [periodMs] whether a doctor is calling, while Home or the chat screen is shown. */
+    suspend fun watchRings(periodMs: Long = RING_PERIOD_MS) {
+        while (true) {
+            val link = currentLink()
+            val ringing = if (link == null) emptyList() else try {
+                api.ringing(link.serverUrl, link.token)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null // Offline for a moment: keep what is shown.
+            }
+            if (ringing != null) _incoming.value = ringing.firstOrNull()
+            delay(periodMs)
+        }
+    }
+
+    /** Turns down the ringing call. */
+    fun declineIncoming() {
+        val call = _incoming.value ?: return
+        _incoming.value = null
+        viewModelScope.launch {
+            val link = currentLink() ?: return@launch
+            runCatching { api.declineCall(link.serverUrl, link.token, call.callId) }
+        }
+    }
+
+    /** Prepares the call screen to answer the ringing call; false when there is none. */
+    suspend fun answerIncoming(): Boolean {
+        val call = _incoming.value ?: return false
+        _incoming.value = null
+        val link = currentLink() ?: return false
+        _callPage.value = CallPage(callPageUrl(link, "accept" to call.callId), call.video)
+        return true
+    }
+
+    /** Prepares the call screen to call the doctor of the open conversation; false when there is none. */
+    suspend fun startCall(video: Boolean): Boolean {
+        val doctor = _state.value.doctor ?: return false
+        val link = currentLink() ?: return false
+        val url = callPageUrl(link, "call" to doctor.doctorId.toString(), "name" to doctor.doctorName, "video" to if (video) "1" else "0")
+        _callPage.value = CallPage(url, video)
+        return true
+    }
+
+    /** Forgets the call page (and the token in its address) once the call screen is closed. */
+    fun callClosed() {
+        _callPage.value = null
+    }
+
     /** Stops sound and recording when the chat screen is left. */
     fun leave() {
         stopRecording(send = false)
@@ -209,6 +272,13 @@ class ChatViewModel(
         const val MIC_ERROR = "mic"
         const val CHAT_PERIOD_MS = 10_000L
         const val UNREAD_PERIOD_MS = 60_000L
+        const val RING_PERIOD_MS = 4_000L
+
+        /** The server's call page; everything after # stays on the phone (it is never sent over the network). */
+        fun callPageUrl(link: ServerLink, vararg params: Pair<String, String>): String =
+            link.serverUrl + "/call.html#" + (listOf("t" to link.token) + params).joinToString("&") { (k, v) ->
+                k + "=" + java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+            }
 
         /** [known] and [newer] by id, without repeats, oldest first. */
         fun merge(known: List<ChatMessage>, newer: List<ChatMessage>): List<ChatMessage> =

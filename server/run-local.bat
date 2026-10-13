@@ -15,6 +15,9 @@ set NATIONAL_ID_PEPPER=local-test-only-pepper-local-test-only-pepper
 set ADMIN_MOBILE=09120000000
 set ADMIN_PASSWORD=admin12345
 set ADMIN_NAME=Admin
+rem Calls: the built-in relay (TURN) needs this computer's public address; on a home network it stays off.
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' } | Select-Object -First 1).IPAddress"`) do set TURN_PUBLIC_IP=%%i
+if defined TURN_PUBLIC_IP echo Calls relay on %TURN_PUBLIC_IP% (UDP/TCP 3478 and UDP 49160-49200 must be open: open-firewall.bat)
 
 echo.
 echo Panel on this computer: http://localhost:8090   (admin: 09120000000 / admin12345)

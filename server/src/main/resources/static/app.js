@@ -319,7 +319,7 @@ async function patientView(id) {
                 fact("اتصال به شما", when(p.linkedAtEpochMs)),
             ),
         ),
-        chatSection("/doctor/patients/" + id, true, "گفتگو با بیمار"),
+        chatSection("/doctor/patients/" + id, true, "گفتگو با بیمار", { id: p.id, name: p.firstName + " " + p.lastName }),
         analysisSection(analysis),
         notesSection(id, notes),
         resultsSection(results, "هنوز نتیجه‌ای از این بیمار نرسیده است."),
@@ -456,14 +456,14 @@ function patientChats(conversations) {
         }, x.doctorName, x.unread && x !== c ? [" ", h("span", { class: "badge new" }, fa(x.unread))] : null)));
         c.unread = 0;
         leavePage();
-        holder.replaceChildren(chatSection("/patient/doctors/" + c.doctorId, false, "گفتگو با " + c.doctorName));
+        holder.replaceChildren(chatSection("/patient/doctors/" + c.doctorId, false, "گفتگو با " + c.doctorName, { id: c.doctorId, name: c.doctorName }));
     };
     open(conversations.find((c) => c.unread) || conversations[0]);
     return h("div", {}, conversations.length > 1 ? h("section", { class: "card" }, h("h2", {}, "پزشکان شما"), chips) : null, holder);
 }
 
-/** A conversation at [base] (…/messages under it), written as the doctor when [asDoctor]. */
-function chatSection(base, asDoctor, title) {
+/** A conversation at [base] (…/messages under it), written as the doctor when [asDoctor]; [peer] can be called. */
+function chatSection(base, asDoctor, title, peer) {
     const list = h("div", { class: "chat-list", "aria-live": "polite" });
     const status = h("p", { class: "error", hidden: true });
     let lastId = 0;
@@ -515,7 +515,11 @@ function chatSection(base, asDoctor, title) {
     leavePage = () => { previous(); stopped = true; clearInterval(timer); };
     list.append(h("p", { class: "muted" }, "در حال بارگذاری…"));
     refresh(true);
-    return h("section", { class: "card chat" }, h("h2", {}, title), list, status, composer);
+    const callButtons = peer && Calls.supported ? h("div", { class: "call-buttons" },
+        h("button", { type: "button", class: "secondary", onclick: () => Calls.start(peer.id, peer.name, false) }, "📞 تماس صوتی"),
+        h("button", { type: "button", class: "secondary", onclick: () => Calls.start(peer.id, peer.name, true) }, "🎥 تماس تصویری"),
+    ) : null;
+    return h("section", { class: "card chat" }, h("div", { class: "row" }, h("h2", {}, title), callButtons), list, status, composer);
 }
 
 /** A button that records a voice message with the microphone and sends it. */
@@ -668,6 +672,8 @@ function route() {
     leavePage();
     leavePage = () => {};
     const user = session.user;
+    // Calls can ring on any page of a doctor's or a patient's panel.
+    if (user && user.role !== "ADMIN" && Calls.supported) Calls.connect(session.token); else Calls.disconnect();
     const nav = document.getElementById("nav");
     nav.hidden = !user;
     document.getElementById("who").textContent = user ? user.fullName : "";
@@ -682,5 +688,5 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
-document.getElementById("logout").addEventListener("click", () => { session.clear(); location.hash = "#login"; route(); });
+document.getElementById("logout").addEventListener("click", () => { Calls.disconnect(); session.clear(); location.hash = "#login"; route(); });
 route();

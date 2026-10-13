@@ -37,6 +37,7 @@ dependencies {
     implementation("io.ktor:ktor-server-default-headers:$ktor")
     implementation("io.ktor:ktor-server-forwarded-header:$ktor")
     implementation("io.ktor:ktor-server-call-logging:$ktor")
+    implementation("io.ktor:ktor-server-websockets:$ktor")
 
     implementation("org.postgresql:postgresql:42.7.7")
     implementation("com.zaxxer:HikariCP:6.3.0")

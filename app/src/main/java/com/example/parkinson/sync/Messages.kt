@@ -20,6 +20,9 @@ data class ChatMessage(
 /** One of the person's doctors on the server, with what is unread from them. */
 data class Conversation(val doctorId: Long, val doctorName: String, val unread: Int, val lastMessageEpochMs: Long?)
 
+/** A call from a doctor ringing for the person ([video] or voice only). */
+data class IncomingCall(val callId: String, val doctorId: Long, val doctorName: String, val video: Boolean)
+
 /** Messages with the doctors of one linked person, with that person's phone token. */
 interface MessagesApi {
     suspend fun conversations(serverUrl: String, token: String): List<Conversation>
@@ -36,6 +39,11 @@ interface MessagesApi {
     suspend fun sendVoice(serverUrl: String, token: String, doctorId: Long, audio: ByteArray, durationMs: Int): ChatMessage
 
     suspend fun audio(serverUrl: String, token: String, doctorId: Long, messageId: Long): ByteArray
+
+    /** Calls ringing for the person now. */
+    suspend fun ringing(serverUrl: String, token: String): List<IncomingCall>
+
+    suspend fun declineCall(serverUrl: String, token: String, callId: String)
 }
 
 class HttpMessagesApi : MessagesApi {
@@ -66,6 +74,13 @@ class HttpMessagesApi : MessagesApi {
 
     override suspend fun audio(serverUrl: String, token: String, doctorId: Long, messageId: Long): ByteArray =
         Http.request("GET", base(serverUrl, doctorId) + "/messages/$messageId/audio", token)
+
+    override suspend fun ringing(serverUrl: String, token: String): List<IncomingCall> =
+        parse { MessagesJson.calls(JSONArray(get("$serverUrl/api/device/calls", token))) }
+
+    override suspend fun declineCall(serverUrl: String, token: String, callId: String) {
+        Http.request("POST", "$serverUrl/api/device/calls/${java.net.URLEncoder.encode(callId, "UTF-8")}/decline", token)
+    }
 
     private fun base(serverUrl: String, doctorId: Long) = "$serverUrl/api/device/doctors/$doctorId"
 
@@ -101,6 +116,11 @@ object MessagesJson {
         )
     }
 
+    fun calls(array: JSONArray): List<IncomingCall> = List(array.length()) {
+        val json = array.getJSONObject(it)
+        IncomingCall(json.getString("callId"), json.getLong("doctorId"), json.getString("doctorName"), json.optBoolean("video"))
+    }
+
     // isNull is also true for a missing key: the server leaves out fields that are null.
     private fun JSONObject.optStringOrNull(key: String): String? = if (isNull(key)) null else getString(key)
 }
@@ -117,4 +137,6 @@ class SwitchableMessagesApi(var target: MessagesApi) : MessagesApi {
         target.sendVoice(serverUrl, token, doctorId, audio, durationMs)
     override suspend fun audio(serverUrl: String, token: String, doctorId: Long, messageId: Long) =
         target.audio(serverUrl, token, doctorId, messageId)
+    override suspend fun ringing(serverUrl: String, token: String) = target.ringing(serverUrl, token)
+    override suspend fun declineCall(serverUrl: String, token: String, callId: String) = target.declineCall(serverUrl, token, callId)
 }

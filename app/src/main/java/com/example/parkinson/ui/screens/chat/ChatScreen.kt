@@ -58,7 +58,7 @@ import kotlinx.coroutines.delay
 
 /** Text and voice messages between the active person and their doctor. */
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, state: ChatState) {
+fun ChatScreen(viewModel: ChatViewModel, state: ChatState, onCall: (video: Boolean) -> Unit = {}) {
     LaunchedEffect(viewModel) { viewModel.watchChat() }
     DisposableEffect(viewModel) { onDispose { viewModel.leave() } }
 
@@ -73,6 +73,12 @@ fun ChatScreen(viewModel: ChatViewModel, state: ChatState) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() }
         )
+        if (state.doctorId != null && !state.recording) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onCall(false) }) { Text(stringResource(R.string.call_voice)) }
+                OutlinedButton(onClick = { onCall(true) }) { Text(stringResource(R.string.call_video)) }
+            }
+        }
         val conversations = state.conversations
         if (conversations != null && conversations.size > 1) {
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

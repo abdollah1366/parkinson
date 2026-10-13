@@ -1224,4 +1224,10 @@
     <string name="chat_err_too_large">پیام صوتی بیش از حد طولانی است.</string>
     <string name="chat_err_voice">صدای ضبط‌شده خوانده نشد. دوباره ضبط کنید.</string>
     <string name="chat_err_rate">پیام‌ها پشت سر هم فرستاده شد. کمی صبر کنید.</string>
+    <string name="call_voice">📞 تماس صوتی</string>
+    <string name="call_video">🎥 تماس تصویری</string>
+    <string name="call_incoming_voice">%1$s تماس صوتی می‌گیرد</string>
+    <string name="call_incoming_video">%1$s تماس تصویری می‌گیرد</string>
+    <string name="call_answer">پاسخ</string>
+    <string name="call_decline">رد</string>
 </resources>

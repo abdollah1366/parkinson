@@ -6,6 +6,8 @@ class FakeMessagesApi(private val doctors: Map<Long, String> = mapOf(7L to "دک
     val voices = mutableMapOf<Long, ByteArray>()
     val readBy = mutableListOf<Long>()
     var failWith: String? = null
+    val rings = mutableListOf<IncomingCall>()
+    val declined = mutableListOf<String>()
     private var nextId = 1L
 
     private fun maybeFail() {
@@ -53,5 +55,16 @@ class FakeMessagesApi(private val doctors: Map<Long, String> = mapOf(7L to "دک
     override suspend fun audio(serverUrl: String, token: String, doctorId: Long, messageId: Long): ByteArray {
         maybeFail()
         return voices[messageId] ?: throw ServerException("not_found", 404)
+    }
+
+    override suspend fun ringing(serverUrl: String, token: String): List<IncomingCall> {
+        maybeFail()
+        return rings.toList()
+    }
+
+    override suspend fun declineCall(serverUrl: String, token: String, callId: String) {
+        maybeFail()
+        declined += callId
+        rings.removeAll { it.callId == callId }
     }
 }
