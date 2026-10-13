@@ -26,6 +26,8 @@ data class Config(
     val turnRelayPorts: IntRange = 49160..49200,
     /** Signs the relay's time-limited passwords; derived from [jwtSecret] when not set. */
     val turnSecret: String? = null,
+    /** Where the clinic is: the times of day in prescriptions are read in this zone. */
+    val zone: java.time.ZoneId = java.time.ZoneId.of("Asia/Tehran"),
 ) {
     init {
         require(jwtSecret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
@@ -55,6 +57,7 @@ data class Config(
                 turnPort = env["TURN_PORT"]?.toIntOrNull() ?: 3478,
                 turnRelayPorts = env["TURN_RELAY_PORTS"]?.let(::portRange) ?: 49160..49200,
                 turnSecret = env["TURN_SECRET"]?.takeIf { it.isNotBlank() },
+                zone = env["CLINIC_TIME_ZONE"]?.takeIf { it.isNotBlank() }?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.of("Asia/Tehran"),
             )
         }
     }

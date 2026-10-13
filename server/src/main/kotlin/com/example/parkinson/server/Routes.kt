@@ -187,6 +187,18 @@ private fun Route.doctorRoutes(services: Services) {
             doctor.id to id
         }
     }
+    doctorPrescriptionRoutes(services) {
+        val doctor = staff(Role.DOCTOR)
+        val id = parameters["id"]?.toLongOrNull() ?: notFound()
+        if (!io { services.patients.isLinked(doctor.id, id) }) notFound()
+        doctor.id to id
+    }
+    post("/prescriptions/{prescriptionId}/stop") {
+        val doctor = call.staff(Role.DOCTOR)
+        val id = call.parameters["prescriptionId"]?.toLongOrNull() ?: notFound()
+        if (!io { services.prescriptions.stop(doctor.id, id) }) notFound()
+        call.respond(HttpStatusCode.NoContent)
+    }
     delete("/notes/{noteId}") {
         val doctor = call.staff(Role.DOCTOR)
         val noteId = call.parameters["noteId"]?.toLongOrNull() ?: notFound()
@@ -217,6 +229,9 @@ private fun Route.patientRoutes(services: Services) {
     }
     get("/conversations") {
         call.respond(io { services.messages.conversationsOf(call.patient()) })
+    }
+    get("/prescriptions") {
+        call.respond(io { services.prescriptions.ofPatient(call.patient(), activeOnly = true) })
     }
     route("/doctors/{doctorId}") {
         conversationRoutes(services, fromDoctor = false) { patientConversation(services, patient()) }
@@ -269,6 +284,15 @@ private fun Route.deviceRoutes(services: Services) {
         }
         route("/doctors/{doctorId}") {
             conversationRoutes(services, fromDoctor = false) { patientConversation(services, device().patientId) }
+        }
+        get("/prescriptions") {
+            call.respond(io { services.prescriptions.ofPatient(call.device().patientId, activeOnly = true) })
+        }
+        post("/intakes") {
+            val device = call.device()
+            val upload = call.receive<IntakesUpload>()
+            if (upload.intakes.size > 500) badRequest("too_many")
+            call.respond(mapOf("stored" to io { services.prescriptions.record(device.patientId, upload.intakes) }))
         }
         get("/calls") {
             call.respond(services.calls.ringingFor(call.device().patientId))
