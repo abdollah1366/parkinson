@@ -10,6 +10,8 @@ const Calls = (() => {
         ringing: (name, video) => name + (video ? " تماس تصویری می‌گیرد" : " تماس صوتی می‌گیرد"),
         connecting: "در حال برقراری ارتباط…",
         accept: "پاسخ", decline: "رد", hangup: "قطع تماس",
+        denied: "مرورگر اجازه‌ی میکروفون و دوربین را نداد؛ تماس برقرار می‌شود ولی طرف مقابل صدای شما را نمی‌شنود. برای دادن اجازه، روی نماد قفل کنار نشانی سایت بزنید و میکروفون و دوربین را روی «Allow» بگذارید، بعد صفحه را تازه کنید.",
+        noDevices: "این دستگاه میکروفون یا دوربین ندارد؛ تماس برقرار می‌شود ولی طرف مقابل صدای شما را نمی‌شنود. با گوشی یا لپ‌تاپ دارای میکروفون از همین پنل وارد شوید.",
         mute: "بی‌صدا", unmute: "صدادار", cameraOff: "خاموش کردن دوربین", cameraOn: "روشن کردن دوربین",
         ended: {
             hangup: "تماس تمام شد.", declined: "تماس رد شد.", no_answer: "پاسخی نداد.", busy: "مخاطب در تماس دیگری است.",
@@ -98,10 +100,9 @@ const Calls = (() => {
         if (call || !ws || ws.readyState !== 1) { if (!call) notice(TEXT.ended.offline); return; }
         call = { id: null, peerName, video, outgoing: true, pendingCandidates: [], state: "calling" };
         showCall(TEXT.calling(peerName, video));
-        try {
-            call.local = await navigator.mediaDevices.getUserMedia(constraints(video));
-        } catch (e) { return finish("media"); }
-        if (!call) return stopTracks();
+        const local = await getMedia(video);
+        if (!call) return stopTracks(local);
+        call.local = local;
         attachLocal();
         send({ type: "call", to: toId, video });
     }
@@ -113,12 +114,7 @@ const Calls = (() => {
         hideRing();
         call = { id: callId, peerName: ring.from.name, video: ring.video, outgoing: false, pendingCandidates: [], state: "connecting" };
         showCall(TEXT.connecting);
-        try {
-            call.local = await navigator.mediaDevices.getUserMedia(constraints(ring.video));
-        } catch (e) {
-            send({ type: "decline", callId });
-            return finish("media");
-        }
+        call.local = await getMedia(ring.video);
         attachLocal();
         startMedia(false);
         send({ type: "accept", callId });
@@ -136,6 +132,22 @@ const Calls = (() => {
         finish("hangup", true);
     }
 
+    /**
+     * The microphone and, for a video call, the camera. A computer without them (for example a server used over
+     * Remote Desktop) or a browser that was refused them still joins the call: it then only sees and hears the other side.
+     */
+    async function getMedia(video) {
+        const md = navigator.mediaDevices;
+        let lastError = null;
+        for (const want of video ? [true, false] : [false]) {
+            try { return await md.getUserMedia(constraints(want)); } catch (e) { lastError = e; }
+        }
+        // No microphone either: try the camera alone, then nothing.
+        if (video) { try { return await md.getUserMedia({ audio: false, video: constraints(true).video }); } catch (e) { /* none */ } }
+        notice(lastError && lastError.name === "NotAllowedError" ? TEXT.denied : TEXT.noDevices, 9000);
+        return new MediaStream();
+    }
+
     function constraints(video) {
         return { audio: { echoCancellation: true, noiseSuppression: true }, video: video ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false };
     }
@@ -149,10 +161,19 @@ const Calls = (() => {
         const pc = new RTCPeerConnection({ iceServers });
         c.pc = pc;
         c.local.getTracks().forEach((t) => pc.addTrack(t, c.local));
+        // Still receive what this side cannot send (no microphone or camera here).
+        if (makeOffer) {
+            if (c.local.getAudioTracks().length === 0) pc.addTransceiver("audio", { direction: "recvonly" });
+            if (c.video && c.local.getVideoTracks().length === 0) pc.addTransceiver("video", { direction: "recvonly" });
+        }
         pc.onicecandidate = (e) => { if (e.candidate) send({ type: "signal", callId: c.id, data: { candidate: e.candidate.toJSON() } }); };
         pc.ontrack = (e) => {
             const remote = c.ui && c.ui.remote;
-            if (remote && remote.srcObject !== e.streams[0]) { remote.srcObject = e.streams[0]; remote.play().catch(() => {}); }
+            if (!remote) return;
+            const stream = e.streams[0] || remote.srcObject || new MediaStream();
+            if (!e.streams[0]) stream.addTrack(e.track);
+            if (remote.srcObject !== stream) { remote.srcObject = stream; }
+            remote.play().catch(() => {});
         };
         pc.onconnectionstatechange = () => {
             if (call !== c) return;
@@ -304,10 +325,10 @@ const Calls = (() => {
 
     function setStatus(text) { if (call && call.ui) call.ui.status.textContent = text; }
 
-    function notice(text) {
+    function notice(text, ms = 4000) {
         const n = el("div", { class: "call-notice", role: "status" }, text);
         document.body.append(n);
-        setTimeout(() => n.remove(), 4000);
+        setTimeout(() => n.remove(), ms);
     }
 
     return {
