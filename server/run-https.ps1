@@ -1,6 +1,7 @@
 # Puts HTTPS in front of the test server (run-local.bat, port 8090) on a computer with a public IP and no domain.
-# Uses Caddy and the free name <ip-with-dashes>.traefik.me (sslip.io is blocked in Iran); Caddy gets a Let's Encrypt
-# certificate by itself. Set HTTPS_NAME_SUFFIX (for example sslip.io or nip.io) to use another such service.
+# Uses Caddy with a Let's Encrypt certificate for the IP address itself (short-lived, renewed by Caddy), so no name
+# service is needed: sslip.io is blocked in Iran and traefik.me hits Let's Encrypt's shared weekly limit.
+# Set HTTPS_NAME_SUFFIX (for example nip.io) to use a <ip-with-dashes>.<suffix> name instead.
 # Needs TCP ports 80 and 443 open to the internet (open-firewall.bat) and nothing else listening on them.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -25,8 +26,16 @@ $ip = Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' } |
     Select-Object -First 1 -ExpandProperty IPAddress
 if (-not $ip) { $ip = Read-Host 'Public IP address of this computer (for example 82.115.17.7)' }
-$suffix = if ($env:HTTPS_NAME_SUFFIX) { $env:HTTPS_NAME_SUFFIX } else { 'traefik.me' }
-$site = ($ip -replace '\.', '-') + '.' + $suffix
+if ($env:HTTPS_NAME_SUFFIX) {
+    $site = ($ip -replace '\.', '-') + '.' + $env:HTTPS_NAME_SUFFIX
+    $tls = ''
+} else {
+    $site = $ip
+    # Let's Encrypt issues IP address certificates only with its short-lived profile.
+    $tls = "    tls {`r`n        issuer acme {`r`n            profile shortlived`r`n        }`r`n    }`r`n"
+}
+$config = Join-Path $PSScriptRoot 'tools\Caddyfile'
+Set-Content -Path $config -Encoding Ascii -Value "https://$site {`r`n$tls    reverse_proxy 127.0.0.1:8090`r`n}"
 
 # A Caddy left over from an earlier run (for example an older address) holds ports 80 and 443; stop it first.
 Get-Process -Name caddy -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -42,4 +51,4 @@ Write-Host ''
 Write-Host "Server address for the phone and the browser:  https://$site" -ForegroundColor Green
 Write-Host 'Keep this window and the run-local.bat window open.'
 Write-Host ''
-& $caddy reverse-proxy --from $site --to 127.0.0.1:8090
+& $caddy run --config $config --adapter caddyfile
