@@ -76,6 +76,10 @@ fun HomeScreen(
     pendingToDoctor: Int = 0,
     /** Opens the connection to the doctor (connect, or send and disconnect). */
     onOpenServerLink: () -> Unit = {},
+    /** Unread messages from the doctor. */
+    unreadFromDoctor: Int = 0,
+    /** Opens the messages with the doctor (shown only while connected). */
+    onOpenMessages: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -107,7 +111,7 @@ fun HomeScreen(
         if (profile is Loadable.Loaded) {
             ProfileCard(
                 profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication,
-                doctorName, pendingToDoctor, onOpenServerLink,
+                doctorName, pendingToDoctor, onOpenServerLink, unreadFromDoctor, onOpenMessages,
             )
         }
 
@@ -331,6 +335,8 @@ private fun ProfileCard(
     doctorName: String?,
     pendingToDoctor: Int,
     onOpenServerLink: () -> Unit,
+    unreadFromDoctor: Int,
+    onOpenMessages: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -391,6 +397,15 @@ private fun ProfileCard(
                             else -> stringResource(R.string.link_title)
                         }
                     )
+                }
+                if (doctorName != null) {
+                    if (unreadFromDoctor > 0) {
+                        Button(onClick = onOpenMessages, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.home_messages_unread, unreadFromDoctor.toPersianDigits()))
+                        }
+                    } else {
+                        TextButton(onClick = onOpenMessages) { Text(stringResource(R.string.home_messages)) }
+                    }
                 }
             }
         }

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performTextInput
 import com.example.parkinson.MainActivity
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.profile.ProfileValidationTest
+import com.example.parkinson.sync.FakeMessagesApi
 import com.example.parkinson.sync.FakeServerApi
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -29,10 +30,12 @@ class ServerLinkFlowTest {
 
     private val app get() = RuntimeEnvironment.getApplication() as ParkinsonApplication
     private val api = FakeServerApi(doctorName = "دکتر نمونه")
+    private val messages = FakeMessagesApi(mapOf(7L to "دکتر نمونه"))
 
     @Before
     fun registered() {
         app.serverApi = api
+        app.messagesApi.target = messages
         runBlocking { app.profileRepository.save(ProfileValidationTest.sample()) }
     }
 
@@ -74,5 +77,27 @@ class ServerLinkFlowTest {
         waitFor("کد دعوت")
         assertEquals(listOf("token-1"), api.revoked)
         assertTrue(app.resultSync.links.value.isEmpty())
+    }
+
+    @Test
+    fun aMessageFromTheDoctorShowsOnHomeAndCanBeAnswered() {
+        messages.fromDoctor(7L, "سلام، داروها را مرتب بخورید")
+        waitFor("به پایش حرکتی خوش آمدید")
+        click("شروع")
+        click("اتصال به پزشک")
+        rule.onNodeWithText("نشانی سرور پزشک").performTextInput("panel.example.ir")
+        rule.onNodeWithText("کد دعوت").performTextInput("abcd-2345")
+        click("موافقم که این اطلاعات برای پزشکم فرستاده و روی سرور او نگه‌داری شود.")
+        click("اتصال")
+        waitFor("وصل است", substring = true)
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+
+        click("پیام به پزشک (۱ پیام تازه)")
+        waitFor("سلام، داروها را مرتب بخورید")
+        assertEquals(listOf(7L), messages.readBy)
+        rule.onNodeWithText("پیام شما").performTextInput("چشم، ممنون")
+        click("بفرست")
+        waitFor("چشم، ممنون")
+        assertEquals(listOf("سلام، داروها را مرتب بخورید", "چشم، ممنون"), messages.messages.getValue(7L).map { it.text })
     }
 }

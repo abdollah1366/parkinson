@@ -65,7 +65,18 @@ class HttpServerApi : ServerApi {
         call("PUT", "$serverUrl/api/device/web-password", token, JSONObject().put("password", password))
     }
 
-    private suspend fun call(method: String, url: String, token: String?, body: JSONObject?): JSONObject? =
+    private suspend fun call(method: String, url: String, token: String?, body: JSONObject?): JSONObject? {
+        val bytes = Http.request(method, url, token, body?.let { Http.JSON to it.toString().toByteArray() })
+        return bytes.takeIf { it.isNotEmpty() }?.let { runCatching { JSONObject(String(it)) }.getOrNull() }
+    }
+}
+
+/** One request to a doctor's server; a refusal becomes a [ServerException] with the server's error code. */
+internal object Http {
+    const val JSON = "application/json; charset=utf-8"
+
+    /** Sends [body] (its content type and bytes) and returns the response body. */
+    suspend fun request(method: String, url: String, token: String?, body: Pair<String, ByteArray>? = null): ByteArray =
         withContext(Dispatchers.IO) {
             val connection = try {
                 URL(url).openConnection() as HttpURLConnection
@@ -80,19 +91,20 @@ class HttpServerApi : ServerApi {
                 token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
                 if (body != null) {
                     connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    connection.outputStream.use { it.write(body.toString().toByteArray()) }
+                    connection.setRequestProperty("Content-Type", body.first)
+                    connection.setFixedLengthStreamingMode(body.second.size)
+                    connection.outputStream.use { it.write(body.second) }
                 }
                 val status = connection.responseCode
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val json = text.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
+                val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
                 if (status !in 200..299) {
+                    val json = runCatching { JSONObject(String(bytes)) }.getOrNull()
                     val code = json?.optString("error")?.takeIf { it.isNotEmpty() }
                         ?: if (status == 401) ServerException.UNAUTHORIZED else "http_$status"
                     throw ServerException(code, status)
                 }
-                json
+                bytes
             } catch (e: IOException) {
                 throw ServerException(ServerException.NETWORK)
             } finally {

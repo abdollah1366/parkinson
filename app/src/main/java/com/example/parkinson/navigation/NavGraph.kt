@@ -79,6 +79,8 @@ import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.ProfileViewModel
 import com.example.parkinson.viewmodel.ServerLinkViewModel
+import com.example.parkinson.viewmodel.ChatViewModel
+import com.example.parkinson.ui.screens.chat.ChatScreen
 import com.example.parkinson.ui.screens.link.ServerLinkScreen
 import com.example.parkinson.ui.screens.patients.PatientsScreen
 import com.example.parkinson.ui.screens.profile.RegistrationScreen
@@ -129,6 +131,7 @@ fun ParkinsonNavGraph(
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory),
     serverLinkViewModel: ServerLinkViewModel = viewModel(factory = ServerLinkViewModel.Factory),
+    chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory),
 ) {
     val context = LocalContext.current
     val capabilities: DeviceCapabilities = remember {
@@ -262,6 +265,9 @@ fun ParkinsonNavGraph(
             val registeredCount = (people as? Loadable.Loaded)?.value?.size ?: 0
             val medication by profileViewModel.medication.collectAsState()
             val doctor by serverLinkViewModel.state.collectAsState()
+            val unreadFromDoctor by chatViewModel.unread.collectAsState()
+            // Checks for new messages from the doctor while Home is shown (only when this person is connected).
+            LaunchedEffect(doctor?.profile?.id, doctor?.link) { chatViewModel.watchUnread() }
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
@@ -283,6 +289,8 @@ fun ParkinsonNavGraph(
                     serverLinkViewModel.clearAction()
                     navController.navigate(Screen.ServerLink.route) { launchSingleTop = true }
                 },
+                unreadFromDoctor = unreadFromDoctor,
+                onOpenMessages = { navController.navigate(Screen.Chat.route) { launchSingleTop = true } },
                 onStartAssessmentClicked = {
                     // Results must belong to someone: with several people and none chosen, choose first. Someone who
                     // takes medication is asked how it is working, unless they answered in the last two hours.
@@ -296,6 +304,11 @@ fun ParkinsonNavGraph(
                     }
                 }
             )
+        }
+
+        composable(Screen.Chat.route) {
+            val state by chatViewModel.state.collectAsState()
+            ChatScreen(chatViewModel, state)
         }
 
         composable(Screen.ServerLink.route) {

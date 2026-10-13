@@ -22,7 +22,9 @@ import com.example.parkinson.profile.PrefsActiveProfileStore
 import com.example.parkinson.norms.ReferenceNorms
 import com.example.parkinson.tremor.RestingTremorDiagnostics
 import com.example.parkinson.data.ResultRowReader
+import com.example.parkinson.sync.HttpMessagesApi
 import com.example.parkinson.sync.HttpServerApi
+import com.example.parkinson.sync.SwitchableMessagesApi
 import com.example.parkinson.sync.PrefsServerLinkStore
 import com.example.parkinson.sync.ResultSync
 import com.example.parkinson.sync.ServerApi
@@ -64,6 +66,9 @@ class ParkinsonApplication : Application() {
 
     /** The doctors' servers; tests replace it before anything is sent. */
     var serverApi: ServerApi = HttpServerApi()
+
+    /** Messages with the doctor; tests replace its target with a fake server. */
+    val messagesApi = SwitchableMessagesApi(HttpMessagesApi())
 
     private val serverLinks: ServerLinkStore by lazy { PrefsServerLinkStore(this) }
 

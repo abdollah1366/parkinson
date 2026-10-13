@@ -1203,4 +1203,25 @@
     <string name="home_link_doctor">اتصال به پزشک</string>
     <string name="home_link_line">نتیجه‌ها برای %1$s فرستاده می‌شود</string>
     <string name="home_link_pending">ارسال به پزشک (%1$s مانده)</string>
+    <string name="home_messages">پیام به پزشک</string>
+    <string name="home_messages_unread">پیام به پزشک (%1$s پیام تازه)</string>
+    <string name="chat_title">پیام به پزشک</string>
+    <string name="chat_title_with">گفتگو با %1$s</string>
+    <string name="chat_no_doctor">هنوز به پزشکی وصل نیستید.</string>
+    <string name="chat_empty">هنوز پیامی نیست. پیامتان را بنویسید یا با دکمه‌ی ضبط صدا بگویید.</string>
+    <string name="chat_from_doctor">پزشک</string>
+    <string name="chat_read">خوانده شد</string>
+    <string name="chat_hint">پیام شما</string>
+    <string name="chat_send">بفرست</string>
+    <string name="chat_sending">در حال ارسال…</string>
+    <string name="chat_record">ضبط صدا</string>
+    <string name="chat_recording">در حال ضبط… %1$s (حداکثر ۳ دقیقه)</string>
+    <string name="chat_record_send">پایان و ارسال</string>
+    <string name="chat_record_cancel">لغو</string>
+    <string name="chat_voice_play">▶ پیام صوتی %1$s</string>
+    <string name="chat_voice_stop">■ توقف %1$s</string>
+    <string name="chat_err_mic">میکروفون باز نشد. اجازه‌ی میکروفون را در تنظیمات گوشی بدهید.</string>
+    <string name="chat_err_too_large">پیام صوتی بیش از حد طولانی است.</string>
+    <string name="chat_err_voice">صدای ضبط‌شده خوانده نشد. دوباره ضبط کنید.</string>
+    <string name="chat_err_rate">پیام‌ها پشت سر هم فرستاده شد. کمی صبر کنید.</string>
 </resources>
