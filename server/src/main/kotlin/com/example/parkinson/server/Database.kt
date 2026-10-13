@@ -30,18 +30,16 @@ object Database {
     /**
      * Starts a PostgreSQL that keeps its files in [dataDir] (kept between runs) and stops with the server; returns the
      * JDBC URL of its "parkinson" database. For testing on a PC only: it listens on 127.0.0.1 and has no password.
+     * The port is a free one picked on each start; a fixed port can fall in a range Windows reserves (bind fails).
      */
     fun startEmbedded(dataDir: String): String {
         val postgres = EmbeddedPostgres.builder()
             .setDataDirectory(Path.of(dataDir).toAbsolutePath())
             .setCleanDataDirectory(false)
-            .setPort(EMBEDDED_PORT)
             .start()
         Runtime.getRuntime().addShutdownHook(Thread { postgres.close() })
         return postgres.getJdbcUrl("postgres", "parkinson")
     }
-
-    private const val EMBEDDED_PORT = 55433
 
     /**
      * Creates the database named in [url] when it does not exist yet (a fresh PostgreSQL on a test computer), by
