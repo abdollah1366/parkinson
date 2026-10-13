@@ -1,5 +1,6 @@
 # Puts HTTPS in front of the test server (run-local.bat, port 8090) on a computer with a public IP and no domain.
-# Uses Caddy and the free name <ip-with-dashes>.sslip.io; Caddy gets a Let's Encrypt certificate by itself.
+# Uses Caddy and the free name <ip-with-dashes>.traefik.me (sslip.io is blocked in Iran); Caddy gets a Let's Encrypt
+# certificate by itself. Set HTTPS_NAME_SUFFIX (for example sslip.io or nip.io) to use another such service.
 # Needs TCP ports 80 and 443 open to the internet (open-firewall.bat) and nothing else listening on them.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -24,7 +25,8 @@ $ip = Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' } |
     Select-Object -First 1 -ExpandProperty IPAddress
 if (-not $ip) { $ip = Read-Host 'Public IP address of this computer (for example 82.115.17.7)' }
-$site = ($ip -replace '\.', '-') + '.sslip.io'
+$suffix = if ($env:HTTPS_NAME_SUFFIX) { $env:HTTPS_NAME_SUFFIX } else { 'traefik.me' }
+$site = ($ip -replace '\.', '-') + '.' + $suffix
 
 foreach ($port in 80, 443) {
     if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
