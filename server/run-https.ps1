@@ -28,6 +28,10 @@ if (-not $ip) { $ip = Read-Host 'Public IP address of this computer (for example
 $suffix = if ($env:HTTPS_NAME_SUFFIX) { $env:HTTPS_NAME_SUFFIX } else { 'traefik.me' }
 $site = ($ip -replace '\.', '-') + '.' + $suffix
 
+# A Caddy left over from an earlier run (for example an older address) holds ports 80 and 443; stop it first.
+Get-Process -Name caddy -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 1
+
 foreach ($port in 80, 443) {
     if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
         Write-Host "Port $port is already used by another program (for example Apache in XAMPP). Stop it first." -ForegroundColor Yellow
