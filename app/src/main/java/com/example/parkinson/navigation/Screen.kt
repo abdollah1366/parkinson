@@ -140,6 +140,7 @@ sealed class Screen(val route: String) {
     object ServerLink : Screen("server_link")
     object Chat : Screen("chat")
     object Call : Screen("call")
+    object Plan : Screen("plan")
 
     object DualTaskIntro : Screen("dual_task_intro")
     object DualTaskTest : Screen("dual_task_test")

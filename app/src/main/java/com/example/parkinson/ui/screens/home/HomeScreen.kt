@@ -80,6 +80,10 @@ fun HomeScreen(
     unreadFromDoctor: Int = 0,
     /** Opens the messages with the doctor (shown only while connected). */
     onOpenMessages: () -> Unit = {},
+    /** Today's doses not marked yet; null when the person has no treatment plan from a doctor. */
+    planDosesLeft: Int? = null,
+    /** Opens today's treatment plan. */
+    onOpenPlan: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -111,7 +115,7 @@ fun HomeScreen(
         if (profile is Loadable.Loaded) {
             ProfileCard(
                 profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication,
-                doctorName, pendingToDoctor, onOpenServerLink, unreadFromDoctor, onOpenMessages,
+                doctorName, pendingToDoctor, onOpenServerLink, unreadFromDoctor, onOpenMessages, planDosesLeft, onOpenPlan,
             )
         }
 
@@ -337,6 +341,8 @@ private fun ProfileCard(
     onOpenServerLink: () -> Unit,
     unreadFromDoctor: Int,
     onOpenMessages: () -> Unit,
+    planDosesLeft: Int?,
+    onOpenPlan: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -405,6 +411,14 @@ private fun ProfileCard(
                         }
                     } else {
                         TextButton(onClick = onOpenMessages) { Text(stringResource(R.string.home_messages)) }
+                    }
+                }
+                if (planDosesLeft != null) {
+                    TextButton(onClick = onOpenPlan) {
+                        Text(
+                            if (planDosesLeft > 0) stringResource(R.string.home_plan_due, planDosesLeft.toPersianDigits())
+                            else stringResource(R.string.home_plan)
+                        )
                     }
                 }
             }
