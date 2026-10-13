@@ -21,6 +21,7 @@ const val DEVICE = "device"
 const val PATIENT = "patient"
 val LOGIN_LIMIT = RateLimitName("login")
 val LINK_LIMIT = RateLimitName("link")
+val MESSAGE_LIMIT = RateLimitName("message")
 
 /** A logged-in doctor or admin, re-read from the database on every request so a disabled account stops at once. */
 data class StaffPrincipal(val user: UserDto)
@@ -72,6 +73,11 @@ fun Application.installSecurity(services: Services) {
         register(LINK_LIMIT) {
             rateLimiter(limit = 10, refillPeriod = 1.minutes)
             requestKey { it.request.origin.remoteHost }
+        }
+        // Per sender (their token), so one noisy account cannot slow everyone else behind the same proxy.
+        register(MESSAGE_LIMIT) {
+            rateLimiter(limit = 60, refillPeriod = 1.minutes)
+            requestKey { it.request.headers["Authorization"] ?: it.request.origin.remoteHost }
         }
     }
 }

@@ -73,6 +73,8 @@ data class PatientSummary(
     val lastResultEpochMs: Long? = null,
     /** Some test has dropped clearly since the first results (see [Analysis]). */
     val attention: Boolean = false,
+    /** Messages from the patient the doctor has not opened yet. */
+    val unreadMessages: Int = 0,
 )
 
 @Serializable

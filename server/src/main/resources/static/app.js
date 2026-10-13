@@ -31,6 +31,10 @@ const ERRORS = {
     server_error: "خطای سرور. دوباره امتحان کنید.",
     network: "ارتباط با سرور برقرار نشد.",
     invalid_note: "متن یادداشت را بنویسید.",
+    invalid_message: "متن پیام را بنویسید (حداکثر ۴۰۰۰ نویسه).",
+    invalid_voice: "صدای ضبط‌شده خوانده نشد. دوباره ضبط کنید.",
+    too_large: "پیام صوتی بیش از حد طولانی است (حداکثر ۳ دقیقه).",
+    rate_limited: "پیام‌ها خیلی پشت سر هم فرستاده شد. کمی صبر کنید.",
 };
 const PATIENT_LOGIN_ERROR = "کد ملی یا رمز درست نیست. رمز پنل را باید اول در برنامه‌ی گوشی، بخش «اتصال به پزشک»، بگذارید.";
 
@@ -70,7 +74,7 @@ async function api(method, path, body) {
     }
     if (response.status === 204) return null;
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new ApiError((data && data.error) || "server_error", response.status);
+    if (!response.ok) throw new ApiError((data && data.error) || (response.status === 429 ? "rate_limited" : "server_error"), response.status);
     return data;
 }
 
@@ -101,7 +105,7 @@ function svg(tag, attrs, ...children) {
 }
 
 const view = () => document.getElementById("view");
-function show(...nodes) { view().replaceChildren(...nodes); }
+function show(...nodes) { view().replaceChildren(...nodes.filter((n) => n != null)); }
 function loading() { show(h("p", { class: "muted" }, "در حال بارگذاری…")); }
 function failure(e) { show(h("p", { class: "error" }, message(e))); }
 
@@ -234,7 +238,8 @@ async function patientsView() {
         tbody.replaceChildren(...patients
             .filter((p) => !q || p.fullName.includes(q) || p.nationalIdLast4.includes(digits))
             .map((p) => h("tr", { class: "clickable", onclick: () => { location.hash = "#patient/" + p.id; } },
-                h("td", {}, h("a", { href: "#patient/" + p.id }, p.fullName), p.attention ? [" ", h("span", { class: "badge", title: "نمره‌ی یکی از آزمون‌ها نسبت به ابتدا دست‌کم ۱۰ واحد پایین آمده است." }, "نیاز به توجه")] : null),
+                h("td", {}, h("a", { href: "#patient/" + p.id }, p.fullName), p.attention ? [" ", h("span", { class: "badge", title: "نمره‌ی یکی از آزمون‌ها نسبت به ابتدا دست‌کم ۱۰ واحد پایین آمده است." }, "نیاز به توجه")] : null,
+                    p.unreadMessages ? [" ", h("span", { class: "badge new" }, fa(p.unreadMessages) + " پیام تازه")] : null),
                 h("td", {}, fa(p.age)),
                 h("td", {}, GENDER[p.gender] || p.gender),
                 h("td", { class: "ltr" }, "••••••" + p.nationalIdLast4),
@@ -314,6 +319,7 @@ async function patientView(id) {
                 fact("اتصال به شما", when(p.linkedAtEpochMs)),
             ),
         ),
+        chatSection("/doctor/patients/" + id, true, "گفتگو با بیمار"),
         analysisSection(analysis),
         notesSection(id, notes),
         resultsSection(results, "هنوز نتیجه‌ای از این بیمار نرسیده است."),
@@ -405,10 +411,11 @@ async function download(path, filename) {
 
 async function myView() {
     loading();
-    let me, results, analysis, notes;
+    let me, results, analysis, notes, conversations;
     try {
-        [me, results, analysis, notes] = await Promise.all([
+        [me, results, analysis, notes, conversations] = await Promise.all([
             api("GET", "/patient/me"), api("GET", "/patient/results"), api("GET", "/patient/analysis"), api("GET", "/patient/notes"),
+            api("GET", "/patient/conversations"),
         ]);
     } catch (e) { return failure(e); }
     show(
@@ -417,9 +424,10 @@ async function myView() {
             h("p", {}, me.doctors.length ? "پزشک شما: " + me.doctors.join("، ") : "هنوز به پزشکی وصل نیستید."),
             h("p", { class: "muted" }, "نتایج آزمون‌هایی که با برنامه‌ی گوشی انجام داده‌اید اینجا دیده می‌شود."),
         ),
+        patientChats(conversations),
         h("section", { class: "card" },
-            h("h2", {}, "پیام‌های پزشک"),
-            notes.length === 0 ? h("p", { class: "muted" }, "پیامی نیست.") :
+            h("h2", {}, "یادداشت‌های پزشک"),
+            notes.length === 0 ? h("p", { class: "muted" }, "یادداشتی نیست.") :
                 h("div", { class: "notes" }, notes.map((n) => h("div", { class: "note" },
                     h("p", { class: "note-text" }, n.text),
                     h("p", { class: "muted small" }, n.doctorName + " — " + when(n.createdAtEpochMs)),
@@ -428,6 +436,168 @@ async function myView() {
         analysisSection(analysis, true),
         resultsSection(results, "هنوز نتیجه‌ای فرستاده نشده است."),
     );
+}
+
+// --- Messages (text and voice) between a doctor and a patient ---
+
+/** Stops the timers of the page being left, so an old conversation does not keep polling. */
+let leavePage = () => {};
+const POLL_MS = 10000;
+const MAX_VOICE_MS = 3 * 60 * 1000;
+
+/** The patient's conversations: one chat, with chips to switch when they have several doctors. */
+function patientChats(conversations) {
+    if (conversations.length === 0) return null;
+    const holder = h("div");
+    const chips = h("div", { class: "chips" });
+    const open = (c) => {
+        chips.replaceChildren(...conversations.map((x) => h("button", {
+            type: "button", class: "chip" + (x === c ? " on" : ""), onclick: () => open(x),
+        }, x.doctorName, x.unread && x !== c ? [" ", h("span", { class: "badge new" }, fa(x.unread))] : null)));
+        c.unread = 0;
+        leavePage();
+        holder.replaceChildren(chatSection("/patient/doctors/" + c.doctorId, false, "گفتگو با " + c.doctorName));
+    };
+    open(conversations.find((c) => c.unread) || conversations[0]);
+    return h("div", {}, conversations.length > 1 ? h("section", { class: "card" }, h("h2", {}, "پزشکان شما"), chips) : null, holder);
+}
+
+/** A conversation at [base] (…/messages under it), written as the doctor when [asDoctor]. */
+function chatSection(base, asDoctor, title) {
+    const list = h("div", { class: "chat-list", "aria-live": "polite" });
+    const status = h("p", { class: "error", hidden: true });
+    let lastId = 0;
+    let stopped = false;
+
+    const bubble = (m) => {
+        const mine = m.fromDoctor === asDoctor;
+        return h("div", { class: "bubble " + (mine ? "mine" : "theirs") },
+            m.text != null ? h("p", { class: "note-text" }, m.text) : voicePlayer(base, m),
+            h("p", { class: "muted small" }, when(m.createdAtEpochMs), mine && m.readAtEpochMs ? " — خوانده شد" : null),
+        );
+    };
+    const add = (messages, scroll) => {
+        if (messages.length === 0) return;
+        if (lastId === 0) list.replaceChildren();
+        for (const m of messages) if (m.id > lastId) { list.append(bubble(m)); lastId = m.id; }
+        if (scroll) list.scrollTop = list.scrollHeight;
+    };
+    const refresh = async (all) => {
+        try {
+            const messages = await api("GET", base + "/messages" + (all ? "" : "?after=" + lastId));
+            if (all) { lastId = 0; list.replaceChildren(); }
+            if (messages.length === 0 && lastId === 0) list.replaceChildren(h("p", { class: "muted" }, "هنوز پیامی نیست. اولین پیام را بنویسید."));
+            const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+            add(messages, all || atBottom);
+            if (messages.some((m) => m.fromDoctor !== asDoctor) || all) await api("POST", base + "/messages/read");
+            status.hidden = true;
+        } catch (e) { status.textContent = message(e); status.hidden = false; }
+    };
+
+    const send = async (doIt) => {
+        status.hidden = true;
+        try { add([await doIt()], true); } catch (e) { status.textContent = message(e); status.hidden = false; throw e; }
+    };
+    const text = h("textarea", { rows: 2, maxlength: 4000, placeholder: "پیام…" });
+    const sendButton = h("button", { type: "submit" }, "بفرست");
+    const composer = h("form", { class: "composer", onsubmit: async (event) => {
+        event.preventDefault();
+        if (!text.value.trim()) return;
+        sendButton.disabled = true;
+        try { await send(() => api("POST", base + "/messages", { text: text.value })); text.value = ""; } catch (e) { /* shown */ }
+        finally { sendButton.disabled = false; }
+    } }, text, recorder(base, send), sendButton);
+    // Enter sends, Shift+Enter makes a new line.
+    text.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composer.requestSubmit(); } });
+
+    const timer = setInterval(() => { if (!stopped && !document.hidden) refresh(false); }, POLL_MS);
+    const previous = leavePage;
+    leavePage = () => { previous(); stopped = true; clearInterval(timer); };
+    list.append(h("p", { class: "muted" }, "در حال بارگذاری…"));
+    refresh(true);
+    return h("section", { class: "card chat" }, h("h2", {}, title), list, status, composer);
+}
+
+/** A button that records a voice message with the microphone and sends it. */
+function recorder(base, send) {
+    if (!window.MediaRecorder || !navigator.mediaDevices) return null;
+    const button = h("button", { type: "button", class: "secondary", title: "ضبط پیام صوتی" }, "🎤 ضبط صدا");
+    let rec = null, started = 0, tick = null, cancelled = false;
+    const reset = () => {
+        clearInterval(tick);
+        button.textContent = "🎤 ضبط صدا";
+        button.classList.remove("recording");
+        rec = null;
+    };
+    const stop = (cancel) => { cancelled = cancel; if (rec && rec.state !== "inactive") rec.stop(); };
+    button.addEventListener("click", async () => {
+        if (rec) return stop(false);
+        let stream;
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+        catch (e) { alert("دسترسی به میکروفون داده نشد."); return; }
+        const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find((t) => MediaRecorder.isTypeSupported(t));
+        rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+        const chunks = [];
+        cancelled = false;
+        rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+        rec.onstop = async () => {
+            stream.getTracks().forEach((t) => t.stop());
+            const ms = Math.min(Date.now() - started, MAX_VOICE_MS);
+            const mime = rec.mimeType;
+            reset();
+            if (cancelled || ms < 700 || chunks.length === 0) return;
+            const blob = new Blob(chunks, { type: mime });
+            button.disabled = true;
+            try { await send(() => upload(base + "/messages/voice?ms=" + ms, blob)); } catch (e) { /* shown */ }
+            finally { button.disabled = false; }
+        };
+        rec.start();
+        started = Date.now();
+        button.classList.add("recording");
+        const show = () => {
+            const s = Math.floor((Date.now() - started) / 1000);
+            button.textContent = "⏹ پایان و ارسال " + fa(Math.floor(s / 60)) + ":" + fa(s % 60).padStart(2, "۰");
+            if (Date.now() - started >= MAX_VOICE_MS) stop(false);
+        };
+        show();
+        tick = setInterval(show, 500);
+    });
+    // Leaving the page while recording drops the recording.
+    const previous = leavePage;
+    leavePage = () => { previous(); stop(true); };
+    return button;
+}
+
+async function upload(path, blob) {
+    let response;
+    try {
+        response = await fetch("/api" + path, {
+            method: "POST", body: blob,
+            headers: { "Content-Type": blob.type || "application/octet-stream", Authorization: "Bearer " + session.token },
+        });
+    } catch (e) { throw new ApiError("network", 0); }
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new ApiError((data && data.error) || (response.status === 429 ? "rate_limited" : "server_error"), response.status);
+    return data;
+}
+
+/** Plays a voice message; its sound is fetched with the login token only when first played. */
+function voicePlayer(base, m) {
+    const seconds = Math.round((m.audioMs || 0) / 1000);
+    const label = "پیام صوتی " + fa(Math.floor(seconds / 60)) + ":" + fa(seconds % 60).padStart(2, "۰");
+    const button = h("button", { type: "button", class: "secondary small" }, "▶ " + label);
+    const holder = h("div", { class: "voice" }, button);
+    button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+            const response = await fetch("/api" + base + "/messages/" + m.id + "/audio", { headers: { Authorization: "Bearer " + session.token } });
+            if (!response.ok) throw new Error();
+            const audio = h("audio", { controls: true, src: URL.createObjectURL(await response.blob()) });
+            holder.replaceChildren(audio);
+            audio.play().catch(() => {});
+        } catch (e) { button.disabled = false; alert("پخش صدا ممکن نشد."); }
+    });
+    return holder;
 }
 
 function fact(label, value) { return h("div", {}, h("dt", {}, label), h("dd", {}, value)); }
@@ -495,6 +665,8 @@ function metricsList(r) {
 // --- Routing ---
 
 function route() {
+    leavePage();
+    leavePage = () => {};
     const user = session.user;
     const nav = document.getElementById("nav");
     nav.hidden = !user;

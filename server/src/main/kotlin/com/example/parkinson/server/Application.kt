@@ -44,6 +44,7 @@ class Services(dataSource: DataSource, config: Config) {
     val accessLog = AccessLog(db)
     val scores = ScoreStore(db)
     val notes = NoteStore(db)
+    val messages = MessageStore(db)
     val tokens = JwtTokens(config.jwtSecret)
 }
 
@@ -61,7 +62,7 @@ fun Application.module(services: Services, config: Config) {
         header("Referrer-Policy", "no-referrer")
         header(
             "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
+            "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
         )
     }
     install(ContentNegotiation) { json(ApiJson) }

@@ -129,7 +129,12 @@ private fun Route.doctorRoutes(services: Services) {
         val doctor = call.staff(Role.DOCTOR)
         val patients = io { services.patients.ofDoctor(doctor.id) }
         val scores = io { services.scores.ofDoctor(doctor.id) }
-        call.respond(patients.map { p -> p.copy(attention = Analysis.summarize(scores[p.id].orEmpty()).any { it.attention }) })
+        val unread = io { services.messages.unreadByPatient(doctor.id) }
+        call.respond(
+            patients.map { p ->
+                p.copy(attention = Analysis.summarize(scores[p.id].orEmpty()).any { it.attention }, unreadMessages = unread[p.id] ?: 0)
+            },
+        )
     }
     get("/patients/{id}") {
         val doctor = call.staff(Role.DOCTOR)
@@ -171,6 +176,14 @@ private fun Route.doctorRoutes(services: Services) {
         val text = note.text.trim().takeIf { it.length in 1..4000 } ?: badRequest("invalid_note")
         call.respond(HttpStatusCode.Created, io { services.notes.add(doctor.id, id, note.copy(text = text)) })
     }
+    route("/patients/{id}") {
+        conversationRoutes(services, fromDoctor = true) {
+            val doctor = staff(Role.DOCTOR)
+            val id = parameters["id"]?.toLongOrNull() ?: notFound()
+            if (!io { services.patients.isLinked(doctor.id, id) }) notFound()
+            doctor.id to id
+        }
+    }
     delete("/notes/{noteId}") {
         val doctor = call.staff(Role.DOCTOR)
         val noteId = call.parameters["noteId"]?.toLongOrNull() ?: notFound()
@@ -198,6 +211,12 @@ private fun Route.patientRoutes(services: Services) {
     }
     get("/notes") {
         call.respond(io { services.notes.sharedWith(call.patient()) })
+    }
+    get("/conversations") {
+        call.respond(io { services.messages.conversationsOf(call.patient()) })
+    }
+    route("/doctors/{doctorId}") {
+        conversationRoutes(services, fromDoctor = false) { patientConversation(services, patient()) }
     }
     post("/password") {
         val id = call.patient()
@@ -242,9 +261,22 @@ private fun Route.deviceRoutes(services: Services) {
             io { services.patients.setPassword(device.patientId, password) }
             call.respond(HttpStatusCode.NoContent)
         }
+        get("/conversations") {
+            call.respond(io { services.messages.conversationsOf(call.device().patientId) })
+        }
+        route("/doctors/{doctorId}") {
+            conversationRoutes(services, fromDoctor = false) { patientConversation(services, device().patientId) }
+        }
         delete("/token") {
             io { services.patients.revoke(call.device().token) }
             call.respond(HttpStatusCode.NoContent)
         }
     }
+}
+
+/** The {doctorId} doctor and [patientId], when they are linked; otherwise 404. */
+private suspend fun io.ktor.server.application.ApplicationCall.patientConversation(services: Services, patientId: Long): Pair<Long, Long> {
+    val doctorId = parameters["doctorId"]?.toLongOrNull() ?: notFound()
+    if (!io { services.patients.isLinked(doctorId, patientId) }) notFound()
+    return doctorId to patientId
 }

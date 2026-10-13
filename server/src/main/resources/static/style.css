@@ -176,3 +176,23 @@ a.chip { text-decoration: none; }
 .note { border-inline-start: 3px solid var(--primary); padding: 4px 12px; }
 .note-text { margin: 0; white-space: pre-wrap; }
 .small { font-size: 0.85rem; margin: 0; }
+
+/* Messages */
+.badge.new { background: var(--primary); color: var(--card); }
+.chat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 4px;
+    margin-bottom: 12px;
+}
+.bubble { max-width: 80%; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); }
+.bubble p { margin: 2px 0; }
+.bubble.mine { align-self: flex-start; background: var(--bg); }
+.bubble.theirs { align-self: flex-end; background: var(--card); border-color: var(--primary); }
+.voice audio { max-width: 260px; }
+.composer { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.composer textarea { flex: 1 1 240px; }
+button.recording { background: var(--error); color: var(--card); border-color: var(--error); }
