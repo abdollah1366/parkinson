@@ -35,6 +35,11 @@ const ERRORS = {
     invalid_voice: "صدای ضبط‌شده خوانده نشد. دوباره ضبط کنید.",
     too_large: "پیام صوتی بیش از حد طولانی است (حداکثر ۳ دقیقه).",
     rate_limited: "پیام‌ها خیلی پشت سر هم فرستاده شد. کمی صبر کنید.",
+    invalid_dose: "مقدار مصرف بیش از حد طولانی است.",
+    invalid_instructions: "توضیحات بیش از حد طولانی است.",
+    invalid_dates: "تاریخ‌ها درست نیست (پایان نباید پیش از شروع باشد).",
+    invalid_times: "ساعت‌های مصرف را مثل 08:00, 14:00 بنویسید (حداکثر ۸ بار در روز).",
+    invalid_per_week: "تعداد در هفته باید بین ۱ تا ۲۱ باشد.",
 };
 const PATIENT_LOGIN_ERROR = "کد ملی یا رمز درست نیست. رمز پنل را باید اول در برنامه‌ی گوشی، بخش «اتصال به پزشک»، بگذارید.";
 
@@ -291,11 +296,14 @@ async function patientsView() {
 
 async function patientView(id) {
     loading();
-    let p, results, analysis, notes;
+    let p, results, analysis, notes, plan, intakes;
     try {
         [p, results, analysis, notes] = await Promise.all([
             api("GET", "/doctor/patients/" + id), api("GET", "/doctor/patients/" + id + "/results"),
             api("GET", "/doctor/patients/" + id + "/analysis"), api("GET", "/doctor/patients/" + id + "/notes"),
+        ]);
+        [plan, intakes] = await Promise.all([
+            api("GET", "/doctor/patients/" + id + "/prescriptions"), api("GET", "/doctor/patients/" + id + "/intakes?days=14"),
         ]);
     } catch (e) { return failure(e); }
 
@@ -321,6 +329,7 @@ async function patientView(id) {
         ),
         chatSection("/doctor/patients/" + id, true, "گفتگو با بیمار", { id: p.id, name: p.firstName + " " + p.lastName }),
         analysisSection(analysis),
+        planSection(id, plan, intakes),
         notesSection(id, notes),
         resultsSection(results, "هنوز نتیجه‌ای از این بیمار نرسیده است."),
     );
@@ -377,6 +386,119 @@ function notesSection(patientId, notes) {
     return h("section", { class: "card" }, h("h2", {}, "یادداشت‌ها"), add, list);
 }
 
+// --- Prescriptions: medications and exercises, and how closely they were followed ---
+
+const INTAKE = { TAKEN: "خورده شد", MISSED: "جا ماند", DONE: "انجام شد" };
+const isoDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+const percent = (done, due) => (due ? fa(Math.round((100 * Math.min(done, due)) / due)) + "٪" : "—");
+
+/** What one prescription asks for, in a line. */
+function planLine(x) {
+    const how = x.kind === "MEDICATION"
+        ? [x.dose, "ساعت " + x.times.map((t) => fa(t.slice(0, 2)).padStart(2, "۰") + ":" + fa(t.slice(3, 5)).padStart(2, "۰")).join("، ")]
+        : [fa(x.perWeek) + " بار در هفته"];
+    return how.filter(Boolean).join(" — ");
+}
+
+function planDates(x) {
+    const d = (s) => shortDateFmt.format(new Date(s + "T12:00:00"));
+    return "از " + d(x.startDate) + (x.endDate ? " تا " + d(x.endDate) : "") + (x.stoppedAtEpochMs ? " — قطع شد " + when(x.stoppedAtEpochMs) : "");
+}
+
+function planSection(patientId, plan, intakes) {
+    const list = h("div", { class: "notes" });
+    const fill = () => {
+        const shown = [...plan.filter((x) => x.active), ...plan.filter((x) => !x.active)];
+        list.replaceChildren(...(shown.length === 0
+            ? [h("p", { class: "muted" }, "هنوز دارو یا تمرینی تجویز نکرده‌اید.")]
+            : shown.map((x) => {
+                const a = x.adherence;
+                const low = x.active && a && a.due7 >= 3 && a.done7 / a.due7 < 0.8;
+                const recent = intakes.filter((i) => i.prescriptionId === x.id).slice(0, 6);
+                return h("div", { class: "note" + (x.active ? "" : " muted") },
+                    h("div", { class: "row" },
+                        h("strong", {}, (x.kind === "MEDICATION" ? "💊 " : "🏃 ") + x.name),
+                        low ? h("span", { class: "badge" }, "پایبندی کم") : null),
+                    h("p", {}, planLine(x)),
+                    x.instructions ? h("p", { class: "note-text" }, x.instructions) : null,
+                    a && a.due30 === 0 ? h("p", { class: "muted small" }, "هنوز نوبتی نرسیده است.") : a ? h("p", { class: "small" },
+                        "پایبندی ۷ روز: ", h("b", {}, percent(a.done7, a.due7)), " (" + fa(a.done7) + " از " + fa(a.due7) + ")",
+                        " — ۳۰ روز: ", h("b", {}, percent(a.done30, a.due30)),
+                        x.kind === "MEDICATION" && a.missed7 ? " — " + fa(a.missed7) + " بار «جا ماند» در ۷ روز" : "",
+                        a.lastDoneEpochMs ? " — آخرین بار: " + when(a.lastDoneEpochMs) : "") : null,
+                    recent.length ? h("p", { class: "muted small" }, recent.map((i) => when(i.scheduledAtEpochMs) + " " + INTAKE[i.status]).join(" · ")) : null,
+                    h("p", { class: "muted small" }, planDates(x), " ",
+                        x.active ? h("button", { type: "button", class: "link", onclick: async () => {
+                            if (!confirm("«" + x.name + "» قطع شود؟ یادآور آن در گوشی بیمار هم برداشته می‌شود.")) return;
+                            try {
+                                await api("POST", "/doctor/prescriptions/" + x.id + "/stop");
+                                plan = await api("GET", "/doctor/patients/" + patientId + "/prescriptions");
+                                fill();
+                            } catch (e) { alert(message(e)); }
+                        } }, "قطع کردن") : null),
+                );
+            })));
+    };
+    fill();
+
+    const kind = h("select", { name: "kind" },
+        h("option", { value: "MEDICATION" }, "دارو"), h("option", { value: "EXERCISE" }, "تمرین / ورزش"));
+    const doseField = field("مقدار هر نوبت (مثلاً ۱ قرص ۲۵۰/۲۵ میلی‌گرم)", h("input", { name: "dose", maxlength: 200 }));
+    const timesField = field("ساعت‌های مصرف (مثلاً 08:00, 14:00, 20:00)", h("input", { name: "times", class: "ltr", placeholder: "08:00, 14:00, 20:00" }));
+    const perWeekField = field("چند بار در هفته", h("input", { name: "perWeek", type: "number", min: 1, max: 21, value: 3 }));
+    const sync = () => {
+        const med = kind.value === "MEDICATION";
+        doseField.hidden = !med; timesField.hidden = !med; perWeekField.hidden = med;
+    };
+    kind.addEventListener("change", sync);
+    sync();
+    const add = form([
+        field("نوع", kind),
+        field("نام دارو یا تمرین", h("input", { name: "name", maxlength: 200, required: true })),
+        doseField, timesField, perWeekField,
+        field("توضیحات (اختیاری)", h("textarea", { name: "instructions", rows: 2, maxlength: 1000 })),
+        h("div", { class: "row" },
+            field("شروع", h("input", { name: "startDate", type: "date", value: isoDate(Date.now()) })),
+            field("پایان (اختیاری)", h("input", { name: "endDate", type: "date" }))),
+    ], "تجویز و فرستادن به گوشی بیمار", async (data) => {
+        const med = data.get("kind") === "MEDICATION";
+        const body = {
+            kind: data.get("kind"), name: data.get("name"), instructions: data.get("instructions") || null,
+            startDate: data.get("startDate") || null, endDate: data.get("endDate") || null,
+        };
+        if (med) {
+            body.dose = data.get("dose") || null;
+            body.times = String(data.get("times") || "").split(/[,،\s]+/).filter(Boolean);
+        } else body.perWeek = Number(data.get("perWeek"));
+        const created = await api("POST", "/doctor/patients/" + patientId + "/prescriptions", body);
+        plan = [created, ...plan];
+        add.reset();
+        sync();
+        fill();
+    });
+    return h("section", { class: "card" },
+        h("h2", {}, "نسخه و برنامه‌ی درمان"),
+        h("p", { class: "muted" }, "برنامه‌ی گوشی بیمار سر هر نوبت یادآوری می‌کند و بیمار «خوردم»، «جا ماند» یا «انجام دادم» را می‌زند. پایبندی از همین ثبت‌ها حساب می‌شود."),
+        list,
+        h("details", {}, h("summary", {}, "تجویز دارو یا تمرین تازه"), add),
+    );
+}
+
+/** The patient's active medications and exercises. */
+function myPlanSection(plan) {
+    if (plan.length === 0) return null;
+    return h("section", { class: "card" },
+        h("h2", {}, "داروها و تمرین‌های من"),
+        h("div", { class: "notes" }, plan.map((x) => h("div", { class: "note" },
+            h("strong", {}, (x.kind === "MEDICATION" ? "💊 " : "🏃 ") + x.name),
+            h("p", {}, planLine(x)),
+            x.instructions ? h("p", { class: "note-text" }, x.instructions) : null,
+            h("p", { class: "muted small" }, x.doctorName + " — " + planDates(x)),
+        ))),
+        h("p", { class: "muted small" }, "یادآورها در برنامه‌ی گوشی، بخش «برنامه‌ی درمان»، فعال است."),
+    );
+}
+
 /** Results by test: chips to pick the test, the trend chart and the table. */
 function resultsSection(results, emptyText) {
     if (results.length === 0) return h("section", { class: "card" }, h("p", { class: "muted" }, emptyText));
@@ -411,11 +533,11 @@ async function download(path, filename) {
 
 async function myView() {
     loading();
-    let me, results, analysis, notes, conversations;
+    let me, results, analysis, notes, conversations, plan;
     try {
-        [me, results, analysis, notes, conversations] = await Promise.all([
+        [me, results, analysis, notes, conversations, plan] = await Promise.all([
             api("GET", "/patient/me"), api("GET", "/patient/results"), api("GET", "/patient/analysis"), api("GET", "/patient/notes"),
-            api("GET", "/patient/conversations"),
+            api("GET", "/patient/conversations"), api("GET", "/patient/prescriptions"),
         ]);
     } catch (e) { return failure(e); }
     show(
@@ -425,6 +547,7 @@ async function myView() {
             h("p", { class: "muted" }, "نتایج آزمون‌هایی که با برنامه‌ی گوشی انجام داده‌اید اینجا دیده می‌شود."),
         ),
         patientChats(conversations),
+        myPlanSection(plan),
         h("section", { class: "card" },
             h("h2", {}, "یادداشت‌های پزشک"),
             notes.length === 0 ? h("p", { class: "muted" }, "یادداشتی نیست.") :
