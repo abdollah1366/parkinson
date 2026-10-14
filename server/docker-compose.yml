@@ -34,6 +34,11 @@ services:
       # Calls: the built-in TURN relay, on the server's public IPv4 address (leave empty to turn it off).
       TURN_PUBLIC_IP: ${TURN_PUBLIC_IP:-}
       TURN_RELAY_PORTS: 49160-49200
+      # Nightly backup zips at 03:00 (copy them off the server now and then: docker compose cp server:/backups .).
+      BACKUP_DIR: /backups
+      RESTORE_FROM: ${RESTORE_FROM:-}
+    volumes:
+      - backups:/backups
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
@@ -53,5 +58,6 @@ services:
       - caddy-data:/data
 
 volumes:
+  backups:
   db-data:
   caddy-data:

@@ -6,7 +6,7 @@ COPY src ./src
 RUN gradle installDist --no-daemon -q
 
 FROM eclipse-temurin:21-jre
-RUN useradd --system --uid 10001 app
+RUN useradd --system --uid 10001 app && mkdir /backups && chown app /backups
 COPY --from=build /src/build/install/parkinson-server /opt/parkinson-server
 USER app
 EXPOSE 8080
