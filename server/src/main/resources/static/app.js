@@ -40,6 +40,8 @@ const ERRORS = {
     invalid_dates: "تاریخ‌ها درست نیست (پایان نباید پیش از شروع باشد).",
     invalid_times: "ساعت‌های مصرف را مثل 08:00, 14:00 بنویسید (حداکثر ۸ بار در روز).",
     invalid_per_week: "تعداد در هفته باید بین ۱ تا ۲۱ باشد.",
+    invalid_exercise: "تمرین بیوفیدبک را از فهرست انتخاب کنید.",
+    invalid_level: "سطح باید ۱ تا ۳ باشد.",
 };
 const PATIENT_LOGIN_ERROR = "کد ملی یا رمز درست نیست. رمز پنل را باید اول در برنامه‌ی گوشی، بخش «اتصال به پزشک»، بگذارید.";
 
@@ -296,14 +298,15 @@ async function patientsView() {
 
 async function patientView(id) {
     loading();
-    let p, results, analysis, notes, plan, intakes;
+    let p, results, analysis, notes, plan, intakes, sessions, library;
     try {
         [p, results, analysis, notes] = await Promise.all([
             api("GET", "/doctor/patients/" + id), api("GET", "/doctor/patients/" + id + "/results"),
             api("GET", "/doctor/patients/" + id + "/analysis"), api("GET", "/doctor/patients/" + id + "/notes"),
         ]);
-        [plan, intakes] = await Promise.all([
+        [plan, intakes, sessions, library] = await Promise.all([
             api("GET", "/doctor/patients/" + id + "/prescriptions"), api("GET", "/doctor/patients/" + id + "/intakes?days=14"),
+            api("GET", "/doctor/patients/" + id + "/biofeedback?days=90"), api("GET", "/doctor/biofeedback/exercises"),
         ]);
     } catch (e) { return failure(e); }
 
@@ -329,7 +332,7 @@ async function patientView(id) {
         ),
         chatSection("/doctor/patients/" + id, true, "گفتگو با بیمار", { id: p.id, name: p.firstName + " " + p.lastName }),
         analysisSection(analysis),
-        planSection(id, plan, intakes),
+        planSection(id, plan, intakes, sessions, library),
         notesSection(id, notes),
         resultsSection(results, "هنوز نتیجه‌ای از این بیمار نرسیده است."),
     );
@@ -392,12 +395,52 @@ const INTAKE = { TAKEN: "خورده شد", MISSED: "جا ماند", DONE: "ان�
 const isoDate = (ms) => new Date(ms).toISOString().slice(0, 10);
 const percent = (done, due) => (due ? fa(Math.round((100 * Math.min(done, due)) / due)) + "٪" : "—");
 
+// Biofeedback: what each level of each exercise asks (the same numbers as the app, biofeedback/BiofeedbackLevels.kt).
+const BIO_LEVELS = {
+    LOUD_VOICE: ["۴ دسی‌بل بلندتر از صدای عادی، ۳ ثانیه", "۷ دسی‌بل بلندتر، ۵ ثانیه", "۱۰ دسی‌بل بلندتر، ۸ ثانیه"],
+    BALANCE: ["دایره‌ی ۵ درجه، ۲۰ ثانیه", "دایره‌ی ۳٫۵ درجه، ۳۰ ثانیه", "دایره‌ی ۲٫۵ درجه، ۴۵ ثانیه"],
+    METRONOME_WALK: ["۹۰ ضرب در دقیقه، ۱ دقیقه", "۱۰۰ ضرب در دقیقه، ۲ دقیقه", "۱۱۰ ضرب در دقیقه، ۳ دقیقه"],
+    MEMORY_SEQUENCE: ["از ۳ خانه شروع", "از ۴ خانه شروع", "از ۵ خانه شروع"],
+    TAP_RHYTHM: ["۱۵ ثانیه، هدف ۲ ضربه در ثانیه", "۲۰ ثانیه، هدف ۳ ضربه در ثانیه", "۳۰ ثانیه، هدف ۴ ضربه در ثانیه"],
+};
+const METRIC_LABELS = {
+    baselineDb: "صدای عادی (دسی‌بل نسبی)", meanAboveBaselineDb: "میانگین بلندی بالاتر از عادی (دسی‌بل)", repsInTarget: "تکرار موفق",
+    reps: "تکرار", longestHoldSec: "طولانی‌ترین نگه‌داشتن (ثانیه)", insidePercent: "درصد زمان در دایره",
+    meanSwayDeg: "میانگین نوسان (درجه)", maxSwayDeg: "بیشترین نوسان (درجه)", steps: "گام", cadence: "گام در دقیقه",
+    targetCadence: "ضرب مترونوم", maxSpan: "بیشترین طول ترتیب", rounds: "دور", mistakes: "اشتباه",
+    taps: "ضربه", rateRight: "سرعت دست راست (در ثانیه)", rateLeft: "سرعت دست چپ (در ثانیه)",
+    cvRight: "نامنظمی دست راست (٪)", cvLeft: "نامنظمی دست چپ (٪)",
+};
+const kindIcon = (k) => ({ MEDICATION: "💊 ", EXERCISE: "🏃 ", BIOFEEDBACK: "🎯 " })[k] || "";
+
 /** What one prescription asks for, in a line. */
 function planLine(x) {
     const how = x.kind === "MEDICATION"
         ? [x.dose, "ساعت " + x.times.map((t) => fa(t.slice(0, 2)).padStart(2, "۰") + ":" + fa(t.slice(3, 5)).padStart(2, "۰")).join("، ")]
-        : [fa(x.perWeek) + " بار در هفته"];
+        : x.kind === "BIOFEEDBACK"
+            ? ["سطح " + fa(x.level) + " (" + ((BIO_LEVELS[x.exercise] || [])[x.level - 1] || "") + ")", fa(x.perWeek) + " بار در هفته"]
+            : [fa(x.perWeek) + " بار در هفته"];
     return how.filter(Boolean).join(" — ");
+}
+
+/** The scores of a biofeedback exercise's sessions, oldest first, as a small line, and the latest measurements. */
+function sessionsBlock(list) {
+    if (list.length === 0) return h("p", { class: "muted small" }, "هنوز جلسه‌ای انجام نشده است.");
+    const scores = [...list].reverse().slice(-20);
+    const W = 160, H = 36;
+    const x = (i) => (scores.length === 1 ? W / 2 : 4 + (i * (W - 8)) / (scores.length - 1));
+    const y = (v) => H - 4 - (v.score * (H - 8)) / 100;
+    const last = list[0];
+    return h("div", {},
+        h("div", { class: "row" },
+            h("span", { class: "small" }, "امتیاز آخرین جلسه: ", h("b", {}, fa(last.score)), " از ۱۰۰ — ", when(last.startedAtEpochMs),
+                last.completed ? "" : " (نیمه‌کاره)", " — " + fa(list.length) + " جلسه در ۹۰ روز"),
+            svg("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, class: "spark", role: "img", "aria-label": "روند امتیاز" },
+                svg("polyline", { points: scores.map((v, i) => x(i) + "," + y(v)).join(" "), fill: "none", stroke: "currentColor", "stroke-width": 2 }),
+                scores.map((v, i) => svg("circle", { cx: x(i), cy: y(v), r: 2.5, fill: "currentColor" })))),
+        h("p", { class: "muted small" }, Object.entries(last.metrics).map(([k, v]) =>
+            (METRIC_LABELS[k] || k) + ": " + fa(Math.round(v * 10) / 10)).join(" · ")),
+    );
 }
 
 function planDates(x) {
@@ -405,7 +448,7 @@ function planDates(x) {
     return "از " + d(x.startDate) + (x.endDate ? " تا " + d(x.endDate) : "") + (x.stoppedAtEpochMs ? " — قطع شد " + when(x.stoppedAtEpochMs) : "");
 }
 
-function planSection(patientId, plan, intakes) {
+function planSection(patientId, plan, intakes, sessions = [], library = []) {
     const list = h("div", { class: "notes" });
     const fill = () => {
         const shown = [...plan.filter((x) => x.active), ...plan.filter((x) => !x.active)];
@@ -417,7 +460,7 @@ function planSection(patientId, plan, intakes) {
                 const recent = intakes.filter((i) => i.prescriptionId === x.id).slice(0, 6);
                 return h("div", { class: "note" + (x.active ? "" : " muted") },
                     h("div", { class: "row" },
-                        h("strong", {}, (x.kind === "MEDICATION" ? "💊 " : "🏃 ") + x.name),
+                        h("strong", {}, kindIcon(x.kind) + x.name),
                         low ? h("span", { class: "badge" }, "پایبندی کم") : null),
                     h("p", {}, planLine(x)),
                     x.instructions ? h("p", { class: "note-text" }, x.instructions) : null,
@@ -426,7 +469,8 @@ function planSection(patientId, plan, intakes) {
                         " — ۳۰ روز: ", h("b", {}, percent(a.done30, a.due30)),
                         x.kind === "MEDICATION" && a.missed7 ? " — " + fa(a.missed7) + " بار «جا ماند» در ۷ روز" : "",
                         a.lastDoneEpochMs ? " — آخرین بار: " + when(a.lastDoneEpochMs) : "") : null,
-                    recent.length ? h("p", { class: "muted small" }, recent.map((i) => when(i.scheduledAtEpochMs) + " " + INTAKE[i.status]).join(" · ")) : null,
+                    x.kind === "BIOFEEDBACK" ? sessionsBlock(sessions.filter((v) => v.prescriptionId === x.id)) : null,
+                    recent.length && x.kind !== "BIOFEEDBACK" ? h("p", { class: "muted small" }, recent.map((i) => when(i.scheduledAtEpochMs) + " " + INTAKE[i.status]).join(" · ")) : null,
                     h("p", { class: "muted small" }, planDates(x), " ",
                         x.active ? h("button", { type: "button", class: "link", onclick: async () => {
                             if (!confirm("«" + x.name + "» قطع شود؟ یادآور آن در گوشی بیمار هم برداشته می‌شود.")) return;
@@ -442,19 +486,35 @@ function planSection(patientId, plan, intakes) {
     fill();
 
     const kind = h("select", { name: "kind" },
-        h("option", { value: "MEDICATION" }, "دارو"), h("option", { value: "EXERCISE" }, "تمرین / ورزش"));
+        h("option", { value: "MEDICATION" }, "دارو"), h("option", { value: "EXERCISE" }, "تمرین / ورزش"),
+        library.length ? h("option", { value: "BIOFEEDBACK" }, "بیوفیدبک (تمرین با بازخورد گوشی)") : null);
+    const exercise = h("select", { name: "exercise" }, library.map((e) => h("option", { value: e.code }, e.title + (e.standing ? " ⚠️ ایستاده" : ""))));
+    const level = h("select", { name: "level" });
+    const levels = () => level.replaceChildren(...(BIO_LEVELS[exercise.value] || ["", "", ""]).map((d, i) =>
+        h("option", { value: i + 1 }, "سطح " + fa(i + 1) + (d ? " — " + d : ""))));
+    exercise.addEventListener("change", levels);
+    levels();
+    const safety = h("p", { class: "badge" }, "تمرین ایستاده است: فقط برای بیماری تجویز کنید که بدون خطر زمین خوردن می‌ایستد. برنامه پیش از شروع، تکیه‌گاه و همراه را یادآوری می‌کند.");
+    const bioFields = h("div", {}, field("تمرین", exercise), field("سطح دشواری", level), safety);
+    const nameInput = h("input", { name: "name", maxlength: 200 });
     const doseField = field("مقدار هر نوبت (مثلاً ۱ قرص ۲۵۰/۲۵ میلی‌گرم)", h("input", { name: "dose", maxlength: 200 }));
     const timesField = field("ساعت‌های مصرف (مثلاً 08:00, 14:00, 20:00)", h("input", { name: "times", class: "ltr", placeholder: "08:00, 14:00, 20:00" }));
     const perWeekField = field("چند بار در هفته", h("input", { name: "perWeek", type: "number", min: 1, max: 21, value: 3 }));
     const sync = () => {
         const med = kind.value === "MEDICATION";
-        doseField.hidden = !med; timesField.hidden = !med; perWeekField.hidden = med;
+        const bio = kind.value === "BIOFEEDBACK";
+        doseField.hidden = !med; timesField.hidden = !med; perWeekField.hidden = med; bioFields.hidden = !bio;
+        nameInput.required = !bio;
+        nameInput.placeholder = bio ? "اختیاری؛ نام تمرین از کتابخانه" : "";
+        safety.hidden = !bio || !(library.find((e) => e.code === exercise.value) || {}).standing;
     };
     kind.addEventListener("change", sync);
+    exercise.addEventListener("change", sync);
     sync();
     const add = form([
         field("نوع", kind),
-        field("نام دارو یا تمرین", h("input", { name: "name", maxlength: 200, required: true })),
+        bioFields,
+        field("نام دارو یا تمرین", nameInput),
         doseField, timesField, perWeekField,
         field("توضیحات (اختیاری)", h("textarea", { name: "instructions", rows: 2, maxlength: 1000 })),
         h("div", { class: "row" },
@@ -470,15 +530,20 @@ function planSection(patientId, plan, intakes) {
             body.dose = data.get("dose") || null;
             body.times = String(data.get("times") || "").split(/[,،\s]+/).filter(Boolean);
         } else body.perWeek = Number(data.get("perWeek"));
+        if (data.get("kind") === "BIOFEEDBACK") {
+            body.exercise = data.get("exercise");
+            body.level = Number(data.get("level"));
+        }
         const created = await api("POST", "/doctor/patients/" + patientId + "/prescriptions", body);
         plan = [created, ...plan];
         add.reset();
+        levels();
         sync();
         fill();
     });
     return h("section", { class: "card" },
         h("h2", {}, "نسخه و برنامه‌ی درمان"),
-        h("p", { class: "muted" }, "برنامه‌ی گوشی بیمار سر هر نوبت یادآوری می‌کند و بیمار «خوردم»، «جا ماند» یا «انجام دادم» را می‌زند. پایبندی از همین ثبت‌ها حساب می‌شود."),
+        h("p", { class: "muted" }, "برنامه‌ی گوشی بیمار سر هر نوبت یادآوری می‌کند و بیمار «خوردم»، «جا ماند» یا «انجام دادم» را می‌زند. پایبندی از همین ثبت‌ها حساب می‌شود. تمرین‌های بیوفیدبک را بیمار در گوشی با بازخورد زنده انجام می‌دهد و امتیاز هر جلسه اینجا می‌آید."),
         list,
         h("details", {}, h("summary", {}, "تجویز دارو یا تمرین تازه"), add),
     );
@@ -490,7 +555,7 @@ function myPlanSection(plan) {
     return h("section", { class: "card" },
         h("h2", {}, "داروها و تمرین‌های من"),
         h("div", { class: "notes" }, plan.map((x) => h("div", { class: "note" },
-            h("strong", {}, (x.kind === "MEDICATION" ? "💊 " : "🏃 ") + x.name),
+            h("strong", {}, kindIcon(x.kind) + x.name),
             h("p", {}, planLine(x)),
             x.instructions ? h("p", { class: "note-text" }, x.instructions) : null,
             h("p", { class: "muted small" }, x.doctorName + " — " + planDates(x)),

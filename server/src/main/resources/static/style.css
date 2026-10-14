@@ -244,3 +244,4 @@ button.accept { background: var(--on); color: var(--card); }
 }
 body.call-page { min-height: 100vh; }
 .call-notice { max-width: min(90vw, 560px); text-align: center; }
+.spark { color: var(--primary); flex: none; }
