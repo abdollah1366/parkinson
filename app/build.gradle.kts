@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.parkinson"
+        applicationId = "ir.parkinsoncare.app"
         minSdk = 24
         targetSdk = 37
         versionCode = 1

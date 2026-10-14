@@ -103,8 +103,10 @@ data class AssessmentEntity(
     @ColumnInfo(defaultValue = "") val tapTimesMs: String = "",
     @ColumnInfo(defaultValue = "") val tapAmplitudes: String = "",
     @ColumnInfo(defaultValue = "") val tapVelocities: String = "",
-    @ColumnInfo(defaultValue = "") val tapDurationsMs: String = ""
-)
+    @ColumnInfo(defaultValue = "") val tapDurationsMs: String = "",
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 private fun List<Double>.csv(): String = joinToString(",") { String.format(Locale.US, "%.4f", it) }
 private fun String.doubles(): List<Double> = if (isBlank()) emptyList() else split(',').mapNotNull { it.toDoubleOrNull() }

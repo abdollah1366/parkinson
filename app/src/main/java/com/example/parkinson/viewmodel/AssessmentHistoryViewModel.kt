@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.assessment.AssessmentResult
 import com.example.parkinson.data.AssessmentRepository
+import com.example.parkinson.data.StoredResult
 import com.example.parkinson.dualtask.DualTaskResult
 import com.example.parkinson.gait.GaitResult
 import com.example.parkinson.imu.ImuComparison
@@ -43,6 +44,11 @@ class AssessmentHistoryViewModel(private val repository: AssessmentRepository) :
 
     val all: StateFlow<Loadable<List<AssessmentResult>>> = repository.observeHistory()
         .map<List<AssessmentResult>, Loadable<List<AssessmentResult>>> { Loadable.Loaded(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Loadable.Loading)
+
+    /** The history with the medication state of each test, for the trend chart. */
+    val stored: StateFlow<Loadable<List<StoredResult>>> = repository.observeStoredHistory()
+        .map<List<StoredResult>, Loadable<List<StoredResult>>> { Loadable.Loaded(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Loadable.Loading)
 
     val latest: StateFlow<Loadable<AssessmentResult?>> = repository.observeHistory()

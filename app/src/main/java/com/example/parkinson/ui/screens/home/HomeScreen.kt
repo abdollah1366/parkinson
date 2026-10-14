@@ -37,6 +37,7 @@ import com.example.parkinson.R
 import com.example.parkinson.assessment.AssessmentCatalog
 import com.example.parkinson.assessment.AssessmentDefinition
 import com.example.parkinson.assessment.AssessmentResult
+import com.example.parkinson.medication.MedicationCheck
 import com.example.parkinson.profile.Gender
 import com.example.parkinson.profile.UserProfile
 import com.example.parkinson.ui.components.QualityChip
@@ -47,6 +48,7 @@ import com.example.parkinson.ui.components.keyMetricsLine
 import com.example.parkinson.ui.components.statusLabel
 import com.example.parkinson.ui.format.PersianFormat
 import com.example.parkinson.ui.format.toPersianDigits
+import com.example.parkinson.ui.screens.medication.medicationLabel
 import com.example.parkinson.ui.screens.splash.MedicalLogoIcon
 import com.example.parkinson.viewmodel.Loadable
 
@@ -56,10 +58,32 @@ fun HomeScreen(
     tests: List<AssessmentDefinition> = AssessmentCatalog.all,
     onOpenAssessment: (AssessmentResult) -> Unit = {},
     onOpenHistory: () -> Unit = {},
-    /** The registration; nothing is shown while it is loading. */
+    /** The person the tests are for; nothing is shown while it is loading. */
     profile: Loadable<UserProfile?> = Loadable.Loading,
+    /** How many people are registered on this phone. */
+    registeredCount: Int = 0,
     /** Opens the registration screen (new or edit). */
     onOpenProfile: () -> Unit = {},
+    /** Opens the list of registered people, to choose or add one. */
+    onSwitchPatient: () -> Unit = {},
+    /** The medication state the active person reported, while it still applies. */
+    medication: MedicationCheck? = null,
+    /** Opens the medication question to record or change the state. */
+    onChangeMedication: () -> Unit = {},
+    /** The doctor the active person's results go to, or null when not connected. */
+    doctorName: String? = null,
+    /** Results of the active person their doctor does not have yet. */
+    pendingToDoctor: Int = 0,
+    /** Opens the connection to the doctor (connect, or send and disconnect). */
+    onOpenServerLink: () -> Unit = {},
+    /** Unread messages from the doctor. */
+    unreadFromDoctor: Int = 0,
+    /** Opens the messages with the doctor (shown only while connected). */
+    onOpenMessages: () -> Unit = {},
+    /** Today's doses not marked yet; null when the person has no treatment plan from a doctor. */
+    planDosesLeft: Int? = null,
+    /** Opens today's treatment plan. */
+    onOpenPlan: () -> Unit = {},
     /** Opens the complete assessment catalog (test selection). */
     onStartAssessmentClicked: () -> Unit,
 ) {
@@ -88,7 +112,12 @@ fun HomeScreen(
             )
         }
 
-        if (profile is Loadable.Loaded) ProfileCard(profile.value, onOpenProfile)
+        if (profile is Loadable.Loaded) {
+            ProfileCard(
+                profile.value, registeredCount, onOpenProfile, onSwitchPatient, medication, onChangeMedication,
+                doctorName, pendingToDoctor, onOpenServerLink, unreadFromDoctor, onOpenMessages, planDosesLeft, onOpenPlan,
+            )
+        }
 
         MotorAssessmentsCard(tests, onStartAssessmentClicked)
 
@@ -295,9 +324,26 @@ private fun LatestAssessmentCard(
     }
 }
 
-/** Who is registered (name, age, gender, masked national ID), or an invitation to register. */
+/**
+ * The person the tests are for (name, age, gender, masked national ID) with ways to edit or switch person; an
+ * invitation to register when nobody is; a request to choose when several people are and none is chosen.
+ */
 @Composable
-private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
+private fun ProfileCard(
+    profile: UserProfile?,
+    registeredCount: Int,
+    onOpen: () -> Unit,
+    onSwitch: () -> Unit,
+    medication: MedicationCheck?,
+    onChangeMedication: () -> Unit,
+    doctorName: String?,
+    pendingToDoctor: Int,
+    onOpenServerLink: () -> Unit,
+    unreadFromDoctor: Int,
+    onOpenMessages: () -> Unit,
+    planDosesLeft: Int?,
+    onOpenPlan: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -307,10 +353,14 @@ private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
         shape = MaterialTheme.shapes.large
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (profile == null) {
+            if (profile == null && registeredCount == 0) {
                 Text(stringResource(R.string.home_profile_missing_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.home_profile_missing_text), style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = onOpen, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.home_profile_register)) }
+            } else if (profile == null) {
+                Text(stringResource(R.string.home_profile_choose_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.home_profile_choose_text), style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = onSwitch, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.home_profile_choose)) }
             } else {
                 Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
@@ -323,7 +373,54 @@ private fun ProfileCard(profile: UserProfile?, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
+                if (profile.takesParkinsonMedication == true) {
+                    Text(
+                        if (medication == null) {
+                            stringResource(R.string.home_med_missing)
+                        } else {
+                            stringResource(
+                                R.string.home_med_line, medicationLabel(medication.state), PersianFormat.time(medication.epochMs)
+                            )
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpen) { Text(stringResource(R.string.home_profile_edit)) }
+                    TextButton(onClick = onSwitch) { Text(stringResource(R.string.home_profile_switch)) }
+                }
+                if (profile.takesParkinsonMedication == true) {
+                    TextButton(onClick = onChangeMedication) { Text(stringResource(R.string.home_med_change)) }
+                }
+                if (doctorName != null) {
+                    Text(stringResource(R.string.home_link_line, doctorName), style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(onClick = onOpenServerLink) {
+                    Text(
+                        when {
+                            doctorName == null -> stringResource(R.string.home_link_doctor)
+                            pendingToDoctor > 0 -> stringResource(R.string.home_link_pending, pendingToDoctor.toPersianDigits())
+                            else -> stringResource(R.string.link_title)
+                        }
+                    )
+                }
+                if (doctorName != null) {
+                    if (unreadFromDoctor > 0) {
+                        Button(onClick = onOpenMessages, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.home_messages_unread, unreadFromDoctor.toPersianDigits()))
+                        }
+                    } else {
+                        TextButton(onClick = onOpenMessages) { Text(stringResource(R.string.home_messages)) }
+                    }
+                }
+                if (planDosesLeft != null) {
+                    TextButton(onClick = onOpenPlan) {
+                        Text(
+                            if (planDosesLeft > 0) stringResource(R.string.home_plan_due, planDosesLeft.toPersianDigits())
+                            else stringResource(R.string.home_plan)
+                        )
+                    }
+                }
             }
         }
     }

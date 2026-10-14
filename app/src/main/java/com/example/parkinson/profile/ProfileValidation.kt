@@ -111,8 +111,8 @@ object ProfileValidation {
     }
 
     /**
-     * The profile to save, or null while [errors] is not empty. [previous] keeps the first consent time when an
-     * existing profile is edited.
+     * The profile to save, or null while [errors] is not empty. [previous] keeps the id and the first consent time
+     * when an existing profile is edited.
      */
     fun toProfile(form: ProfileForm, nowEpochMs: Long, previous: UserProfile? = null): UserProfile? {
         if (errors(form).isNotEmpty()) return null
@@ -129,6 +129,7 @@ object ProfileValidation {
             dominantHand = form.dominantHand!!,
             consentEpochMs = previous?.consentEpochMs ?: nowEpochMs,
             updatedEpochMs = nowEpochMs,
+            id = previous?.id ?: 0,
         )
     }
 

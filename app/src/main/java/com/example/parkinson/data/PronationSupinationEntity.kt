@@ -129,8 +129,10 @@ data class PronationSupinationEntity(
     /** Comma-separated deg/s values (one decimal). */
     @ColumnInfo(defaultValue = "") val velocityTrace: String = "",
     @ColumnInfo(defaultValue = "0") val traceHz: Double = 0.0,
-    @ColumnInfo(defaultValue = "") val referenceName: String = ""
-)
+    @ColumnInfo(defaultValue = "") val referenceName: String = "",
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 @Dao
 interface PronationSupinationDao {

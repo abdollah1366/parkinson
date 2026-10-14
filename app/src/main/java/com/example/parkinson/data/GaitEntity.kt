@@ -61,7 +61,9 @@ data class GaitEntity(
     val algorithmVersion: String,
     val configSummary: String,
     val scoringVersion: String,
-)
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 @Dao
 interface GaitDao {

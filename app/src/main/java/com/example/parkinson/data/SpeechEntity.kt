@@ -48,7 +48,9 @@ data class SpeechEntity(
     val algorithmVersion: String,
     val configSummary: String,
     val scoringVersion: String,
-)
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 @Dao
 interface SpeechDao {

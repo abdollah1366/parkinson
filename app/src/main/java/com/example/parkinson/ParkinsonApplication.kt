@@ -14,18 +14,98 @@ import com.example.parkinson.diagnostics.TapDiagnostics
 import com.example.parkinson.sensors.AndroidMotionSensorSource
 import com.example.parkinson.sensors.MotionSensorSource
 import com.example.parkinson.gait.GaitDiagnostics
+import com.example.parkinson.medication.MedicationCheckStore
+import com.example.parkinson.medication.PrefsMedicationCheckStore
 import com.example.parkinson.norms.NormComparator
+import com.example.parkinson.profile.ActivePatient
+import com.example.parkinson.profile.PrefsActiveProfileStore
+import com.example.parkinson.profile.UserProfile
 import com.example.parkinson.norms.ReferenceNorms
 import com.example.parkinson.tremor.RestingTremorDiagnostics
+import com.example.parkinson.data.ResultRowReader
+import com.example.parkinson.plan.HttpPlanApi
+import com.example.parkinson.plan.PlanReminders
+import com.example.parkinson.plan.PlanSync
+import com.example.parkinson.plan.PrefsPlanStore
+import com.example.parkinson.plan.SwitchablePlanApi
+import com.example.parkinson.sync.HttpMessagesApi
+import com.example.parkinson.sync.HttpServerApi
+import com.example.parkinson.sync.SwitchableMessagesApi
+import com.example.parkinson.sync.PrefsServerLinkStore
+import com.example.parkinson.sync.ResultSync
+import com.example.parkinson.sync.ServerApi
+import com.example.parkinson.sync.ServerException
+import com.example.parkinson.sync.ServerLinkStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /** Holds the app-wide singletons (a minimal manual dependency container). */
 class ParkinsonApplication : Application() {
 
     private val database: AssessmentDatabase by lazy { AssessmentDatabase.build(this) }
 
-    val assessmentRepository: AssessmentRepository by lazy { RoomAssessmentRepository.from(database) }
-
     val profileRepository: ProfileRepository by lazy { RoomProfileRepository.from(database) }
+
+    /** Who the tests are for; several people can be registered on one phone. */
+    val activePatient: ActivePatient by lazy { ActivePatient(profileRepository, PrefsActiveProfileStore(this)) }
+
+    /** The medication state each person reported before their tests (only the last report per person). */
+    val medicationChecks: MedicationCheckStore by lazy { PrefsMedicationCheckStore(this) }
+
+    val assessmentRepository: AssessmentRepository by lazy {
+        RoomAssessmentRepository.from(database, activePatient.id) { profileId ->
+            profileId?.let { medicationChecks.current(it, System.currentTimeMillis())?.state }
+        }
+    }
+
+    /** The doctors' servers; tests replace it before anything is sent. */
+    var serverApi: ServerApi = HttpServerApi()
+
+    /** Messages with the doctor; tests replace its target with a fake server. */
+    val messagesApi = SwitchableMessagesApi(HttpMessagesApi())
+
+    private val serverLinks: ServerLinkStore by lazy { PrefsServerLinkStore(this) }
+
+    /** The doctors' prescriptions; tests replace its target with a fake server. */
+    val planApi = SwitchablePlanApi(HttpPlanApi())
+
+    /** Each connected person's treatment plan, kept on the phone for the reminders. */
+    val planSync: PlanSync by lazy {
+        val store = PrefsPlanStore(this)
+        PlanSync(planApi, store, serverLinks.links) { PlanReminders.schedule(this, store) }
+    }
+
+    /** Sends each connected person's results to their doctor; nothing is sent for people who are not connected. */
+    val resultSync: ResultSync by lazy {
+        val api = object : ServerApi {
+            override suspend fun link(serverUrl: String, inviteCode: String, patient: JSONObject) =
+                serverApi.link(serverUrl, inviteCode, patient)
+            override suspend fun upload(serverUrl: String, token: String, results: List<JSONObject>) =
+                serverApi.upload(serverUrl, token, results)
+            override suspend fun updateProfile(serverUrl: String, token: String, patient: JSONObject) =
+                serverApi.updateProfile(serverUrl, token, patient)
+            override suspend fun revoke(serverUrl: String, token: String) = serverApi.revoke(serverUrl, token)
+            override suspend fun setWebPassword(serverUrl: String, token: String, password: String) =
+                serverApi.setWebPassword(serverUrl, token, password)
+        }
+        val rows = ResultRowReader(database)
+        ResultSync(api, serverLinks, rows::rows)
+    }
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val motionSensorSource: MotionSensorSource by lazy { AndroidMotionSensorSource(this) }
 
@@ -44,5 +124,79 @@ class ParkinsonApplication : Application() {
         SensorDiagnostics.enabled = debuggable
         RestingTremorDiagnostics.enabled = debuggable
         GaitDiagnostics.enabled = debuggable
+        startAutoSync()
+        PlanReminders.createChannels(this)
+        startPlanSync()
+    }
+
+    /**
+     * Reads the plans of everyone connected when the app starts and every few hours while it runs, sets the next
+     * reminder and sends the marks still waiting; plans of people no longer connected are dropped.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun startPlanSync() {
+        appScope.launch {
+            // The people are read only while someone is connected, as for the results.
+            resultSync.links.flatMapLatest { links ->
+                if (links.isEmpty()) flowOf(links to emptyList<UserProfile>()) else profileRepository.observeAll().map { links to it }
+            }
+                .collectLatest { (links, people) ->
+                    planSync.prune()
+                    PlanReminders.schedule(this@ParkinsonApplication, planSync.store)
+                    while (true) {
+                        for (person in people) {
+                            if (links[person.id] == null) continue
+                            try {
+                                planSync.refresh(person.id, person.firstName)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                // Offline: the saved plan keeps reminding; it is read again later.
+                            }
+                        }
+                        delay(PLAN_REFRESH_MS)
+                    }
+                }
+        }
+    }
+
+    /**
+     * While someone is connected to a doctor: sends the active person's new results and profile edits shortly after
+     * they are saved, and retries with growing pauses while the phone is offline or the server is down.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun startAutoSync() {
+        appScope.launch {
+            resultSync.links.map { it.keys }.distinctUntilChanged().flatMapLatest { linked ->
+                if (linked.isEmpty()) emptyFlow()
+                else combine(activePatient.profile, assessmentRepository.observeStoredHistory()) { p, h -> p to h }
+            }.collectLatest { (profile, history) ->
+                if (profile == null || resultSync.links.value[profile.id] == null) return@collectLatest
+                delay(AUTO_SYNC_DELAY_MS)
+                var pause = RETRY_FIRST_MS
+                while (true) {
+                    val retry = try {
+                        resultSync.sync(profile, history)
+                        false
+                    } catch (e: ServerException) {
+                        e.code == ServerException.NETWORK || e.httpStatus >= 500
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        false // Never crash the app over a background send; the link screen offers "send now".
+                    }
+                    if (!retry) break
+                    delay(pause)
+                    pause = (pause * 2).coerceAtMost(RETRY_MAX_MS)
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val AUTO_SYNC_DELAY_MS = 2_000L
+        const val RETRY_FIRST_MS = 30_000L
+        const val RETRY_MAX_MS = 15 * 60_000L
+        const val PLAN_REFRESH_MS = 3 * 60 * 60_000L
     }
 }

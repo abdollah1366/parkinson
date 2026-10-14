@@ -54,7 +54,9 @@ data class ImuSitToStandEntity(
     val algorithmVersion: String,
     val configSummary: String,
     val scoringVersion: String,
-)
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 @Dao
 interface ImuSitToStandDao {
@@ -118,7 +120,9 @@ data class ImuGaitEntity(
     val walkingTremorHz: Double? = null,
     val standingTremorIndex: Double? = null,
     val standingTremorHz: Double? = null,
-)
+    override val profileId: Int? = null,
+    override val medicationState: String? = null,
+) : OwnedResultRow
 
 @Dao
 interface ImuGaitDao {

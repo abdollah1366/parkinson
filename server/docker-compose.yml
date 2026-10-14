@@ -1,0 +1,63 @@
+# The whole server on one machine: database, API + panel, and Caddy for HTTPS.
+# Copy .env.example to .env, fill it in, then: docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: parkinson
+      POSTGRES_USER: parkinson
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parkinson -d parkinson"]
+      interval: 5s
+      retries: 10
+
+  server:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/parkinson
+      DATABASE_USER: parkinson
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      NATIONAL_ID_PEPPER: ${NATIONAL_ID_PEPPER:?set NATIONAL_ID_PEPPER in .env}
+      ADMIN_MOBILE: ${ADMIN_MOBILE:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      TRUST_PROXY: "true"
+      # Calls: the built-in TURN relay, on the server's public IPv4 address (leave empty to turn it off).
+      TURN_PUBLIC_IP: ${TURN_PUBLIC_IP:-}
+      TURN_RELAY_PORTS: 49160-49200
+      # Nightly backup zips at 03:00 (copy them off the server now and then: docker compose cp server:/backups .).
+      BACKUP_DIR: /backups
+      RESTORE_FROM: ${RESTORE_FROM:-}
+    volumes:
+      - backups:/backups
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [server]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  backups:
+  db-data:
+  caddy-data:

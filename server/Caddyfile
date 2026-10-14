@@ -1,0 +1,8 @@
+# HTTPS with an automatic certificate for $DOMAIN (the domain must point at this machine).
+{$DOMAIN} {
+	request_body {
+		max_size 8MB
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy server:8080
+}

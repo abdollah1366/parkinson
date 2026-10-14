@@ -7,11 +7,14 @@ sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
     object Home : Screen("home")
 
-    /** First registration, before Home. */
+    /** Registering a new person: the first one before Home, later ones from the patient list. */
     object Registration : Screen("registration")
 
-    /** Editing (or deleting) the registration from Home. */
+    /** Editing (or deleting) the person the tests are for. */
     object ProfileEdit : Screen("profile_edit")
+
+    /** Everyone registered on this phone: choose who the tests are for, or add someone. */
+    object Patients : Screen("patients")
     object FingerTappingIntro : Screen("finger_tapping_intro")
     object FingerTappingHandSelection : Screen("finger_tapping_hand_selection")
     object FingerTappingPreparation : Screen("finger_tapping_preparation")
@@ -27,6 +30,15 @@ sealed class Screen(val route: String) {
     }
 
     object History : Screen("history")
+
+    /** The performance index of each test over time, coloured by medication state. */
+    object Trends : Screen("trends")
+
+    /** The medication question before the tests; continues to the test selection. */
+    object MedicationCheckBeforeTests : Screen("medication_check_tests")
+
+    /** The medication question opened from Home to change the state; returns to Home. */
+    object MedicationCheckChange : Screen("medication_check_change")
 
     /** Test selection: every test in AssessmentCatalog, available or not. */
     object AssessmentCatalog : Screen("assessment_catalog")
@@ -124,6 +136,16 @@ sealed class Screen(val route: String) {
         fun createRoute(assessmentId: String) = "speech_result/${Uri.encode(assessmentId)}"
     }
 
+    /** The active person's connection to their doctor's server. */
+    object ServerLink : Screen("server_link")
+    object Chat : Screen("chat")
+    object Call : Screen("call")
+    object Plan : Screen("plan")
+
+    object Biofeedback : Screen("biofeedback/{$ARG_PRESCRIPTION_ID}") {
+        fun createRoute(prescriptionId: Long) = "biofeedback/$prescriptionId"
+    }
+
     object DualTaskIntro : Screen("dual_task_intro")
     object DualTaskTest : Screen("dual_task_test")
 
@@ -139,5 +161,6 @@ sealed class Screen(val route: String) {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
         const val ARG_ASSESSMENT_TYPE = "type"
+        const val ARG_PRESCRIPTION_ID = "prescriptionId"
     }
 }

@@ -2,6 +2,11 @@ package com.example.parkinson.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.example.parkinson.ui.screens.call.IncomingCallDialog
+import com.example.parkinson.ui.screens.call.CallScreen
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -21,6 +26,8 @@ import com.example.parkinson.model.SelectedHand
 import com.example.parkinson.ui.screens.camera.FingerTappingCameraScreen
 import com.example.parkinson.ui.screens.catalog.AssessmentCatalogScreen
 import com.example.parkinson.ui.screens.history.AssessmentHistoryScreen
+import com.example.parkinson.ui.screens.history.TrendScreen
+import com.example.parkinson.ui.screens.medication.MedicationCheckScreen
 import com.example.parkinson.ui.screens.home.HomeScreen
 import com.example.parkinson.ui.screens.intro.FingerTappingIntroScreen
 import com.example.parkinson.ui.screens.invalid.InvalidResultKind
@@ -76,6 +83,15 @@ import com.example.parkinson.viewmodel.HandOpenCloseViewModel
 import com.example.parkinson.viewmodel.HandStabilityViewModel
 import com.example.parkinson.viewmodel.Loadable
 import com.example.parkinson.viewmodel.ProfileViewModel
+import com.example.parkinson.viewmodel.ServerLinkViewModel
+import com.example.parkinson.viewmodel.ChatViewModel
+import com.example.parkinson.viewmodel.PlanViewModel
+import com.example.parkinson.viewmodel.BiofeedbackViewModel
+import com.example.parkinson.ui.screens.biofeedback.BiofeedbackScreen
+import com.example.parkinson.ui.screens.plan.PlanScreen
+import com.example.parkinson.ui.screens.chat.ChatScreen
+import com.example.parkinson.ui.screens.link.ServerLinkScreen
+import com.example.parkinson.ui.screens.patients.PatientsScreen
 import com.example.parkinson.ui.screens.profile.RegistrationScreen
 import com.example.parkinson.ui.screens.result.CenteredMessage
 import com.example.parkinson.R
@@ -123,6 +139,10 @@ fun ParkinsonNavGraph(
     dualTaskViewModel: DualTaskViewModel = viewModel(factory = DualTaskViewModel.Factory),
     historyViewModel: AssessmentHistoryViewModel = viewModel(factory = AssessmentHistoryViewModel.Factory),
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory),
+    serverLinkViewModel: ServerLinkViewModel = viewModel(factory = ServerLinkViewModel.Factory),
+    chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory),
+    planViewModel: PlanViewModel = viewModel(factory = PlanViewModel.Factory),
+    biofeedbackViewModel: BiofeedbackViewModel = viewModel(factory = BiofeedbackViewModel.Factory),
 ) {
     val context = LocalContext.current
     val capabilities: DeviceCapabilities = remember {
@@ -133,10 +153,13 @@ fun ParkinsonNavGraph(
     val registeredProfile by profileViewModel.profile.collectAsState()
     val normPerson = (registeredProfile as? Loadable.Loaded)?.value.toNormPerson()
 
-    /** Back to Home, keeping Home itself (creates it if it is not on the back stack). */
+    /** Back to Home, keeping Home itself (creates it, with nothing below it, if it is not on the back stack). */
     fun goHome() {
         if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
-            navController.navigate(Screen.Home.route) { launchSingleTop = true }
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 
@@ -181,10 +204,17 @@ fun ParkinsonNavGraph(
 
         composable(Screen.Welcome.route) {
             WelcomeScreen {
-                // Nobody registered yet: the registration comes first. While the profile is still loading, Home
-                // opens and its profile card offers the registration.
-                val unregistered = profileViewModel.profile.value == Loadable.Loaded(null)
-                navController.navigate(if (unregistered) Screen.Registration.route else Screen.Home.route) {
+                // Nobody registered yet: the registration comes first. Several people and none chosen: the patient
+                // list. While the profiles are still loading, Home opens and its profile card offers the next step.
+                val people = (profileViewModel.profiles.value as? Loadable.Loaded)?.value
+                val active = (profileViewModel.profile.value as? Loadable.Loaded)?.value
+                val next = when {
+                    people == null -> Screen.Home.route
+                    people.isEmpty() -> Screen.Registration.route
+                    active == null -> Screen.Patients.route
+                    else -> Screen.Home.route
+                }
+                navController.navigate(next) {
                     popUpTo(Screen.Welcome.route) { inclusive = true }
                 }
             }
@@ -195,13 +225,8 @@ fun ParkinsonNavGraph(
             RegistrationScreen(
                 existing = null,
                 write = write,
-                onSave = { form ->
-                    profileViewModel.save(form) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Registration.route) { inclusive = true }
-                        }
-                    }
-                }
+                // The new person becomes the person the tests are for.
+                onSave = { form -> profileViewModel.save(form, existing = null) { goHome() } }
             )
         }
 
@@ -213,25 +238,138 @@ fun ParkinsonNavGraph(
                 is Loadable.Loaded -> RegistrationScreen(
                     existing = p.value,
                     write = write,
-                    onSave = { form -> profileViewModel.save(form) { navController.popBackStack() } },
-                    onDelete = p.value?.let { { profileViewModel.delete { navController.popBackStack() } } },
+                    onSave = { form -> profileViewModel.save(form, existing = p.value) { navController.popBackStack() } },
+                    onDelete = p.value?.let { person -> { profileViewModel.delete(person) { goHome() } } },
+                )
+            }
+        }
+
+        composable(Screen.Patients.route) {
+            val people by profileViewModel.profiles.collectAsState()
+            val active by profileViewModel.profile.collectAsState()
+            when (val p = people) {
+                Loadable.Loading -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
+                is Loadable.Loaded -> PatientsScreen(
+                    profiles = p.value,
+                    activeId = (active as? Loadable.Loaded)?.value?.id,
+                    onSelect = { person ->
+                        profileViewModel.select(person.id)
+                        goHome()
+                    },
+                    onEdit = { person ->
+                        profileViewModel.select(person.id)
+                        profileViewModel.clearError()
+                        navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
+                    },
+                    onAdd = {
+                        profileViewModel.clearError()
+                        navController.navigate(Screen.Registration.route) { launchSingleTop = true }
+                    },
                 )
             }
         }
 
         composable(Screen.Home.route) {
             val latest by historyViewModel.latest.collectAsState()
+            val profile by profileViewModel.profile.collectAsState()
+            val people by profileViewModel.profiles.collectAsState()
+            val registeredCount = (people as? Loadable.Loaded)?.value?.size ?: 0
+            val medication by profileViewModel.medication.collectAsState()
+            val doctor by serverLinkViewModel.state.collectAsState()
+            val unreadFromDoctor by chatViewModel.unread.collectAsState()
+            val plan by planViewModel.state.collectAsState()
+            // Checks for new messages from the doctor while Home is shown (only when this person is connected).
+            LaunchedEffect(doctor?.profile?.id, doctor?.link) { chatViewModel.watchUnread() }
+            RingWatcher(chatViewModel) { navController.navigate(Screen.Call.route) { launchSingleTop = true } }
             HomeScreen(
                 latestAssessment = latest,
                 onOpenAssessment = { result -> navController.navigate(resultRouteFor(result)) },
                 onOpenHistory = { navController.navigate(Screen.History.route) },
-                profile = profileViewModel.profile.collectAsState().value,
+                profile = profile,
+                registeredCount = registeredCount,
                 onOpenProfile = {
                     profileViewModel.clearError()
                     navController.navigate(Screen.ProfileEdit.route) { launchSingleTop = true }
                 },
-                onStartAssessmentClicked = { navController.navigate(Screen.AssessmentCatalog.route) }
+                onSwitchPatient = { navController.navigate(Screen.Patients.route) { launchSingleTop = true } },
+                medication = medication,
+                onChangeMedication = {
+                    navController.navigate(Screen.MedicationCheckChange.route) { launchSingleTop = true }
+                },
+                doctorName = doctor?.link?.doctorName,
+                pendingToDoctor = doctor?.pending ?: 0,
+                onOpenServerLink = {
+                    serverLinkViewModel.clearAction()
+                    navController.navigate(Screen.ServerLink.route) { launchSingleTop = true }
+                },
+                unreadFromDoctor = unreadFromDoctor,
+                onOpenMessages = { navController.navigate(Screen.Chat.route) { launchSingleTop = true } },
+                planDosesLeft = if (plan.linked || plan.hasPlan) plan.dosesLeft else null,
+                onOpenPlan = { navController.navigate(Screen.Plan.route) { launchSingleTop = true } },
+                onStartAssessmentClicked = {
+                    // Results must belong to someone: with several people and none chosen, choose first. Someone who
+                    // takes medication is asked how it is working, unless they answered in the last two hours.
+                    val chosen = (profile as? Loadable.Loaded)?.value != null
+                    when {
+                        !chosen && registeredCount > 0 ->
+                            navController.navigate(Screen.Patients.route) { launchSingleTop = true }
+                        profileViewModel.needsMedicationCheck() ->
+                            navController.navigate(Screen.MedicationCheckBeforeTests.route) { launchSingleTop = true }
+                        else -> navController.navigate(Screen.AssessmentCatalog.route)
+                    }
+                }
             )
+        }
+
+        composable(Screen.Chat.route) {
+            val state by chatViewModel.state.collectAsState()
+            val scope = rememberCoroutineScope()
+            RingWatcher(chatViewModel) { navController.navigate(Screen.Call.route) { launchSingleTop = true } }
+            ChatScreen(chatViewModel, state, onCall = { video ->
+                scope.launch { if (chatViewModel.startCall(video)) navController.navigate(Screen.Call.route) { launchSingleTop = true } }
+            })
+        }
+
+        composable(Screen.Plan.route) {
+            val state by planViewModel.state.collectAsState()
+            LaunchedEffect(Unit) { planViewModel.refresh() }
+            PlanScreen(
+                state, onMark = planViewModel::mark, onExerciseDone = planViewModel::exerciseDone,
+                onStartBiofeedback = { p -> navController.navigate(Screen.Biofeedback.createRoute(p.id)) { launchSingleTop = true } },
+            )
+        }
+
+        composable(Screen.Biofeedback.route) { entry ->
+            val id = entry.arguments?.getString(Screen.ARG_PRESCRIPTION_ID)?.toLongOrNull() ?: 0L
+            val state by biofeedbackViewModel.state.collectAsState()
+            LaunchedEffect(id) { biofeedbackViewModel.open(id) }
+            BiofeedbackScreen(biofeedbackViewModel, state, onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.Call.route) {
+            val page by chatViewModel.callPage.collectAsState()
+            DisposableEffect(Unit) { onDispose { chatViewModel.callClosed() } }
+            when (val p = page) {
+                null -> LaunchedEffect(Unit) { navController.popBackStack() }
+                else -> CallScreen(p.url, p.video, onClose = { navController.popBackStack() })
+            }
+        }
+
+        composable(Screen.ServerLink.route) {
+            val state by serverLinkViewModel.state.collectAsState()
+            val action by serverLinkViewModel.action.collectAsState()
+            when (val s = state) {
+                null -> CenteredMessage(stringResource(R.string.result_loading), showProgress = true)
+                else -> ServerLinkScreen(
+                    state = s,
+                    action = action,
+                    lastServerUrl = serverLinkViewModel.lastServerUrl,
+                    onLink = serverLinkViewModel::link,
+                    onSendNow = serverLinkViewModel::sendNow,
+                    onUnlink = serverLinkViewModel::unlink,
+                    onSetWebPassword = serverLinkViewModel::setWebPassword,
+                )
+            }
         }
 
         composable(Screen.AssessmentCatalog.route) {
@@ -998,8 +1136,45 @@ fun ParkinsonNavGraph(
             val history by historyViewModel.all.collectAsState()
             AssessmentHistoryScreen(
                 history = history,
-                onOpen = { result -> navController.navigate(resultRouteFor(result)) }
+                onOpen = { result -> navController.navigate(resultRouteFor(result)) },
+                onOpenTrends = { navController.navigate(Screen.Trends.route) { launchSingleTop = true } },
             )
         }
+
+        composable(Screen.Trends.route) {
+            val stored by historyViewModel.stored.collectAsState()
+            TrendScreen(history = stored)
+        }
+
+        composable(Screen.MedicationCheckBeforeTests.route) {
+            MedicationCheckScreen { state ->
+                profileViewModel.recordMedication(state)
+                navController.navigate(Screen.AssessmentCatalog.route) {
+                    popUpTo(Screen.MedicationCheckBeforeTests.route) { inclusive = true }
+                }
+            }
+        }
+
+        composable(Screen.MedicationCheckChange.route) {
+            MedicationCheckScreen { state ->
+                profileViewModel.recordMedication(state)
+                navController.popBackStack()
+            }
+        }
+    }
+}
+
+/** While Home or the chat is shown: checks for a doctor's call and offers to answer it. */
+@Composable
+private fun RingWatcher(chatViewModel: ChatViewModel, onAnswered: () -> Unit) {
+    LaunchedEffect(chatViewModel) { chatViewModel.watchRings() }
+    val incoming by chatViewModel.incoming.collectAsState()
+    val scope = rememberCoroutineScope()
+    incoming?.let { call ->
+        IncomingCallDialog(
+            call,
+            onAnswer = { scope.launch { if (chatViewModel.answerIncoming()) onAnswered() } },
+            onDecline = chatViewModel::declineIncoming,
+        )
     }
 }

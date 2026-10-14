@@ -1,0 +1,9 @@
+.gradle
+/build
+.kotlin
+.env
+local-data/
+/tools/
+server-secrets.env
+server-data/
+backups/

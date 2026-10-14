@@ -18,6 +18,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import com.example.parkinson.MainActivity
 import com.example.parkinson.ParkinsonApplication
+import com.example.parkinson.medication.MedicationCheck
+import com.example.parkinson.medication.MedicationState
 import com.example.parkinson.profile.ProfileValidationTest
 import kotlinx.coroutines.runBlocking
 import com.example.parkinson.model.SelectedHand
@@ -53,10 +55,15 @@ class AppNavigationTest {
         rule.waitUntil(timeoutMillis = 10_000) { rule.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
     }
 
-    /** These walks start as a registered person; the first registration is covered by RegistrationFlowTest. */
+    /**
+     * These walks start as a registered person who already reported their medication state; the first registration
+     * is covered by RegistrationFlowTest and the medication question by MedicationCheckFlowTest.
+     */
     @Before
-    fun registered() = runBlocking {
-        (RuntimeEnvironment.getApplication() as ParkinsonApplication).profileRepository.save(ProfileValidationTest.sample())
+    fun registered() {
+        val app = RuntimeEnvironment.getApplication() as ParkinsonApplication
+        val id = runBlocking { app.profileRepository.save(ProfileValidationTest.sample()) }
+        app.medicationChecks.record(MedicationCheck(id, MedicationState.ON, System.currentTimeMillis()))
     }
 
     @Before
