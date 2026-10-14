@@ -32,6 +32,19 @@ fun main() {
     if (config.createDatabase) Database.createIfMissing(config.databaseUrl, config.databaseUser, config.databasePassword)
     val dataSource = Database.connect(config.databaseUrl, config.databaseUser, config.databasePassword)
     Database.migrate(dataSource)
+    config.restoreFrom?.let { file ->
+        try {
+            log.info("Restored {} tables from {}", Backups.restore(dataSource, java.nio.file.Path.of(file)), file)
+        } catch (e: IllegalArgumentException) {
+            // Typically RESTORE_FROM left set after the restore: the database is no longer empty. Nothing was changed.
+            log.warn("Backup not restored: {}", e.message)
+        }
+    }
+    config.backupDir?.let { dir ->
+        val backups = Backups(dataSource, java.nio.file.Path.of(dir), config.backupKeepDays, config.zone)
+        backups.startDaily()
+        log.info("Nightly backups at 03:00 into {} (kept {} days)", dir, config.backupKeepDays)
+    }
     val turn = config.turnPublicIp?.let { ip ->
         TurnServer(InetAddress.getByName(ip), config.turnPort, config.turnRelayPorts, config.turnSecret ?: turnSecretFrom(config.jwtSecret))
             .apply { start() }

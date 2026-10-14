@@ -28,6 +28,11 @@ data class Config(
     val turnSecret: String? = null,
     /** Where the clinic is: the times of day in prescriptions are read in this zone. */
     val zone: java.time.ZoneId = java.time.ZoneId.of("Asia/Tehran"),
+    /** Folder of the nightly backups; null turns them off. */
+    val backupDir: String? = null,
+    val backupKeepDays: Int = 14,
+    /** A backup zip to restore into a new, empty database on start. */
+    val restoreFrom: String? = null,
 ) {
     init {
         require(jwtSecret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
@@ -58,6 +63,9 @@ data class Config(
                 turnRelayPorts = env["TURN_RELAY_PORTS"]?.let(::portRange) ?: 49160..49200,
                 turnSecret = env["TURN_SECRET"]?.takeIf { it.isNotBlank() },
                 zone = env["CLINIC_TIME_ZONE"]?.takeIf { it.isNotBlank() }?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.of("Asia/Tehran"),
+                backupDir = env["BACKUP_DIR"]?.takeIf { it.isNotBlank() },
+                backupKeepDays = env["BACKUP_KEEP_DAYS"]?.toIntOrNull()?.coerceAtLeast(1) ?: 14,
+                restoreFrom = env["RESTORE_FROM"]?.takeIf { it.isNotBlank() },
             )
         }
     }

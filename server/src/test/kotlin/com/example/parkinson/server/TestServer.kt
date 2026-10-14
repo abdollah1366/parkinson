@@ -31,6 +31,9 @@ object TestDb {
         }
     }
 
+    /** The database the tests use now. */
+    fun current(): DataSource = dataSource
+
     /** An empty, migrated database. */
     fun fresh(): DataSource {
         dataSource.connection.use { c ->
