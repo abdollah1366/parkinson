@@ -193,6 +193,10 @@ private fun Route.doctorRoutes(services: Services) {
         if (!io { services.patients.isLinked(doctor.id, id) }) notFound()
         doctor.id to id
     }
+    get("/biofeedback/exercises") {
+        call.staff(Role.DOCTOR)
+        call.respond(BiofeedbackStore.library)
+    }
     post("/prescriptions/{prescriptionId}/stop") {
         val doctor = call.staff(Role.DOCTOR)
         val id = call.parameters["prescriptionId"]?.toLongOrNull() ?: notFound()
@@ -232,6 +236,9 @@ private fun Route.patientRoutes(services: Services) {
     }
     get("/prescriptions") {
         call.respond(io { services.prescriptions.ofPatient(call.patient(), activeOnly = true) })
+    }
+    get("/biofeedback") {
+        call.respond(io { services.biofeedback.sessions(call.patient(), null, 90) })
     }
     route("/doctors/{doctorId}") {
         conversationRoutes(services, fromDoctor = false) { patientConversation(services, patient()) }
@@ -293,6 +300,12 @@ private fun Route.deviceRoutes(services: Services) {
             val upload = call.receive<IntakesUpload>()
             if (upload.intakes.size > 500) badRequest("too_many")
             call.respond(mapOf("stored" to io { services.prescriptions.record(device.patientId, upload.intakes) }))
+        }
+        post("/biofeedback/sessions") {
+            val device = call.device()
+            val upload = call.receive<SessionsUpload>()
+            if (upload.sessions.size > 200) badRequest("too_many")
+            call.respond(mapOf("stored" to io { services.biofeedback.record(device.patientId, upload.sessions) }))
         }
         get("/calls") {
             call.respond(services.calls.ringingFor(call.device().patientId))

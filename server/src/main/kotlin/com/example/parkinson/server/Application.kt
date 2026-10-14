@@ -55,6 +55,7 @@ class Services(dataSource: DataSource, config: Config, turn: TurnServer? = null)
     val notes = NoteStore(db)
     val messages = MessageStore(db)
     val prescriptions = PrescriptionStore(db, config.zone)
+    val biofeedback = BiofeedbackStore(db)
     val tokens = JwtTokens(config.jwtSecret)
     val calls = CallHub(this, turn, config.turnPublicIp?.let { ip -> turnUrls(ip, config.turnPort) }.orEmpty())
 }

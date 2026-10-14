@@ -19,7 +19,19 @@ import java.time.format.DateTimeParseException
 // week) for a linked patient. The app reminds the patient and sends back each dose taken or missed and each exercise
 // done; the doctor sees how closely the plan was followed.
 
-enum class PrescriptionKind { MEDICATION, EXERCISE }
+enum class PrescriptionKind { MEDICATION, EXERCISE, BIOFEEDBACK }
+
+/**
+ * The biofeedback exercises the app has (app/.../biofeedback), by code, with their Persian names. [standing]: done
+ * standing up, so the app asks for support nearby before it starts.
+ */
+enum class BiofeedbackExercise(val title: String, val standing: Boolean = false) {
+    LOUD_VOICE("صدای بلند (آ کشیده با هدف بلندی)"),
+    BALANCE("تعادل ایستاده (نگه‌داشتن نقطه در دایره)", standing = true),
+    METRONOME_WALK("راه رفتن با مترونوم", standing = true),
+    MEMORY_SEQUENCE("حافظه‌ی ترتیب (تکرار خانه‌های روشن)"),
+    TAP_RHYTHM("ضربه‌ی منظم انگشت"),
+}
 
 @Serializable
 data class PrescriptionIn(
@@ -34,6 +46,9 @@ data class PrescriptionIn(
     /** yyyy-MM-dd; today when left out. */
     val startDate: String? = null,
     val endDate: String? = null,
+    /** Biofeedback only: a [BiofeedbackExercise] code and its level, 1 (easiest) to 3. */
+    val exercise: String? = null,
+    val level: Int? = null,
 )
 
 /** How closely a prescription was followed: doses (or exercises) due and done in the last 7 and 30 days. */
@@ -65,6 +80,8 @@ data class PrescriptionDto(
     val stoppedAtEpochMs: Long? = null,
     val active: Boolean,
     val adherence: AdherenceDto? = null,
+    val exercise: String? = null,
+    val level: Int? = null,
 )
 
 @Serializable
@@ -81,7 +98,10 @@ object PrescriptionRules {
 
     /** Checks and tidies what a doctor wrote; [today] is the clinic's date. */
     fun validate(p: PrescriptionIn, today: LocalDate): PrescriptionIn {
-        val name = p.name.trim().takeIf { it.length in 1..200 } ?: badRequest("invalid_name")
+        val defaultName = if (p.kind == PrescriptionKind.BIOFEEDBACK) {
+            (BiofeedbackExercise.entries.firstOrNull { it.name == p.exercise } ?: badRequest("invalid_exercise")).title
+        } else null
+        val name = (p.name.trim().ifEmpty { defaultName ?: "" }).takeIf { it.length in 1..200 } ?: badRequest("invalid_name")
         val dose = p.dose?.trim()?.takeIf { it.isNotEmpty() }?.also { if (it.length > 200) badRequest("invalid_dose") }
         val instructions = p.instructions?.trim()?.takeIf { it.isNotEmpty() }?.also { if (it.length > 1000) badRequest("invalid_instructions") }
         val start = p.startDate?.let(::date) ?: today
@@ -97,7 +117,14 @@ object PrescriptionRules {
             PrescriptionKind.EXERCISE -> {
                 val perWeek = p.perWeek?.takeIf { it in 1..21 } ?: badRequest("invalid_per_week")
                 p.copy(name = name, dose = dose, times = emptyList(), perWeek = perWeek, instructions = instructions,
-                    startDate = start.toString(), endDate = end?.toString())
+                    startDate = start.toString(), endDate = end?.toString(), exercise = null, level = null)
+            }
+            PrescriptionKind.BIOFEEDBACK -> {
+                val perWeek = p.perWeek?.takeIf { it in 1..21 } ?: badRequest("invalid_per_week")
+                val exercise = BiofeedbackExercise.entries.firstOrNull { it.name == p.exercise } ?: badRequest("invalid_exercise")
+                val level = p.level?.takeIf { it in 1..3 } ?: badRequest("invalid_level")
+                p.copy(name = name, dose = null, times = emptyList(), perWeek = perWeek, instructions = instructions,
+                    startDate = start.toString(), endDate = end?.toString(), exercise = exercise.name, level = level)
             }
         }
     }
@@ -142,11 +169,11 @@ class PrescriptionStore(private val db: Db, private val zone: ZoneId) {
         val id = db.tx {
             single(
                 """
-                INSERT INTO prescriptions (doctor_id, patient_id, kind, name, dose, times, per_week, instructions, start_date, end_date, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                INSERT INTO prescriptions (doctor_id, patient_id, kind, name, dose, times, per_week, instructions, start_date, end_date, created_at, exercise, level)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """.trimIndent(),
                 doctorId, patientId, p.kind.name, p.name, p.dose, p.times.takeIf { it.isNotEmpty() }?.joinToString(","),
-                p.perWeek, p.instructions, LocalDate.parse(p.startDate), p.endDate?.let(LocalDate::parse), now,
+                p.perWeek, p.instructions, LocalDate.parse(p.startDate), p.endDate?.let(LocalDate::parse), now, p.exercise, p.level,
             ) { it.getLong("id") }!!
         }
         return ofPatient(patientId, now = now).first { it.id == id }
@@ -243,7 +270,7 @@ class PrescriptionStore(private val db: Db, private val zone: ZoneId) {
                     lastDoneEpochMs = lastDone,
                 )
             }
-            PrescriptionKind.EXERCISE -> {
+            PrescriptionKind.EXERCISE, PrescriptionKind.BIOFEEDBACK -> {
                 // Due in proportion to the days the plan has been running, at most the whole week or month.
                 val running = { from: Instant ->
                     val begin = maxOf(from, r.created, r.start.atStartOfDay(zone).toInstant())
@@ -265,12 +292,13 @@ class PrescriptionStore(private val db: Db, private val zone: ZoneId) {
         val id: Long, val doctorId: Long, val doctorName: String, val kind: PrescriptionKind, val name: String,
         val dose: String?, val times: List<LocalTime>, val perWeek: Int?, val instructions: String?,
         val start: LocalDate, val end: LocalDate?, val created: Instant, val stopped: Instant?,
+        val exercise: String?, val level: Int?,
     ) {
         fun toDto(active: Boolean, adherence: AdherenceDto) = PrescriptionDto(
             id = id, doctorId = doctorId, doctorName = doctorName, kind = kind, name = name, dose = dose,
             times = times.map { it.toString() }, perWeek = perWeek, instructions = instructions,
             startDate = start.toString(), endDate = end?.toString(), createdAtEpochMs = created.toEpochMilli(),
-            stoppedAtEpochMs = stopped?.toEpochMilli(), active = active, adherence = adherence,
+            stoppedAtEpochMs = stopped?.toEpochMilli(), active = active, adherence = adherence, exercise = exercise, level = level,
         )
     }
 
@@ -288,6 +316,8 @@ class PrescriptionStore(private val db: Db, private val zone: ZoneId) {
         end = getObject("end_date", LocalDate::class.java),
         created = instant("created_at")!!,
         stopped = instant("stopped_at"),
+        exercise = getString("exercise"),
+        level = intOrNull("level"),
     )
 
     private fun ResultSet.toIntake() = IntakeDto(
@@ -313,5 +343,10 @@ fun Route.doctorPrescriptionRoutes(services: Services, doctorOf: suspend io.ktor
         val (doctorId, patientId) = call.doctorOf()
         val days = call.request.queryParameters["days"]?.toIntOrNull()?.coerceIn(1, 90) ?: 14
         call.respond(io { services.prescriptions.intakes(patientId, doctorId, days) })
+    }
+    get("/patients/{id}/biofeedback") {
+        val (doctorId, patientId) = call.doctorOf()
+        val days = call.request.queryParameters["days"]?.toIntOrNull()?.coerceIn(1, 365) ?: 60
+        call.respond(io { services.biofeedback.sessions(patientId, doctorId, days) })
     }
 }
