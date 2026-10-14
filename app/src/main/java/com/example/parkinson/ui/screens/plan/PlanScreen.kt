@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.parkinson.R
 import com.example.parkinson.plan.IntakeStatus
+import com.example.parkinson.plan.PlanKind
 import com.example.parkinson.plan.Prescription
 import com.example.parkinson.ui.format.PersianFormat
 import com.example.parkinson.ui.format.toPersianDigits
@@ -51,6 +52,8 @@ fun PlanScreen(
     state: PlanState,
     onMark: (DoseRow, IntakeStatus) -> Unit,
     onExerciseDone: (Prescription) -> Unit,
+    /** Opens a biofeedback exercise. */
+    onStartBiofeedback: (Prescription) -> Unit = {},
 ) {
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -93,7 +96,7 @@ fun PlanScreen(
         }
         if (state.exercises.isNotEmpty()) {
             Text(stringResource(R.string.plan_exercises), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            state.exercises.forEach { ExerciseCard(it, onExerciseDone) }
+            state.exercises.forEach { ExerciseCard(it, onExerciseDone, onStartBiofeedback) }
         }
     }
 }
@@ -129,16 +132,26 @@ private fun DoseCard(row: DoseRow, onMark: (DoseRow, IntakeStatus) -> Unit) {
 }
 
 @Composable
-private fun ExerciseCard(row: ExerciseRow, onDone: (Prescription) -> Unit) {
+private fun ExerciseCard(row: ExerciseRow, onDone: (Prescription) -> Unit, onStart: (Prescription) -> Unit) {
     val p = row.prescription
+    val biofeedback = p.kind == PlanKind.BIOFEEDBACK
     PlanCard {
-        Text(p.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text((if (biofeedback) "🎯 " else "") + p.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            stringResource(R.string.plan_exercise_line, (p.perWeek ?: 0).toPersianDigits(), row.doneLast7Days.toPersianDigits()),
+            if (biofeedback) stringResource(R.string.plan_bio_line, (p.level ?: 1).toPersianDigits(), (p.perWeek ?: 0).toPersianDigits(), row.doneLast7Days.toPersianDigits())
+            else stringResource(R.string.plan_exercise_line, (p.perWeek ?: 0).toPersianDigits(), row.doneLast7Days.toPersianDigits()),
             style = MaterialTheme.typography.bodyMedium
         )
         p.instructions?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        if (row.doneToday) {
+        row.lastScore?.let { Text(stringResource(R.string.plan_bio_last_score, it.toPersianDigits()), style = MaterialTheme.typography.bodyMedium) }
+        if (biofeedback) {
+            if (row.doneToday) {
+                Text(stringResource(R.string.plan_exercise_done_today), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            Button(onClick = { onStart(p) }) {
+                Text(stringResource(if (row.doneToday) R.string.plan_bio_again else R.string.plan_bio_start))
+            }
+        } else if (row.doneToday) {
             Text(stringResource(R.string.plan_exercise_done_today), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         } else {
             Button(onClick = { onDone(p) }) { Text(stringResource(R.string.plan_exercise_done)) }

@@ -80,7 +80,7 @@ object PlanSchedule {
     fun nextReminder(plan: List<Prescription>, afterMs: Long, zone: TimeZone): Long? {
         val until = afterMs + 2 * DAY_MS + 1
         val dose = plan.flatMap { doses(it, afterMs + 1, until, zone) }.minOfOrNull { it.atEpochMs }
-        val exercise = plan.filter { it.kind == PlanKind.EXERCISE }.flatMap { p ->
+        val exercise = plan.filter { it.weekly }.flatMap { p ->
             var day = startOfDay(afterMs, zone)
             (0..2).mapNotNull {
                 val t = at(day, EXERCISE_REMINDER_HOUR, 0, zone).takeIf { t -> t > afterMs && t >= p.createdAtEpochMs && runsOn(p, day, zone) }

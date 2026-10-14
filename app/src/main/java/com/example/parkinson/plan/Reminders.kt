@@ -96,7 +96,7 @@ object PlanReminders {
             if (PlanSchedule.isExerciseReminder(at, zone)) {
                 val today = PlanSchedule.startOfDay(at, zone)
                 val left = plan.prescriptions.filter { p ->
-                    p.kind == PlanKind.EXERCISE && PlanSchedule.runsOn(p, today, zone) &&
+                    p.weekly && PlanSchedule.runsOn(p, today, zone) &&
                         marks.values.none { it.prescriptionId == p.id && it.scheduledAtEpochMs >= today } &&
                         marks.values.count { it.prescriptionId == p.id && it.scheduledAtEpochMs >= at - 7 * PlanSchedule.DAY_MS } < (p.perWeek ?: 0)
                 }

@@ -38,6 +38,12 @@ private fun VoiceClip.raw(): Int = when (this) {
     VoiceClip.DUAL_START_92 -> R.raw.voice_dual_start_92
     VoiceClip.DUAL_START_91 -> R.raw.voice_dual_start_91
     VoiceClip.DUAL_STOP -> R.raw.voice_dual_stop
+    VoiceClip.BIO_NORMAL_VOICE -> R.raw.voice_bio_normal_voice
+    VoiceClip.BIO_LOUD -> R.raw.voice_bio_loud
+    VoiceClip.BIO_BALANCE -> R.raw.voice_bio_balance
+    VoiceClip.BIO_WALK -> R.raw.voice_bio_walk
+    VoiceClip.BIO_WATCH -> R.raw.voice_bio_watch
+    VoiceClip.BIO_LEFT_HAND -> R.raw.voice_bio_left_hand
 }
 
 /**

@@ -142,6 +142,10 @@ sealed class Screen(val route: String) {
     object Call : Screen("call")
     object Plan : Screen("plan")
 
+    object Biofeedback : Screen("biofeedback/{$ARG_PRESCRIPTION_ID}") {
+        fun createRoute(prescriptionId: Long) = "biofeedback/$prescriptionId"
+    }
+
     object DualTaskIntro : Screen("dual_task_intro")
     object DualTaskTest : Screen("dual_task_test")
 
@@ -157,5 +161,6 @@ sealed class Screen(val route: String) {
         const val ARG_ASSESSMENT_ID = "assessmentId"
         const val ARG_INVALID_KIND = "kind"
         const val ARG_ASSESSMENT_TYPE = "type"
+        const val ARG_PRESCRIPTION_ID = "prescriptionId"
     }
 }

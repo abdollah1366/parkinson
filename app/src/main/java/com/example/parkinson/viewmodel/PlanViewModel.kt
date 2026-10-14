@@ -9,7 +9,6 @@ import com.example.parkinson.ParkinsonApplication
 import com.example.parkinson.plan.Dose
 import com.example.parkinson.plan.Intake
 import com.example.parkinson.plan.IntakeStatus
-import com.example.parkinson.plan.PlanKind
 import com.example.parkinson.plan.PlanSchedule
 import com.example.parkinson.plan.PlanSync
 import com.example.parkinson.plan.Prescription
@@ -31,7 +30,13 @@ import java.util.TimeZone
 data class DoseRow(val dose: Dose, val status: IntakeStatus?)
 
 /** An exercise of the plan and how often it was done. */
-data class ExerciseRow(val prescription: Prescription, val doneLast7Days: Int, val doneToday: Boolean)
+data class ExerciseRow(
+    val prescription: Prescription,
+    val doneLast7Days: Int,
+    val doneToday: Boolean,
+    /** Biofeedback: the score of the last session (0-100). */
+    val lastScore: Int? = null,
+)
 
 /** The active person's plan for today. */
 data class PlanState(
@@ -78,9 +83,13 @@ class PlanViewModel(
         val doses = PlanSchedule.dosesOfDay(plan, now, tz).map { d ->
             DoseRow(d, marks[Intake(d.prescription.id, d.atEpochMs, IntakeStatus.TAKEN).key]?.status)
         }
-        val exercises = plan.filter { it.kind == PlanKind.EXERCISE && PlanSchedule.runsOn(it, today, tz) }.map { p ->
+        val sessions = sync.store.sessions(profile.id)
+        val exercises = plan.filter { it.weekly && PlanSchedule.runsOn(it, today, tz) }.map { p ->
             val done = marks.values.filter { it.prescriptionId == p.id && it.status == IntakeStatus.DONE }
-            ExerciseRow(p, done.count { it.scheduledAtEpochMs >= now - 7 * PlanSchedule.DAY_MS }, done.any { it.scheduledAtEpochMs >= today })
+            ExerciseRow(
+                p, done.count { it.scheduledAtEpochMs >= now - 7 * PlanSchedule.DAY_MS }, done.any { it.scheduledAtEpochMs >= today },
+                lastScore = sessions.firstOrNull { it.prescriptionId == p.id }?.score,
+            )
         }
         return PlanState(
             personName = profile.firstName,

@@ -1,6 +1,7 @@
 package com.example.parkinson.plan
 
 import android.content.Context
+import com.example.parkinson.biofeedback.BioSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +37,16 @@ interface PlanStore {
 
     /** The server has [sent]: drop them from the queue (unless marked again since). */
     fun sent(profileId: Int, sent: List<Intake>)
+
+    /** Keeps a biofeedback session (the recent ones are shown again) and queues it for the server. */
+    fun addSession(profileId: Int, session: BioSession)
+
+    /** The person's sessions of the last weeks, newest first. */
+    fun sessions(profileId: Int): List<BioSession>
+
+    fun pendingSessions(profileId: Int): List<BioSession>
+
+    fun sessionsSent(profileId: Int, sent: List<BioSession>)
 }
 
 /** Marks older than this are dropped from the phone; the server keeps them. */
@@ -47,6 +58,8 @@ class InMemoryPlanStore(private val clock: () -> Long = System::currentTimeMilli
     private val plans = mutableMapOf<Int, SavedPlan>()
     private val marks = mutableMapOf<Int, Map<String, Intake>>()
     private val pending = mutableMapOf<Int, Map<String, Intake>>()
+    private val sessions = mutableMapOf<Int, List<BioSession>>()
+    private val pendingSessions = mutableMapOf<Int, Map<String, BioSession>>()
 
     @Synchronized override fun plans(): Map<Int, SavedPlan> = plans.toMap()
 
@@ -57,6 +70,7 @@ class InMemoryPlanStore(private val clock: () -> Long = System::currentTimeMilli
 
     @Synchronized override fun remove(profileId: Int) {
         plans.remove(profileId); marks.remove(profileId); pending.remove(profileId)
+        sessions.remove(profileId); pendingSessions.remove(profileId)
         _version.update { it + 1 }
     }
 
@@ -73,6 +87,23 @@ class InMemoryPlanStore(private val clock: () -> Long = System::currentTimeMilli
 
     @Synchronized override fun sent(profileId: Int, sent: List<Intake>) {
         pending[profileId] = pending[profileId].orEmpty().filter { (key, i) -> sent.none { it.key == key && it == i } }
+        _version.update { it + 1 }
+    }
+
+    @Synchronized override fun addSession(profileId: Int, session: BioSession) {
+        val old = clock() - KEEP_MS
+        sessions[profileId] = (listOf(session) + sessions(profileId).filter { it.key != session.key })
+            .filter { it.startedAtEpochMs >= old }.sortedByDescending { it.startedAtEpochMs }
+        pendingSessions[profileId] = pendingSessions[profileId].orEmpty() + (session.key to session)
+        _version.update { it + 1 }
+    }
+
+    @Synchronized override fun sessions(profileId: Int): List<BioSession> = sessions[profileId].orEmpty()
+
+    @Synchronized override fun pendingSessions(profileId: Int): List<BioSession> = pendingSessions[profileId].orEmpty().values.toList()
+
+    @Synchronized override fun sessionsSent(profileId: Int, sent: List<BioSession>) {
+        pendingSessions[profileId] = pendingSessions[profileId].orEmpty().filter { (_, s) -> s !in sent }
         _version.update { it + 1 }
     }
 }
@@ -98,7 +129,8 @@ class PrefsPlanStore(context: Context, private val clock: () -> Long = System::c
     }
 
     @Synchronized override fun remove(profileId: Int) {
-        prefs.edit().remove(PLAN + profileId).remove(MARKS + profileId).remove(PENDING + profileId).apply()
+        prefs.edit().remove(PLAN + profileId).remove(MARKS + profileId).remove(PENDING + profileId)
+            .remove(SESSIONS + profileId).remove(PENDING_SESSIONS + profileId).apply()
         _version.update { it + 1 }
     }
 
@@ -120,6 +152,29 @@ class PrefsPlanStore(context: Context, private val clock: () -> Long = System::c
         _version.update { it + 1 }
     }
 
+    @Synchronized override fun addSession(profileId: Int, session: BioSession) {
+        val old = clock() - KEEP_MS
+        val all = (listOf(session) + sessions(profileId).filter { it.key != session.key })
+            .filter { it.startedAtEpochMs >= old }.sortedByDescending { it.startedAtEpochMs }
+        val pending = pendingSessions(profileId).filter { it.key != session.key } + session
+        prefs.edit().putString(SESSIONS + profileId, PlanJson.sessions(all).toString())
+            .putString(PENDING_SESSIONS + profileId, PlanJson.sessions(pending).toString()).apply()
+        _version.update { it + 1 }
+    }
+
+    @Synchronized override fun sessions(profileId: Int): List<BioSession> = readSessions(SESSIONS + profileId)
+
+    @Synchronized override fun pendingSessions(profileId: Int): List<BioSession> = readSessions(PENDING_SESSIONS + profileId)
+
+    @Synchronized override fun sessionsSent(profileId: Int, sent: List<BioSession>) {
+        val left = pendingSessions(profileId).filter { it !in sent }
+        prefs.edit().putString(PENDING_SESSIONS + profileId, PlanJson.sessions(left).toString()).apply()
+        _version.update { it + 1 }
+    }
+
+    private fun readSessions(key: String): List<BioSession> =
+        runCatching { PlanJson.parseSessions(JSONArray(prefs.getString(key, "[]"))) }.getOrDefault(emptyList())
+
     private fun read(key: String): Map<String, Intake> = runCatching {
         PlanJson.parseIntakes(JSONArray(prefs.getString(key, "[]"))).associateBy { it.key }
     }.getOrDefault(emptyMap())
@@ -131,5 +186,7 @@ class PrefsPlanStore(context: Context, private val clock: () -> Long = System::c
         const val PLAN = "plan_"
         const val MARKS = "marks_"
         const val PENDING = "pending_"
+        const val SESSIONS = "sessions_"
+        const val PENDING_SESSIONS = "pending_sessions_"
     }
 }

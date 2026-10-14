@@ -1,5 +1,6 @@
 package com.example.parkinson.plan
 
+import com.example.parkinson.biofeedback.BioSession
 import com.example.parkinson.sync.ServerException
 import com.example.parkinson.sync.ServerLink
 import kotlinx.coroutines.CancellationException
@@ -62,9 +63,36 @@ class PlanSync(
         }
     }
 
-    /** Sends the person's unsent marks. */
+    /**
+     * Keeps a finished (or stopped) biofeedback session and tries to send it; a completed one also counts as the
+     * exercise done today. False when it is waiting to be sent.
+     */
+    suspend fun recordSession(profileId: Int, session: BioSession): Boolean {
+        store.addSession(profileId, session)
+        if (session.completed) store.mark(profileId, Intake(session.prescriptionId, session.startedAtEpochMs, IntakeStatus.DONE))
+        val link = links.value[profileId] ?: return false
+        return try {
+            flush(profileId, link)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Sends the person's unsent marks and sessions. */
     suspend fun flush(profileId: Int, link: ServerLink? = links.value[profileId]) {
         if (link == null) return
+        val sessions = store.pendingSessions(profileId)
+        try {
+            sessions.chunked(MAX_BATCH).forEach { batch ->
+                api.sendSessions(link.serverUrl, link.token, batch)
+                store.sessionsSent(profileId, batch)
+            }
+        } catch (e: ServerException) {
+            if (e.httpStatus == 400) store.sessionsSent(profileId, sessions) else throw e
+        }
         val pending = store.pending(profileId)
         if (pending.isEmpty()) return
         try {
@@ -79,7 +107,7 @@ class PlanSync(
     }
 
     private fun forget(profileId: Int) {
-        if (profileId in store.plans() || store.pending(profileId).isNotEmpty()) {
+        if (profileId in store.plans() || store.pending(profileId).isNotEmpty() || store.pendingSessions(profileId).isNotEmpty()) {
             store.remove(profileId)
             onPlansChanged()
         }

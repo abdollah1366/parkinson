@@ -1,5 +1,6 @@
 package com.example.parkinson.plan
 
+import com.example.parkinson.biofeedback.BioSession
 import com.example.parkinson.sync.ServerException
 import com.example.parkinson.sync.ServerLink
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,7 @@ class PlanSyncTest {
         var offline = false
         var revoked = false
         val recorded = mutableListOf<Intake>()
+        val sessions = mutableListOf<BioSession>()
 
         private fun check() {
             if (revoked) throw ServerException(ServerException.UNAUTHORIZED, 401)
@@ -29,6 +31,11 @@ class PlanSyncTest {
         override suspend fun record(serverUrl: String, token: String, intakes: List<Intake>) {
             check()
             recorded += intakes
+        }
+
+        override suspend fun sendSessions(serverUrl: String, token: String, sessions: List<BioSession>) {
+            check()
+            this.sessions += sessions
         }
     }
 
@@ -56,6 +63,25 @@ class PlanSyncTest {
         assertEquals(listOf(Intake(5, 1000, IntakeStatus.MISSED)), api.recorded)
         assertTrue(store.pending(1).isEmpty())
         assertTrue(sync.mark(1, Intake(5, 2000, IntakeStatus.TAKEN)))
+    }
+
+    @Test
+    fun aBiofeedbackSessionIsKeptSentAndCountsAsDone() = runTest {
+        api.offline = true
+        val session = BioSession(7, 5000, 60_000, 72, completed = true, metrics = mapOf("insidePercent" to 72.0))
+        assertFalse(sync.recordSession(1, session))
+        assertEquals(listOf(session), store.sessions(1))
+        assertEquals(IntakeStatus.DONE, store.marks(1)["7@5000"]!!.status)
+
+        api.offline = false
+        sync.flush(1)
+        assertEquals(listOf(session), api.sessions)
+        assertTrue(store.pendingSessions(1).isEmpty())
+        assertEquals(listOf(Intake(7, 5000, IntakeStatus.DONE)), api.recorded)
+        // Stopped early: kept, sent, but not counted as done.
+        assertTrue(sync.recordSession(1, session.copy(startedAtEpochMs = 9000, completed = false)))
+        assertEquals(null, store.marks(1)["7@9000"])
+        assertEquals(2, store.sessions(1).size)
     }
 
     @Test
